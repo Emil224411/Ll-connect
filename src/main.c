@@ -8,11 +8,11 @@
 
 libusb_device_handle *hub;
 
-//returns 0 if it is the fan hub
 int isFanHub(libusb_device *dev)
 {
 	struct libusb_device_descriptor dsc = {0};
 	int err = 0;
+
 	err = libusb_get_device_descriptor(dev, &dsc);
 	if (err) {
 		printf("libusb_get_device_descriptor failed err: %s\n", libusb_error_name(err));
@@ -25,24 +25,26 @@ int isFanHub(libusb_device *dev)
 
 int init()
 {
+	int err = 0;
+	ssize_t count;
+	libusb_device **list;
+	libusb_device *found = NULL;
 
-	int err = libusb_init(NULL);
+	err = libusb_init(NULL);
 	if (err) {
 		printf("libusb_init failed err: %s\n", libusb_error_name(err));
 		return 1;
 	}
-	libusb_device **list;
-	libusb_device *found = NULL;
-	ssize_t cnt = libusb_get_device_list(NULL, &list);
-	ssize_t i = 0;
-	if (cnt > 0) {
-		for (i = 0; i < cnt; i++) {
-			libusb_device *device = list[i];
-			if (isFanHub(device)) {
-				found = device;
+	
+	count = libusb_get_device_list(NULL, &list);
+	if (count > 0) {
+		for (ssize_t i = 0; i < count; i++) {
+			if (isFanHub(list[i])) {
+				found = list[i];
 				break;
 			}
 		}
+
 		if (found) {
 			err = libusb_open(found, &hub);
 			if (err) printf("libusb_open failed err: %s\n", libusb_error_name(err));
@@ -67,9 +69,9 @@ int shutdown()
 	libusb_exit(NULL);
 	return 0;
 }
+
 int setOuterColor(int r, int g, int b, int port, int fanCount)
 {
-	int err = 0;
 	int datalen = 353;
 	unsigned char data[4][353] = { { 0xe0, 0x10, 0x60, port, fanCount }, { 0xe0, 0x2f + (port * 2) }, 
 								   { 0xe0, 0x0e + (port * 2), 0x01, 0x02 }, { 0xe0, 0x0f + (port * 2), 0x01, 0x02 } };
@@ -79,17 +81,14 @@ int setOuterColor(int r, int g, int b, int port, int fanCount)
 		data[1][i + 2] = g;
 	}
 	for (int i = 0; i < 4; i++) {
-		err = libusb_control_transfer(hub, 0x21, 0x09, 0x02e0, 1, data[i], 353, 1000);
-		printf("send %d\n", i);
-		if (err != datalen) printf("sending %d failed err: %s\n", i, libusb_error_name(err));
+		int ret = libusb_control_transfer(hub, 0x21, 0x09, 0x02e0, 1, data[i], datalen, 1000);
+		if (ret != datalen) printf("sending %d failed err: %s\n", i, libusb_error_name(ret));
 	}
 	return 0;
-
-
 }
+
 int setInnerColor(int r, int g, int b, int port, int fanCount)
 {
-	int err = 0;
 	int datalen = 353;
 	unsigned char data[4][353] = { { 0xe0, 0x10, 0x60, port, fanCount }, { 0xe0, 0x2e + (port * 2) },
 								   { 0xe0, 0x0e + (port * 2), 0x01, 0x02 }, { 0xe0, 0x0f + (port * 2), 0x01, 0x02 } };
@@ -99,13 +98,13 @@ int setInnerColor(int r, int g, int b, int port, int fanCount)
 		data[1][i + 2] = g;
 	}
 	for (int i = 0; i < 3; i++) {
-		err = libusb_control_transfer(hub, 0x21, 0x09, 0x02e0, 1, data[i], datalen, 1000);
-		if (err != datalen) printf("sending %d failed err: %s\n", i, libusb_error_name(err));
+		int ret = libusb_control_transfer(hub, 0x21, 0x09, 0x02e0, 1, data[i], datalen, 1000);
+		if (ret != datalen) printf("sending %d failed err: %s\n", i, libusb_error_name(ret));
 	}
-	//TODO: put in a for loop and make a struct for data.
 	return 0;
 
 }
+
 typedef struct fans {
 	int curentSpeed[4];
 } fans;
@@ -113,15 +112,14 @@ int setSpeed(unsigned int speed, int port)
 {
 	fans Fans;
 	Fans.curentSpeed[port] = (speed > 100) ? 100 : speed;
-	int err = 0;
 	int datalen = 353;
 
 	unsigned char data[5][353] = { { 0xe0, 0x50 }, { 0xe0, 0x20, 0x00, Fans.curentSpeed[0]}, 
 								{ 0xe0, 0x21, 0x00, Fans.curentSpeed[1] }, { 0xe0, 0x22, 0x00, Fans.curentSpeed[2] }, { 0xe0, 0x23, 0x00, Fans.curentSpeed[3] } };
 
 	for (int i = 0; i < 5; i++) {
-		err = libusb_control_transfer(hub, 0x21, 0x09, 0x02e0, 1, data[i], datalen, 1000);
-		if (err != datalen) printf("sending %d failed err: %s\n", i, libusb_error_name(err));
+		int ret = libusb_control_transfer(hub, 0x21, 0x09, 0x02e0, 1, data[i], datalen, 1000);
+		if (ret != datalen) printf("sending %d failed err: %s\n", i, libusb_error_name(ret));
 	}
 	return 0;
 }
@@ -134,7 +132,6 @@ int main()
 		shutdown();
 		return 1;
 	}
-
 	unsigned char data[4][353] = { { 0xe0, 0x10, 0x60, 0x01, 0x04 }, { 0xe0, 0x30 }, { 0xe0, 0x31 }, { 0xe0, 0x11, 0x04, 0xff } };
 
 	libusb_control_transfer(hub, 0x21, 0x09, 0x02e0, 1, data[0], 353, 1000);
