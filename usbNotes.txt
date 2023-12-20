@@ -1,0 +1,127 @@
+port 1
+0020   XX XX XX XX e0 10 60 01 04 00 00 00 00 00 00 00   ..a...`.........
+0170   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   ................
+0180   00 00 00 00 00                                    .....
+
+port 2
+0020   XX XX XX XX e0 10 60 02 03 00 00 00 00 00 00 00   ..a...`.........
+0170   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   ................
+0180   00 00 00 00 00                                    .....
+
+
+port 3 				  funtion set fan color
+0020   XX XX XX XX e0 10 60 03 01 00 00 00 00 00 00 00   ..a...`.........
+0170   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   ................
+0180   00 00 00 00 00                                    .....
+
+port 4 						port num fan amount
+0020   XX XX XX XX e0 10 60 04 01 00 00 00 00 00 00 00   ..a...`.........
+0170   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   ................
+0180   00 00 00 00 00                                    .....
+
+brightnes:
+	0%   = 08
+	25%  = 03
+	50%  = 02
+	100% = 00
+speed:
+	0%   = 02 
+	50%  = 00 
+	75%  = ff   
+	100% = fe
+direction:
+	01 = backward
+	00 = forward 
+set rgb mode:
+	e0 10 60 port fannum 
+
+	e0 30 XX XX XX(rbg hex) * 32...
+	e0 31 XX XX XX(rbg hex) * 48...
+
+	e0 11(outer) 04(mode) ff(speed) 0X(1|0direction) 0X(brightnes)
+	e0 10(inner) 04(mode) ff(speed) 0X(1|0direction) 0X(brightnes)
+	
+	e0 13(outer) 04(mode) ff(speed) 0X(1|0direction) 0X(brightnes)
+	e0 12(inner) 04(mode) ff(speed) 0X(1|0direction) 0X(brightnes)
+
+	e0 15(outer) 04(mode) ff(speed) 0X(1|0direction) 0X(brightnes)
+	e0 14(inner) 04(mode) ff(speed) 0X(1|0direction) 0X(brightnes)
+
+	e0 17(outer) 04(mode) ff(speed) 0X(1|0direction) 0X(brightnes)
+	e0 16(inner) 04(mode) ff(speed) 0X(1|0direction) 0X(brightnes)
+
+
+modes:
+TODO: check if color modes are the same for outer and inner they are proply not since some numbers are missing
+	01 = Static Color     inner and outer
+	02 = Breathing        inner and/or outer
+	04 = Rainbow Morph    inner and outer
+	05 = Rainbow          inner or outer
+	08 = Meteor Rainbow   inner or outer 
+	18 = Color Cycle 	  inner or outer
+	19 = Meteor           inner and/or outer
+	1a = Runway           inner and/or outer (no merge)
+	1b = Mop up           inner or outer 
+	1d = Lottery 		  inner or outer
+	1e = Wave 			  inner or outer
+	1f = spring 		  inner or outer
+	20 = Tail Chasing 	  inner or outer
+	21 = Warning 		  inner or outer
+	22 = Voice 			  inner or outer
+	23 = Mixing 		  inner or outer
+	24 = Stack 			  inner or outer 
+	25 = Tide 			  inner or outer
+	26 = Scan 			  inner or outer
+	27 = Pac-Man 		  inner
+	28 = Colorful City 	  inner or outer
+	29 = Render 		  inner or outer
+	2a = Twinkle 		  inner or outer
+	2b = Rainbow          inner and outer
+	2e = Color Cycle      inner and outer
+	2f = Taichi           inner and outer
+	30 = Warning 	      inner and outer
+	31 = Voice 		      inner and outer
+	32 = Mixing 		  inner and outer (no merge)
+	33 = Tide 			  inner and outer (no merge)
+	34 = Scan 			  inner and outer (no merge)
+	35 = Contest 		  inner and outer (no merge)
+	38 = Colorful City 	  inner and outer
+	39 = Render 		  inner and outer
+	3a = Twinkle 		  inner and outer
+	3b = Wave             inner and outer (no merge)
+	3c = Spring           inner and outer (no merge)
+	3d = Tail Chasing     inner and outer (no merge)
+	3e = Mop up           inner and outer (no merge)
+	3f = Tornado 		  inner and outer
+	40 = Staggered 		  inner and outer
+	41 = Spanning Teacups inner and outer
+	42 = Electric Current inner and outer (no merge)
+	43 = Stack 			  inner and outer
+
+
+
+funtions:
+
+e0 50 = set fan speed
+ 
+0000   00 c6 91 31 81 88 ff ff 53 02 80 06 01 00 00 3c   ...1....S......<
+0010   7b 12 83 65 00 00 00 00 c6 ed 07 00 8d ff ff ff   {..e............
+0020   41 00 00 00 00 00 00 00 a1 01 e0 01 01 00 41 00   A.............A.
+0030   00 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00   ................
+
+   starts at 20 goes up to 23
+e0 2X 						  fan speed
+							  00 XX
+
+e0 10 60 XX XX = set rgb XX XX first is port second is fan amount
+
+352 bytes
+e0 30 inner 32 r, g, b(96 bytes) values and rest(256 bytes) should be 0's
+
+0040   e0 11 01 02 00 00 00 00 00 00 00 00 00 00 00 00   ................
+0180   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   ................
+0190   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   ................
+01a0   00                                                .
+
+
+e0 31 outer
