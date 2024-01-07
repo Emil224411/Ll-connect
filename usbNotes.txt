@@ -19,6 +19,29 @@ port 4 						port num fan amount
 0170   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   ................
 0180   00 00 00 00 00                                    .....
 
+
+set fan speed:
+	e0 50... 
+send:(asking for status/current speed of each port i think)
+	40 68 3b c2 81 88 ff ff 53 02 80 06 01 00 00 3c
+	fe d8 9a 65 00 00 00 00 a0 d8 08 00 8d ff ff ff
+	41 00 00 00 00 00 00 00 a1 01 e0 01 01 00 41 00
+	00 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00
+response:(current speed in rpm i think)
+	c0 63 3b c2 81 88 ff ff 43 02 80 06 01 00 2d 00
+	bc da 9a 65 00 00 00 00 e3 f9 08 00 00 00 00 00
+	41 00 00 00 41 00 00 00 00 00 00 00 00 00 00 00
+	00 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00
+	e0 f0 03 b1 03 b1 03 b1 00 00 00 00 00 00 00 00
+	00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+	00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+	00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+	00
+
+
+	e0 20 00 64(max speed ca 2000 rpm)
+	e0 20 00 0c(min speed ca 250  rpm)
+
 brightnes:
 	0%   = 08
 	25%  = 03
@@ -49,6 +72,13 @@ set rgb mode:
 
 	e0 17(outer) 04(mode) ff(speed) 0X(1|0direction) 0X(brightnes)
 	e0 16(inner) 04(mode) ff(speed) 0X(1|0direction) 0X(brightnes)
+set merge rgb mode:
+	e0 10 60 1 XX
+	e0 10 60 2 XX
+	e0 10 60 3 XX
+	e0 10 60 4 XX
+
+	e0 10 XX(mode) XX(speed) 0X(1|0direction) 0X(brightnes)
 
 
 modes:
@@ -57,11 +87,13 @@ TODO: check if color modes are the same for outer and inner they are proply not 
 	02 = Breathing        inner and/or outer
 	04 = Rainbow Morph    inner and outer
 	05 = Rainbow          inner or outer
+	06 = BreathingRainbow outer
 	08 = Meteor Rainbow   inner or outer 
-	18 = Color Cycle 	  inner or outer
+	18 = Color Cycle 	  inner 
 	19 = Meteor           inner and/or outer
 	1a = Runway           inner and/or outer (no merge)
 	1b = Mop up           inner or outer 
+	1c = Color Cycle 	  outer
 	1d = Lottery 		  inner or outer
 	1e = Wave 			  inner or outer
 	1f = spring 		  inner or outer
@@ -97,6 +129,18 @@ TODO: check if color modes are the same for outer and inner they are proply not 
 	41 = Spanning Teacups inner and outer
 	42 = Electric Current inner and outer (no merge)
 	43 = Stack 			  inner and outer
+	44 = Scan 			  inner and outer (merge)
+	46 = Runway 		  inner and outer (merge)
+	45 = Contest 		  inner and outer (merge)
+	47 = Mixing 		  inner and outer (merge)
+	48 = Tide 			  inner and outer (merge)
+	49 = Wave 			  inner and outer (merge)
+	4a = Tail Chasing 	  inner and outer (merge)
+	4b = Spring 		  inner and outer (merge)
+	4c = Mop up 		  inner and outer (merge)
+	4f = Electric Current inner and outer (merge)
+
+
 
 
 
@@ -110,8 +154,7 @@ e0 50 = set fan speed
 0030   00 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00   ................
 
    starts at 20 goes up to 23
-e0 2X 						  fan speed
-							  00 XX
+e0 2X 00 XX (speed)
 
 e0 10 60 XX XX = set rgb XX XX first is port second is fan amount
 

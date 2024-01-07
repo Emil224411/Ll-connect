@@ -54,12 +54,13 @@ int initController()
 	return err;
 }
 
-int shutdownController()
+void shutdownController()
 {
-	libusb_release_interface(hub, 0x01);
-	libusb_close(hub);
+	if (hub != NULL) {
+		libusb_release_interface(hub, 0x01);
+		libusb_close(hub);
+	}
 	libusb_exit(NULL);
-	return 0;
 }
 
 int setOuterColor(int r, int g, int b, int port, int fanCount)

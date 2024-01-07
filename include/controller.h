@@ -14,7 +14,7 @@ libusb_device_handle *hub;
 
 int isFanHub(libusb_device *dev);
 int initController();
-int shutdownController();
+void shutdownController();
 int setOuterColor(int r, int g, int b, int port, int fanCount);
 int setInnerColor(int r, int g, int b, int port, int fanCount);
 int setSpeed(unsigned int speed, int port);

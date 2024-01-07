@@ -15,13 +15,13 @@ LIB := $(patsubst $(SRC_DIR)/%.c, $(LIB_DIR)/lib%.so,$(SRC))
 all: $(TARGET)
 
 $(TARGET): $(LIB) $(MAIN)
-	gcc -g -L$(LIB_DIR) -Wl,-rpath,'$$ORIGIN/../$(LIB_DIR)' -lui -lcontroller -o bin/run src/main.c -I$(INC_DIR)
+	gcc -g -L$(LIB_DIR) -Wl,-rpath,'$$ORIGIN/../$(LIB_DIR)' -lui -lcontroller -lSDL2 -o bin/run src/main.c -I$(INC_DIR)
 
 $(LIB_DIR)/lib%.so: $(OBJ_DIR)/%.o
-	$(CC) -shared -o $@ $< -lusb-1.0 -lSDL2 
+	$(CC) -g -shared -o $@ $< -lusb-1.0 -lSDL2 -lSDL2_ttf
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
-	$(CC) -c -fPIC $< -o $@
+	$(CC) -g -c -fPIC $< -o $@
 
 clean:
 	rm -rf $(OBJ_DIR)/* $(LIB) $(TARGET)
