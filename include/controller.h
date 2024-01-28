@@ -1,5 +1,7 @@
 #ifndef CONTROLLER_H
 #define CONTROLLER_H
+#include <linux/module.h>
+#include <linux/init.h>
 #include <libusb-1.0/libusb.h>
 #include <stdio.h>
 
@@ -15,6 +17,7 @@ libusb_device_handle *hub;
 int isFanHub(libusb_device *dev);
 int initController();
 void shutdownController();
+void getCurrentSpeed();
 int setOuterColor(int r, int g, int b, int port, int fanCount);
 int setInnerColor(int r, int g, int b, int port, int fanCount);
 int setSpeed(unsigned int speed, int port);

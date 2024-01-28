@@ -22,21 +22,15 @@ port 4 						port num fan amount
 
 set fan speed:
 	e0 50... 
-send:(asking for status/current speed of each port i think)
+send:(asking for status/current speed of each port)
+	look in src/controller.c void getCurrentSpeed()
 	40 68 3b c2 81 88 ff ff 53 02 80 06 01 00 00 3c
 	fe d8 9a 65 00 00 00 00 a0 d8 08 00 8d ff ff ff
 	41 00 00 00 00 00 00 00 a1 01 e0 01 01 00 41 00
 	00 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00
-response:(current speed in rpm i think)
-	c0 63 3b c2 81 88 ff ff 43 02 80 06 01 00 2d 00
-	bc da 9a 65 00 00 00 00 e3 f9 08 00 00 00 00 00
-	41 00 00 00 41 00 00 00 00 00 00 00 00 00 00 00
+response:(current speed in rpm)
 	00 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00
 	e0 f0 03 b1 03 b1 03 b1 00 00 00 00 00 00 00 00
-	00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-	00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-	00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-	00
 
 
 	e0 20 00 64(max speed ca 2000 rpm)

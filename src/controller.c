@@ -80,6 +80,14 @@ int setOuterColor(int r, int g, int b, int port, int fanCount)
 	return 0;
 }
 
+//buffer should be 65 in size
+void getCurrentSpeed(unsigned char *buffer)
+{
+	int ret = libusb_control_transfer(hub, 0xa1, 0x01, 0x01e0, 0x80, 0, 0, 1000);
+	unsigned char response[65];
+	ret = libusb_control_transfer(hub, 0xa1, 0x01, 0x01e0, 1, response, sizeof(response), 1000);
+}
+
 int setInnerColor(int r, int g, int b, int port, int fanCount)
 {
 	int datalen = 353;
@@ -100,16 +108,13 @@ int setInnerColor(int r, int g, int b, int port, int fanCount)
 
 int setSpeed(unsigned int speed, int port)
 {
-	fans Fans;
-	Fans.curentSpeed[port] = (speed > 100) ? 100 : speed;
-	int datalen = 353;
+	speed = (speed < 0x0c) ? 0x0c : (speed > 0x64) ? 0x64 : speed;
+	unsigned char data[2][353] = { { 0xe0, 0x50 }, { 0xe0, 0x1f+port, 0x00, speed} };
 
-	unsigned char data[5][353] = { { 0xe0, 0x50 }, { 0xe0, 0x20, 0x00, Fans.curentSpeed[0]}, 
-								{ 0xe0, 0x21, 0x00, Fans.curentSpeed[1] }, { 0xe0, 0x22, 0x00, Fans.curentSpeed[2] }, { 0xe0, 0x23, 0x00, Fans.curentSpeed[3] } };
+	int ret = libusb_control_transfer(hub, 0x21, 0x09, 0x02e0, 1, data[0], sizeof(data[0]), 1000);
+	if (ret != sizeof(data[0])) printf("setSpeed sending header failed err: %s\n", libusb_error_name(ret));
+	ret     = libusb_control_transfer(hub, 0x21, 0x09, 0x02e0, 1, data[1], sizeof(data[1]), 1000);
+	if (ret != sizeof(data[1])) printf("setSpeed sending speed failed err: %s\n", libusb_error_name(ret));
 
-	for (int i = 0; i < 5; i++) {
-		int ret = libusb_control_transfer(hub, 0x21, 0x09, 0x02e0, 1, data[i], datalen, 1000);
-		if (ret != datalen) printf("sending %d failed err: %s\n", i, libusb_error_name(ret));
-	}
 	return 0;
 }

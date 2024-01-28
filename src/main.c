@@ -19,7 +19,14 @@ void configMenuButton()
 }
 
 void updatetemp(text *cput, SDL_Rect *pos) {
-	
+	FILE *fcpu = fopen("/sys/class/thermal/thermal_zone0/temp", "r");
+	int icputemp;
+	fscanf(fcpu, "%d", &icputemp);
+	float cputemp = icputemp/1000.0;
+	char str[10];
+	sprintf(str, "%.2f", cputemp); 
+	changeText(cput, str, pos, &white, font);
+	fclose(fcpu);
 
 }
 
@@ -64,7 +71,10 @@ int main()
 	unsigned int b2 = SDL_GetTicks();
 	double delta = 0;
 	double delta2 = 0;
-
+	getCurrentSpeed();
+	setSpeed(40, 1);
+	setSpeed(35, 2);
+	setSpeed(45, 3);
 	while (running) {
 		a = SDL_GetTicks();
 		delta = a - b;
@@ -75,14 +85,7 @@ int main()
 		}
 		if (delta2 > 2000) {
 			b2 = a;
-			FILE *fcpu = fopen("/sys/class/thermal/thermal_zone0/temp", "r");
-			int icputemp;
-			fscanf(fcpu, "%d", &icputemp);
-			float cputemp = icputemp/1000.0;
-			char str[10];
-			sprintf(str, "%.2f", cputemp); 
-			changeText(mcputemptxt, str, &mcputemppos, &white, font);
-			fclose(fcpu);
+			updatetemp(mcputemptxt, &mcputemppos);
 		}
 		if (delta > 1000/60.0) {
 			b = a;
