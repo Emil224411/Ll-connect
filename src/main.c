@@ -71,10 +71,10 @@ int main()
 	unsigned int b2 = SDL_GetTicks();
 	double delta = 0;
 	double delta2 = 0;
-	getCurrentSpeed();
-	setSpeed(40, 1);
-	setSpeed(35, 2);
-	setSpeed(45, 3);
+
+	setSpeed(30, 1);
+	setSpeed(35, 3);
+
 	while (running) {
 		a = SDL_GetTicks();
 		delta = a - b;

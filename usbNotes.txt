@@ -135,8 +135,21 @@ TODO: check if color modes are the same for outer and inner they are proply not 
 	4f = Electric Current inner and outer (merge)
 
 
+color stuff:
+static color:
+60 10 04 01
 
+e0 36(inner) 8  rgb hex values * fancount in this case we have one fan so its 8 rgb values
+e0 37(outer) 12 rgb hex values * fancount in this case we have one fan so its 8 rgb values
 
+e0 17 01 02
+e0 16 01 02
+
+color Cycle:
+
+60 10 04 01
+
+e0 36 16 rgb hex values
 
 funtions:
 
