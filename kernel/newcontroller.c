@@ -8,11 +8,16 @@
 
 MODULE_LICENSE("GPL");
 
-struct hub {
-	int speeds[4];
+struct rgb_s {
+	int mode, brightnes, speed, direction;
 };
 
-static struct hub speedrn;
+struct port_s {
+	int fanSpeed, fanCount;
+	struct rgb_s rgb;
+};
+
+static struct port_s ports[4];
 
 static struct usb_device *dev;
 static struct proc_dir_entry *proc_file;
@@ -23,25 +28,64 @@ static struct usb_device_id dev_table[] = {
 };
 MODULE_DEVICE_TABLE(usb, dev_table);
 
-
-static void setSpeed(struct hub newspeed)
+void setOuterColor(int r, int g, int b, int port, int fanCount)
 {
 	int datalen = 353;
-	unsigned char *mbuff = kmalloc(353, GFP_KERNEL);
-	unsigned char data[5][353] = { { 0xe0, 0x50, }, { 0xe0, 0x20, 0x00, newspeed.speeds[0], }, 
-								{ 0xe0, 0x21, 0x00, newspeed.speeds[1], }, { 0xe0, 0x22, 0x00, newspeed.speeds[2], }, { 0xe0, 0x23, 0x00, newspeed.speeds[3], } };
-	for (int i = 0; i < 5; i++) {
-		memcpy(mbuff, data[i], 353);
-		int ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0), 0x09, 0x21, 0x02e0, 1, mbuff, datalen, 100);
+	unsigned char *mbuff = kmalloc(datalen, GFP_KERNEL);
+	unsigned char data[4][353] = { { 0xe0, 0x10, 0x60, port, fanCount }, { 0xe0, 0x2f + (port * 2) }, 
+								   { 0xe0, 0x0e + (port * 2), 0x01, 0x02 }, { 0xe0, 0x0f + (port * 2), 0x01, 0x02 } };
+	for (int i = 2; i < 54 * fanCount; i+=3) {
+		data[1][i]     = r;
+		data[1][i + 1] = b;
+		data[1][i + 2] = g;
+	}
+	for (int i = 0; i < 4; i++) {
+		memcpy(mbuff, data[i], datalen);
+		int ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0), 0x09, 0x21, 0x02e0, 1, data[i], datalen, 1000);
 		if (ret != datalen) printk("Lian Li Hub - failed to send usb_control_msg with data[%d] err: %d", i, ret);
 	}
 
-	for (int i = 0; i < 4; i++) speedrn.speeds[i] = newspeed.speeds[i];
+	kfree(mbuff);
+}
+
+void setInnerColor(int r, int g, int b, int port, int fanCount)
+{
+	int datalen = 353;
+	unsigned char *mbuff = kmalloc(datalen, GFP_KERNEL);
+	unsigned char data[4][353] = { { 0xe0, 0x10, 0x60, port, fanCount }, { 0xe0, 0x2e + (port * 2) },
+								   { 0xe0, 0x0e + (port * 2), 0x01, 0x02 }, { 0xe0, 0x0f + (port * 2), 0x01, 0x02 } };
+	for (int i = 2; i < 24 * fanCount; i += 3) {
+		data[1][i]     = r;
+		data[1][i + 1] = b;
+		data[1][i + 2] = g;
+	}
+	for (int i = 0; i < 3; i++) {
+		memcpy(mbuff, data[i], datalen);
+		int ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0), 0x09, 0x21, 0x02e0, 1, data[i], datalen, 1000);
+		if (ret != datalen) printk("Lian Li Hub - failed to send usb_control_msg with data[%d] err: %d", i, ret);
+	}
 
 	kfree(mbuff);
-	printk("speed = %d %d %d %d", newspeed.speeds[0], newspeed.speeds[1], newspeed.speeds[2], newspeed.speeds[3]);
+}
 
-	return;
+static void setSpeed(int newSpeeds[])
+{
+	int datalen = 353;
+	unsigned char *mbuff = kmalloc(353, GFP_KERNEL);
+	unsigned char data[5][353] = { { 0xe0, 0x50, }, { 0xe0, 0x20, 0x00, newSpeeds[0], }, 
+								{ 0xe0, 0x21, 0x00, newSpeeds[1], }, { 0xe0, 0x22, 0x00, newSpeeds[2], }, { 0xe0, 0x23, 0x00, newSpeeds[3], } };
+	for (int i = 0; i < 5; i++) {
+		memcpy(mbuff, data[i], 353);
+		int ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0), 0x09, 0x21, 0x02e0, 1, mbuff, datalen, 100);
+		if (ret != datalen) {
+			printk("Lian Li Hub - failed to send usb_control_msg with data[%d] err: %d", i, ret);
+		} else if (i >= 1) {
+			ports[i-1].fanSpeed = newSpeeds[i-1];
+		}
+	}
+
+	kfree(mbuff);
+	printk("Lian Li Hub - speed set to %d %d %d %d", ports[0].fanSpeed, ports[1].fanSpeed, ports[2].fanSpeed, ports[3].fanSpeed);
 }
 
 static ssize_t read(struct file *f, char *ubuf, size_t count, loff_t *offs)
@@ -51,7 +95,7 @@ static ssize_t read(struct file *f, char *ubuf, size_t count, loff_t *offs)
 
 	tocopy = min(count, 32);
 
-	sprintf(text, "%d %d %d %d\n", speedrn.speeds[0], speedrn.speeds[1], speedrn.speeds[2], speedrn.speeds[3]);
+	sprintf(text, "%d %d %d %d\n", ports[0].fanSpeed, ports[1].fanSpeed, ports[2].fanSpeed, ports[3].fanSpeed);
 	
 	notcopied = copy_to_user(ubuf, text, tocopy);
 
@@ -67,7 +111,7 @@ static ssize_t write(struct file *f, const char *ubuf, size_t count, loff_t *off
 {
 	char *text = kmalloc(32, GFP_KERNEL);
 	int tocopy, notcopied, delta;
-	struct hub newspeed;
+	int newspeeds[4];
 
 	memset(text, 0, 32);
 
@@ -75,9 +119,9 @@ static ssize_t write(struct file *f, const char *ubuf, size_t count, loff_t *off
 
 	notcopied = copy_from_user(text, ubuf, tocopy);
 
-	sscanf(text, "%d %d %d %d", &newspeed.speeds[0], &newspeed.speeds[1], &newspeed.speeds[2], &newspeed.speeds[3]);
+	sscanf(text, "%d %d %d %d", &newspeeds[0], &newspeeds[1], &newspeeds[2], &newspeeds[3]);
 
-	setSpeed(newspeed);
+	setSpeed(newspeeds);
 
 	delta = tocopy - notcopied;
 
@@ -104,24 +148,9 @@ static int dev_probe(struct usb_interface *intf, const struct usb_device_id *id)
 		printk("Lian Li Hub - error proc_create failed");
 		return -1;
 	}
-	/*int status;
-	unsigned char *data = kmalloc(sizeof(unsigned char)*64, GFP_KERNEL);
-	printk("%ld", sizeof(unsigned char));
-	data[0] = 0x01;
-	data[1] = 0x02;
-	printk("%ld", sizeof(data));
-	status = usb_control_msg(dev, usb_sndctrlpipe(dev, 0), 0x09, 0x21, 0x02e0, 1, data, 64, 100);
-	if (status < 0) {
-		printk("Lian Li Hub - error sending msg, %d", status);
-		kfree(data);
-		return -1;
-	}
-	kfree(data);*/
-	speedrn.speeds[0] = 25;
-	speedrn.speeds[1] = 25;
-	speedrn.speeds[2] = 30;
-	speedrn.speeds[3] = 0;
-	setSpeed(speedrn);
+	
+	int defaultspeeds[] = { 30, 30, 40, 0 };
+	setSpeed(defaultspeeds);
 
 	return 0;
 }
