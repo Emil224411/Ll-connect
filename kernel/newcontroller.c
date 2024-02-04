@@ -33,12 +33,13 @@ static void setSpeed(struct hub newspeed)
 	for (int i = 0; i < 5; i++) {
 		memcpy(mbuff, data[i], 353);
 		int ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0), 0x09, 0x21, 0x02e0, 1, mbuff, datalen, 100);
-		printk("%d", ret);
+		if (ret != datalen) printk("Lian Li Hub - failed to send usb_control_msg with data[%d] err: %d", i, ret);
 	}
 
 	for (int i = 0; i < 4; i++) speedrn.speeds[i] = newspeed.speeds[i];
 
 	kfree(mbuff);
+	printk("speed = %d %d %d %d", newspeed.speeds[0], newspeed.speeds[1], newspeed.speeds[2], newspeed.speeds[3]);
 
 	return;
 }
@@ -48,15 +49,18 @@ static ssize_t read(struct file *f, char *ubuf, size_t count, loff_t *offs)
 	char *text = kmalloc(32, GFP_KERNEL);
 	int tocopy, notcopied, delta;
 
-	tocopy = min(count, sizeof(text));
-	
-	sprintf(text, "%d %d %d %d", speedrn.speeds[0], speedrn.speeds[1], speedrn.speeds[2], speedrn.speeds[3]);
+	tocopy = min(count, 32);
+
+	sprintf(text, "%d %d %d %d\n", speedrn.speeds[0], speedrn.speeds[1], speedrn.speeds[2], speedrn.speeds[3]);
 	
 	notcopied = copy_to_user(ubuf, text, tocopy);
 
-	delta = tocopy-notcopied;
+	kfree(text);
+	delta = tocopy - notcopied;
+	if (*offs) return 0;
+	else *offs = 32;
+
 	return delta;
-	
 }
 
 static ssize_t write(struct file *f, const char *ubuf, size_t count, loff_t *offs)
