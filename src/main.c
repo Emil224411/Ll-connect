@@ -65,6 +65,8 @@ int main()
 	double delta = 0;
 	double delta2 = 0;
 
+	setSpeed(30, 1);
+	setSpeed(35, 3);
 	while (running) {
 		a = SDL_GetTicks();
 		delta = a - b;
