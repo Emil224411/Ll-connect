@@ -1,46 +1,9 @@
-port 1
-0020   XX XX XX XX e0 10 60 01 04 00 00 00 00 00 00 00   ..a...`.........
-0170   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   ................
-0180   00 00 00 00 00                                    .....
-
-port 2
-0020   XX XX XX XX e0 10 60 02 03 00 00 00 00 00 00 00   ..a...`.........
-0170   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   ................
-0180   00 00 00 00 00                                    .....
-
-
-port 3 funtion set fan color
-0020   XX XX XX XX e0 10 60 03 01 00 00 00 00 00 00 00   ..a...`.........
-0170   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   ................
-0180   00 00 00 00 00                                    .....
-
-port 4 port num fan amount
-0020   XX XX XX XX e0 10 60 04 01 00 00 00 00 00 00 00   ..a...`.........
-0170   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   ................
-0180   00 00 00 00 00                                    .....
-
-
 set fan speed:
 	e0 50... 
-send:(asking for status/current speed of each port)
-	look in src/controller.c void getCurrentSpeed()
-	40 68 3b c2 81 88 ff ff 53 02 80 06 01 00 00 3c
-	fe d8 9a 65 00 00 00 00 a0 d8 08 00 8d ff ff ff
-	41 00 00 00 00 00 00 00 a1 01 e0 01 01 00 41 00
-	00 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00
-response:(current speed in rpm)
-	00 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00
-	e0 f0 03 b1 03 b1 03 b1 00 00 00 00 00 00 00 00
 
+	e0 20(20-23) 00 64(max speed ca 2000 rpm) 
+	e0 20(20-23) 00 0c(min speed ca 250  rpm)
 
-	e0 20 00 64(max speed ca 2000 rpm) e0 20 00 0c(min speed ca 250  rpm)
-
-80 f3 61 76 a4 8a ff ff 53 02 00 06 01 00 00 00 c8 94 bf 65 00 00 00 00 c5 9d 08 00 8d ff ff ff 61 01 00 00 61 01 00 00 21 09 e0 02 01 00 61 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 e0 31 ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00                                              
-
-ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-
-struct rgb data:
-	int brightnes, speed, direction, mode, 
 brightnes:
 	0%   = 08
 	25%  = 03
@@ -60,14 +23,14 @@ direction:
 3 send outer color
 4 send ports mode speed etc...
 set rgb mode:
-	e0 10 60 port fannum 
+	e0 10 60 0X(port) 0X(amount of fans) 
 
-	e0 30 + (2 * port) XX XX XX(rbg hex) * 8 * fancount(space for a total of 116)...
-	e0 31 + (2 * port) XX XX XX(rbg hex) * 12 * fancount(space for a total of 138)...
+	e0 30(inner) + (2 * port) XX XX XX(rbg) * 8 * fancount(space for a total of 116)...
+	e0 31(outer) + (2 * port) XX XX XX(rbg) * 12 * fancount(space for a total of 138)...
 
 	e0 11(outer) 04(mode) ff(speed) 0X(1|0direction) 0X(brightnes)
 	e0 10(inner) 04(mode) ff(speed) 0X(1|0direction) 0X(brightnes)
-	
+*you dont need to send 10-17 just send for the ports you change something on	
 	e0 13(outer) 04(mode) ff(speed) 0X(1|0direction) 0X(brightnes)
 	e0 12(inner) 04(mode) ff(speed) 0X(1|0direction) 0X(brightnes)
 
@@ -76,6 +39,7 @@ set rgb mode:
 
 	e0 17(outer) 04(mode) ff(speed) 0X(1|0direction) 0X(brightnes)
 	e0 16(inner) 04(mode) ff(speed) 0X(1|0direction) 0X(brightnes)
+
 set merge rgb mode:
 	e0 10 60 1 XX
 	e0 10 60 2 XX
@@ -93,7 +57,7 @@ modes:
 	06 = BreathingRainbow 	outer 				0 colors
 	08 = Meteor Rainbow   	inner or outer 			0 colors
 	09 = spining 		outer 				? colors
-	0a = spining Rainbow 	outer 				0 colors im guessing
+	0a = spining Rainbow 	outer 				0 colors guessing
 	0b = pulsading Rainbow 	outer 				? colors
 	0c = Rainbow thing 	outer 				0 colors guessing
 	0d = ??
@@ -163,6 +127,7 @@ modes:
 	4d = ??
 	4e = ??
 	4f = Electric Current   inner and outer (merge) 	4 colors
+dont go above 4f it breaks the rgb and you need to shut off pc and turn off power on psu to fix it
 
 
 color stuff:
@@ -179,29 +144,5 @@ color Cycle:
 
 60 10 04 01
 
-e0 36 16 rgb hex values
+e0 36 16 rgb values
 
-funtions:
-
-e0 50 = set fan speed
- 
-0000   00 c6 91 31 81 88 ff ff 53 02 80 06 01 00 00 3c   ...1....S......<
-0010   7b 12 83 65 00 00 00 00 c6 ed 07 00 8d ff ff ff   {..e............
-0020   41 00 00 00 00 00 00 00 a1 01 e0 01 01 00 41 00   A.............A.
-0030   00 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00   ................
-
-   starts at 20 goes up to 23
-e0 2X 00 XX (speed)
-
-e0 10 60 XX XX = set rgb XX XX first is port second is fan amount
-
-352 bytes
-e0 30 inner 32 r, g, b(96 bytes) values and rest(256 bytes) should be 0's
-
-0040   e0 11 01 02 00 00 00 00 00 00 00 00 00 00 00 00   ................
-0180   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   ................
-0190   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   ................
-01a0   00                                                .
-
-
-e0 31 outer
