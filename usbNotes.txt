@@ -9,12 +9,12 @@ port 2
 0180   00 00 00 00 00                                    .....
 
 
-port 3 				  funtion set fan color
+port 3 funtion set fan color
 0020   XX XX XX XX e0 10 60 03 01 00 00 00 00 00 00 00   ..a...`.........
 0170   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   ................
 0180   00 00 00 00 00                                    .....
 
-port 4 						port num fan amount
+port 4 port num fan amount
 0020   XX XX XX XX e0 10 60 04 01 00 00 00 00 00 00 00   ..a...`.........
 0170   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00   ................
 0180   00 00 00 00 00                                    .....
@@ -33,9 +33,14 @@ response:(current speed in rpm)
 	e0 f0 03 b1 03 b1 03 b1 00 00 00 00 00 00 00 00
 
 
-	e0 20 00 64(max speed ca 2000 rpm)
-	e0 20 00 0c(min speed ca 250  rpm)
+	e0 20 00 64(max speed ca 2000 rpm) e0 20 00 0c(min speed ca 250  rpm)
 
+80 f3 61 76 a4 8a ff ff 53 02 00 06 01 00 00 00 c8 94 bf 65 00 00 00 00 c5 9d 08 00 8d ff ff ff 61 01 00 00 61 01 00 00 21 09 e0 02 01 00 61 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 e0 31 ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00                                              
+
+ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b ff 2b 2b 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+struct rgb data:
+	int brightnes, speed, direction, mode, 
 brightnes:
 	0%   = 08
 	25%  = 03
@@ -49,11 +54,16 @@ speed:
 direction:
 	01 = backward
 	00 = forward 
+
+1 send 10 60 port and fannum
+2 send inner color
+3 send outer color
+4 send ports mode speed etc...
 set rgb mode:
 	e0 10 60 port fannum 
 
-	e0 30 XX XX XX(rbg hex) * 32...
-	e0 31 XX XX XX(rbg hex) * 48...
+	e0 30 + (2 * port) XX XX XX(rbg hex) * 8 * fancount(space for a total of 116)...
+	e0 31 + (2 * port) XX XX XX(rbg hex) * 12 * fancount(space for a total of 138)...
 
 	e0 11(outer) 04(mode) ff(speed) 0X(1|0direction) 0X(brightnes)
 	e0 10(inner) 04(mode) ff(speed) 0X(1|0direction) 0X(brightnes)
@@ -76,63 +86,83 @@ set merge rgb mode:
 
 
 modes:
-TODO: check if color modes are the same for outer and inner they are proply not since some numbers are missing
-	01 = Static Color     inner and outer
-	02 = Breathing        inner and/or outer
-	04 = Rainbow Morph    inner and outer
-	05 = Rainbow          inner or outer
-	06 = BreathingRainbow outer
-	08 = Meteor Rainbow   inner or outer 
-	18 = Color Cycle 	  inner 
-	19 = Meteor           inner and/or outer
-	1a = Runway           inner and/or outer (no merge)
-	1b = Mop up           inner or outer 
-	1c = Color Cycle 	  outer
-	1d = Lottery 		  inner or outer
-	1e = Wave 			  inner or outer
-	1f = spring 		  inner or outer
-	20 = Tail Chasing 	  inner or outer
-	21 = Warning 		  inner or outer
-	22 = Voice 			  inner or outer
-	23 = Mixing 		  inner or outer
-	24 = Stack 			  inner or outer 
-	25 = Tide 			  inner or outer
-	26 = Scan 			  inner or outer
-	27 = Pac-Man 		  inner
-	28 = Colorful City 	  inner or outer
-	29 = Render 		  inner or outer
-	2a = Twinkle 		  inner or outer
-	2b = Rainbow          inner and outer
-	2e = Color Cycle      inner and outer
-	2f = Taichi           inner and outer
-	30 = Warning 	      inner and outer
-	31 = Voice 		      inner and outer
-	32 = Mixing 		  inner and outer (no merge)
-	33 = Tide 			  inner and outer (no merge)
-	34 = Scan 			  inner and outer (no merge)
-	35 = Contest 		  inner and outer (no merge)
-	38 = Colorful City 	  inner and outer
-	39 = Render 		  inner and outer
-	3a = Twinkle 		  inner and outer
-	3b = Wave             inner and outer (no merge)
-	3c = Spring           inner and outer (no merge)
-	3d = Tail Chasing     inner and outer (no merge)
-	3e = Mop up           inner and outer (no merge)
-	3f = Tornado 		  inner and outer
-	40 = Staggered 		  inner and outer
-	41 = Spanning Teacups inner and outer
-	42 = Electric Current inner and outer (no merge)
-	43 = Stack 			  inner and outer
-	44 = Scan 			  inner and outer (merge)
-	46 = Runway 		  inner and outer (merge)
-	45 = Contest 		  inner and outer (merge)
-	47 = Mixing 		  inner and outer (merge)
-	48 = Tide 			  inner and outer (merge)
-	49 = Wave 			  inner and outer (merge)
-	4a = Tail Chasing 	  inner and outer (merge)
-	4b = Spring 		  inner and outer (merge)
-	4c = Mop up 		  inner and outer (merge)
-	4f = Electric Current inner and outer (merge)
+	01 = Static Color     	inner and outer 		6 colors
+	02 = Breathing        	inner and/or outer 		6 colors
+	04 = Rainbow Morph    	inner and outer 		0 colors
+	05 = Rainbow          	inner or outer 			0 colors
+	06 = BreathingRainbow 	outer 				0 colors
+	08 = Meteor Rainbow   	inner or outer 			0 colors
+	09 = spining 		outer 				? colors
+	0a = spining Rainbow 	outer 				0 colors im guessing
+	0b = pulsading Rainbow 	outer 				? colors
+	0c = Rainbow thing 	outer 				0 colors guessing
+	0d = ??
+	0e = ??
+	0f = ??
+	10 = ??
+	11 = flashes blue two times then goes back to previos mode? why idk
+	12 = ??
+	13 = ??
+	14 = ??
+	15 = ??
+	16 = ??
+	17 = ??
+	18 = Color Cycle   	inner 				4 colors
+	19 = Meteor           	inner and/or outer 		4 colors
+	1a = Runway           	inner and/or outer (no merge) 	2 colors
+	1b = Mop up           	inner or outer 			2 colors
+	1c = Color Cycle   	outer 				4 colors
+	1d = Lottery 	  	inner or outer 			2 colors
+	1e = Wave 		inner or outer 			1 color
+	1f = spring 	  	inner or outer 			4 colors
+	20 = Tail Chasin   	inner or outer 			4 colors
+	21 = Warning 	  	inner or outer 			4 colors
+	22 = Voice 		inner or outer 			4 colors
+	23 = Mixing 	  	inner or outer 			2 colors
+	24 = Stack 		inner or outer 			2 colors
+	25 = Tide 		inner or outer 			4 colors
+	26 = Scan 		inner or outer 			1 color
+	27 = Pac-Man 	  	inner 				2 colors
+	28 = Colorful City  	inner or outer 			0 colors
+	29 = Render 	 	inner or outer 			4 colors
+	2a = Twinkle 	  	inner or outer 			0 colors
+	2b = Rainbow        	inner and outer 		0 colors
+	2c = ?? !
+	2d = ?? !
+	2e = Color Cycle      	inner and outer 		4 colors
+	2f = Taichi           	inner and outer 		2 colors
+	30 = Warning 	      	inner and outer 		4 colors
+	31 = Voice 	      	inner and outer 		4 colors
+	32 = Mixing 	  	inner and outer (no merge) 	2 colors
+	33 = Tide 		inner and outer (no merge) 	4 colors
+	34 = Scan 		inner and outer (no merge) 	2 colors
+	35 = Contest 	  	inner and outer (no merge) 	3 colors
+	36 = flashes blue but goes back to diffrent mode?
+	37 = ??
+	38 = Colorful City   	inner and outer 		0 colors
+	39 = Render 	  	inner and outer 		4 colors
+	3a = Twinkle 	  	inner and outer 		0 colors
+	3b = Wave             	inner and outer (no merge) 	1 color
+	3c = Spring           	inner and outer (no merge) 	4 colors
+	3d = Tail Chasing     	inner and outer (no merge) 	4 colors
+	3e = Mop up           	inner and outer (no merge) 	2 colors
+	3f = Tornado 	  	inner and outer 		4 colors
+	40 = Staggered 	  	inner and outer 		4 colors
+	41 = Spanning Teacups 	inner and outer 		4 colors
+	42 = Electric Current  	inner and outer (no merge) 	4 colors
+	43 = Stack 		inner and outer 		2 colors
+	44 = Scan 		inner and outer (merge) 	2 colors
+	45 = Contest 	  	inner and outer (merge) 	3 colors
+	46 = Runway 	  	inner and outer (merge) 	2 colors
+	47 = Mixing 	  	inner and outer (merge)  	2 colors
+	48 = Tide 		inner and outer (merge) 	4 colors
+	49 = Wave 		inner and outer (merge) 	1 color
+	4a = Tail Chasing   	inner and outer (merge) 	4 colors
+	4b = Spring 	  	inner and outer (merge) 	4 colors
+	4c = Mop up 	  	inner and outer (merge) 	2 colors
+	4d = ??
+	4e = ??
+	4f = Electric Current   inner and outer (merge) 	4 colors
 
 
 color stuff:
@@ -140,7 +170,7 @@ static color:
 60 10 04 01
 
 e0 36(inner) 8  rgb hex values * fancount in this case we have one fan so its 8 rgb values
-e0 37(outer) 12 rgb hex values * fancount in this case we have one fan so its 8 rgb values
+e0 37(outer) 12 rgb hex values * fancount in this case we have one fan so its 12 rgb values
 
 e0 17 01 02
 e0 16 01 02
