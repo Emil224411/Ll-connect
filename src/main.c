@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "../include/controller.h"
+//#include "../include/controller.h"
 #include "../include/ui.h"
 
 //Bus 001 Device 006: ID 0cf2:a104 ENE Technology, Inc. LianLi-UNI FAN-AL V2-v0.4
@@ -37,12 +37,6 @@ int main()
 		ui_shutdown();
 		return 1;
 	}
-	if (initController()) {
-		printf("init failed\n");
-		shutdownController();
-		ui_shutdown();
-		return 1;
-	}
 
 	mainMenu.pageColor = black;
 	configMenu.pageColor = black;
@@ -51,12 +45,10 @@ int main()
 	SDL_Rect mcpos = { 10, 20 };
 	SDL_Rect cpos = { 10, 50 };
 	SDL_Rect cmpos = { 10, 50 };
-	SDL_Rect mcputemppos = { 150, 20 };
 	text *mmenutxt = createText("Main Menu", &mpos, &white, &mainMenu, font);
 	text *mmenutxtc = createText("Main Menu", &mcpos, &white, &configMenu, font);
 	text *cmenutxtm = createText("Config Menu", &cmpos, &white, &mainMenu, font);
 	text *cmenutxt = createText("Config Menu", &cpos, &white, &configMenu, font);
-	text *mcputemptxt = createText("00.00", &mcputemppos, &white, &mainMenu, font);
 	
 	createButton(mpos, mmenutxt, &green, mainMenuButton, &mainMenu);
 	createButton(mcpos, mmenutxtc, &blue, mainMenuButton, &configMenu);
@@ -68,25 +60,16 @@ int main()
 	SDL_Event event;
 	unsigned int a = SDL_GetTicks();
 	unsigned int b = SDL_GetTicks();
-	unsigned int b2 = SDL_GetTicks();
 	double delta = 0;
-	double delta2 = 0;
-
-	setSpeed(30, 1);
-	setSpeed(35, 3);
 
 	while (running) {
 		a = SDL_GetTicks();
 		delta = a - b;
-		delta2 = a - b2;
 
 		if (SDL_PollEvent(&event)) {
 			hadleEvent(&event);
 		}
-		if (delta2 > 2000) {
-			b2 = a;
-			updatetemp(mcputemptxt, &mcputemppos);
-		}
+
 		if (delta > 1000/60.0) {
 			b = a;
 			clearscreen();
@@ -95,9 +78,9 @@ int main()
 
 			SDL_RenderPresent(renderer);
 		}
+		SDL_Delay(1);
 	}
 	//mainloop(mcputemptxt, &mcputemppos);
-	shutdownController();
 	destroyPage(&mainMenu);
 	destroyPage(&configMenu);
 	ui_shutdown();
