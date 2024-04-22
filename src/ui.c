@@ -6,28 +6,29 @@ int ui_init()
 	renderer = NULL;
 	if (SDL_Init(SDL_INIT_EVERYTHING)) {
 		printf("SDL_Init failed err: %s\n", SDL_GetError());
-		return 1;
+		return -1;
 	}
-
 	if (TTF_Init()) {
 		printf("TTF_Init failed err: %s\n", TTF_GetError());
-		return 1;
+		return -1;
 	}
-	font = TTF_OpenFont("/usr/share/fonts/TTF/HackNerdFont-Regular.ttf", 20);
+	font = TTF_OpenFont(font_path, 20);
+	if (font == NULL) {
+		printf("TTF_OpenFont failed error: %s\n", TTF_GetError());
+		return -1;
+	}
 	window = SDL_CreateWindow("lianlipoop", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 800, 400, SDL_WINDOW_OPENGL);
 	if (window == NULL) {
 		printf("SDL_CreateWindow failed err: %s\n", SDL_GetError());
-		return 1;
+		return -1;
 	}
-
 	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_PRESENTVSYNC);
 	if (renderer == NULL) {
 		printf("SDL_CreateRenderer failed err: %s\n", SDL_GetError());
-		return 1;
+		return -1;
 	}
 
 	return 0;
-	
 }
 
 void ui_shutdown()
@@ -40,94 +41,30 @@ void ui_shutdown()
 		SDL_DestroyRenderer(renderer);
 		renderer = NULL;
 	}
+	if (font != NULL) {
+		TTF_CloseFont(font);
+		font = NULL;
+	}
 	TTF_Quit();
 	SDL_Quit();
 }
 
-void destroyPage(page* p)
-{
-	if (p->buttonArrayLen > 0) {
-		free(p->buttonArray);
-	}
-	if (p->textArrayLen > 0) {
-		for (int i = 0; i < p->textArrayLen; i++) SDL_DestroyTexture(p->textArray[i].texture);
-		free(p->textArray);
-	}
-}
-
-void clearscreen()
+void clear_screen()
 {
 	SDL_SetRenderDrawColor(renderer, black.r, black.g, black.b, black.a);
 	SDL_RenderClear(renderer);
 }
 
-button *createButton(SDL_Rect pos, text *txt, const SDL_Color *c, void (*funtion)(), page *Page)
+void handle_event(SDL_Event *event)
 {
-	button newButton = { pos, txt, 1, c, funtion };
-	Page->buttonArrayLen++;
-	button *tmpButtonArray = (button *)realloc(Page->buttonArray, sizeof(button) * Page->buttonArrayLen);
-	Page->buttonArray = tmpButtonArray;
-	Page->buttonArray[Page->buttonArrayLen - 1] = newButton;
-	return &Page->buttonArray[Page->buttonArrayLen -1];
-}
-
-text *createText(char *t, SDL_Rect *p, const SDL_Color *c, page *Page, TTF_Font* f)
-{
-	text newText = { t, 1 };
-	SDL_Surface *s = TTF_RenderText_Solid(f, t, *c);
-	newText.texture = SDL_CreateTextureFromSurface(renderer, s);
-	TTF_SizeText(f, t, &p->w, &p->h);
-	SDL_FreeSurface(s);
-	Page->textArrayLen++;
-	text *tmpTextArray = (text *)realloc(Page->textArray, sizeof(text) * Page->textArrayLen);
-	Page->textArray = tmpTextArray;
-	Page->textArray[Page->textArrayLen-1].pos = (*p);
-	Page->textArray[Page->textArrayLen-1].show = newText.show;
-	Page->textArray[Page->textArrayLen-1].str = t;
-	Page->textArray[Page->textArrayLen-1].texture = newText.texture;
-	return &Page->textArray[Page->textArrayLen-1];
-}
-
-void changeText(text *t, char *nt, SDL_Rect *p, const SDL_Color *c, TTF_Font *f)
-{
-	t->str = nt;
-	SDL_Surface *s = TTF_RenderText_Solid(f, nt, *c);
-	t->texture = SDL_CreateTextureFromSurface(renderer, s);
-	TTF_SizeText(f, nt, &p->w, &p->h);
-	SDL_FreeSurface(s);
-	t->pos = (*p);
-}
-
-void renderText(text *t)
-{
-	SDL_RenderCopy(renderer, t->texture, NULL, &t->pos);
-}
-
-void mouseclick(SDL_MouseButtonEvent *me)
-{
-	if (me->button == SDL_BUTTON_LEFT) {
-		for (int i = 0; i < currentPage->buttonArrayLen; i++) {
-			if (currentPage->buttonArray[i].funtion){
-				if (me->x > currentPage->buttonArray[i].pos.x && me->x < currentPage->buttonArray[i].pos.x + currentPage->buttonArray[i].pos.w 
-					&& me->y > currentPage->buttonArray[i].pos.y && me->y < currentPage->buttonArray[i].pos.y + currentPage->buttonArray[i].pos.h) {
-					currentPage->buttonArray[i].funtion();
-				}
-			}
-		}
-	}
-}
-
-void hadleEvent(SDL_Event *e)
-{
-	switch (e->type) {
+	switch (event->type) {
 		case SDL_QUIT:
 			running = 0;
 			break;
 		case SDL_MOUSEBUTTONDOWN:
-			mouseclick(&e->button);
 			break;
 		case SDL_KEYDOWN:
-			switch (e->key.keysym.scancode) {
+			switch (event->key.keysym.scancode) {
 				case SDL_SCANCODE_ESCAPE:
 					running = 0;
 					break;
@@ -140,55 +77,73 @@ void hadleEvent(SDL_Event *e)
 	}
 }
 
-void renderButton(button* b)
+struct text create_text(char *string, int x, int y, const SDL_Color *color, TTF_Font *f)
 {
-	SDL_SetRenderDrawColor(renderer, b->color->r, b->color->g, b->color->b, b->color->a);
-	SDL_RenderDrawRect(renderer, &b->pos);
+	struct text new_text = { string, 0, 0, { x, y, }, };
+	SDL_Surface *surface = TTF_RenderText_Solid(f, string, *color);
+	new_text.texture = SDL_CreateTextureFromSurface(renderer, surface);
+	TTF_SizeText(f, string, &new_text.pos.w, &new_text.pos.h);
+	SDL_FreeSurface(surface);
+	return new_text;
 }
 
-void renderPage(page *p)
+void destroy_text_texture(struct text *text)
 {
-	for (int i = 0; i < p->buttonArrayLen; i++) {
-		if (p->buttonArray[i].show) {
-			renderButton(&p->buttonArray[i]);
-		}
-	}
-	for (int i = 0; i < p->textArrayLen; i++) {
-		if (p->textArray[i].show) {
-			renderText(&p->textArray[i]);
-		}
-	}
+	SDL_DestroyTexture(text->texture);
 }
 
-/*void mainloop(text *cput, SDL_Rect *cpupos)
+void render_text_texture(struct text *t, const SDL_Color color, TTF_Font *f)
 {
-	running = 1;
-	SDL_Event event;
-	unsigned int a = SDL_GetTicks();
-	unsigned int b = SDL_GetTicks();
-	unsigned int b2 = SDL_GetTicks();
-	double delta = 0;
-	double delta2 = 0;
+	SDL_Surface *surface = TTF_RenderText_Solid(f, t->str, color);
+	t->texture = SDL_CreateTextureFromSurface(renderer, surface);
+	TTF_SizeText(f, t->str, &t->pos.w, &t->pos.h);
+	SDL_FreeSurface(surface);
+}
 
-	while (running) {
-		a = SDL_GetTicks();
-		delta = a - b;
-		delta2 = a - b2;
+void change_text_and_render_texture(struct text *text, char *new_text, const SDL_Color color, TTF_Font *f)
+{
+	text->str = new_text;
+	render_text_texture(text, color, f);
+}
 
-		if (SDL_PollEvent(&event)) {
-			hadleEvent(&event);
-		}
-		if (delta2 > 2000) {
-			b2 = a;
-			updatetemp(cput, cpupos);
-		}
-		if (delta > 1000/60.0) {
-			b = a;
-			clearscreen();
-			
-			renderPage(currentPage);
+void render_text(struct text *t)
+{
+	SDL_RenderCopy(renderer, t->texture, NULL, &t->pos);
+}
 
-			SDL_RenderPresent(renderer);
-		}
+/*
+ * if outer_h and outer_w are 0 then the will be TTF_SizeText 
+ */
+struct input create_input(struct text text, TTF_Font *f, int outer_x, int outer_y, int outer_w, int outer_h, SDL_Color outer_color, SDL_Color background_color, SDL_Color text_color)
+{
+
+	struct input new_input = { 0, text, { outer_x, outer_y, }, outer_color, background_color, text_color };
+	if (new_input.text.texture == NULL) {
+		render_text_texture(&new_input.text, text_color, f);
 	}
-}*/
+	if (outer_h == 0 && outer_w == 0) {
+		TTF_SizeText(f, new_input.text.str, &new_input.outer_box.w, &new_input.outer_box.h);
+	} else {
+		new_input.outer_box.w = outer_w;
+		new_input.outer_box.h = outer_h;
+	}
+	return new_input;
+}
+
+void render_input_box(struct input *input_box)
+{
+	SDL_SetRenderDrawColor(renderer, input_box->background_color.r, input_box->background_color.g, input_box->background_color.b, input_box->background_color.a);
+	SDL_RenderFillRect(renderer, &input_box->outer_box);
+	SDL_SetRenderDrawColor(renderer, input_box->outer_box_color.r, input_box->outer_box_color.g, input_box->outer_box_color.b, input_box->outer_box_color.a);
+	SDL_RenderDrawRect(renderer, &input_box->outer_box);
+	render_text(&input_box->text);
+}
+
+
+
+
+
+
+
+
+
