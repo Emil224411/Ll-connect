@@ -51,7 +51,7 @@ void ui_shutdown()
 
 void clear_screen()
 {
-	SDL_SetRenderDrawColor(renderer, black.r, black.g, black.b, black.a);
+	SDL_SetRenderDrawColor(renderer, BLACK.r, BLACK.g, BLACK.b, BLACK.a);
 	SDL_RenderClear(renderer);
 }
 
@@ -77,10 +77,10 @@ void handle_event(SDL_Event *event)
 	}
 }
 
-struct text create_text(char *string, int x, int y, const SDL_Color *color, TTF_Font *f)
+struct text create_text(char *string, int x, int y, SDL_Color color, TTF_Font *f)
 {
 	struct text new_text = { string, 0, 0, { x, y, }, };
-	SDL_Surface *surface = TTF_RenderText_Solid(f, string, *color);
+	SDL_Surface *surface = TTF_RenderText_Solid(f, string, color);
 	new_text.texture = SDL_CreateTextureFromSurface(renderer, surface);
 	TTF_SizeText(f, string, &new_text.pos.w, &new_text.pos.h);
 	SDL_FreeSurface(surface);
@@ -92,7 +92,7 @@ void destroy_text_texture(struct text *text)
 	SDL_DestroyTexture(text->texture);
 }
 
-void render_text_texture(struct text *t, const SDL_Color color, TTF_Font *f)
+void render_text_texture(struct text *t, SDL_Color color, TTF_Font *f)
 {
 	SDL_Surface *surface = TTF_RenderText_Solid(f, t->str, color);
 	t->texture = SDL_CreateTextureFromSurface(renderer, surface);
@@ -100,7 +100,7 @@ void render_text_texture(struct text *t, const SDL_Color color, TTF_Font *f)
 	SDL_FreeSurface(surface);
 }
 
-void change_text_and_render_texture(struct text *text, char *new_text, const SDL_Color color, TTF_Font *f)
+void change_text_and_render_texture(struct text *text, char *new_text, SDL_Color color, TTF_Font *f)
 {
 	text->str = new_text;
 	render_text_texture(text, color, f);
@@ -111,22 +111,28 @@ void render_text(struct text *t)
 	SDL_RenderCopy(renderer, t->texture, NULL, &t->pos);
 }
 
-/*
- * if outer_h and outer_w are 0 then the will be TTF_SizeText 
- */
-struct input create_input(struct text text, TTF_Font *f, int outer_x, int outer_y, int outer_w, int outer_h, SDL_Color outer_color, SDL_Color background_color, SDL_Color text_color)
+//TODO: 
+//current:
+// 		       |---------|
+// 	 some text  -> |some text|
+// 		       |---------|
+//better:
+// 	|---------|    |---------|
+// 	| 	  | -> |some text|
+// 	|---------|    |---------|
+// 	make new function create_input and create_input_from_text or something like that
+struct input create_input(struct text text, TTF_Font *f, SDL_Color outer_color, SDL_Color background_color, SDL_Color text_color)
 {
 
-	struct input new_input = { 0, text, { outer_x, outer_y, }, outer_color, background_color, text_color };
+	struct input new_input = { 0, text, { text.pos.x, text.pos.y, }, outer_color, background_color, text_color };
 	if (new_input.text.texture == NULL) {
 		render_text_texture(&new_input.text, text_color, f);
 	}
-	if (outer_h == 0 && outer_w == 0) {
 		TTF_SizeText(f, new_input.text.str, &new_input.outer_box.w, &new_input.outer_box.h);
-	} else {
-		new_input.outer_box.w = outer_w;
-		new_input.outer_box.h = outer_h;
-	}
+		new_input.outer_box.x -= 2;
+		new_input.outer_box.y -= 5;
+		new_input.outer_box.w += 10;
+		new_input.outer_box.h += 10;
 	return new_input;
 }
 

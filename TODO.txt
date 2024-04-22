@@ -1,0 +1,20 @@
+
+1. 
+figure out how to get text input
+
+1.1:
+ui.c:124
+	current:
+	 		       |---------|
+	 	 some text  -> |some text|
+	 		       |---------|
+	better:
+	 	|---------|    |---------|
+	 	| 	  | -> |some text|
+	 	|---------|    |---------|
+make functions create_input and create_input_from_text or something like that
+
+
+2.
+plan more ui stuff
+like when to rerender text and such

@@ -32,7 +32,7 @@ int main()
 	unsigned int a = SDL_GetTicks();
 	unsigned int b = SDL_GetTicks();
 	double delta = 0;
-
+/*
 	int speeds_pro[4] = { 0 };
 	int speeds_rpm[4] = { 0 };
 
@@ -43,7 +43,10 @@ int main()
 
 	char speeds_str[100];
 	sprintf(speeds_str, "%d, %d, %d, %d", speeds_pro[0], speeds_pro[1], speeds_pro[2], speeds_pro[3]);
-	struct text test = create_text(speeds_str, 100, 100, &white, font);
+	struct text test = create_text(speeds_str, 100, 100, WHITE, font);
+*/
+	struct text intext = create_text("hello", 200, 300, WHITE, font);
+	struct input inbo = create_input(intext, font, GREEN, BLUE, WHITE);
 
 	while (running) {
 		a = SDL_GetTicks();
@@ -56,12 +59,14 @@ int main()
 		if (delta > 1000/60.0) {
 			b = a;
 			clear_screen();
-			render_text(&test);
+			//render_text(&test);
+			render_input_box(&inbo);
 			SDL_RenderPresent(renderer);
 		}
 		SDL_Delay(1);
 	}
-	destroy_text_texture(&test);
+	//destroy_text_texture(&test);
+	destroy_text_texture(&intext);
 	ui_shutdown();
 
 	return 0;
