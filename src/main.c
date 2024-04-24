@@ -1,7 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <SDL2/SDL.h>
+
 #include "../include/ui.h"
+
 
 //Bus 001 Device 006: ID 0cf2:a104 ENE Technology, Inc. LianLi-UNI FAN-AL V2-v0.4
 
@@ -17,6 +20,9 @@ void updatetemp(text *cput, SDL_Rect *pos) {
 	fclose(fcpu);
 }
 */
+
+SDL_Color grey = { 209, 209, 209, SDL_ALPHA_OPAQUE };
+SDL_Color darkgrey = { 84, 84, 84, SDL_ALPHA_OPAQUE };
 
 int main()
 {
@@ -45,9 +51,10 @@ int main()
 	sprintf(speeds_str, "%d, %d, %d, %d", speeds_pro[0], speeds_pro[1], speeds_pro[2], speeds_pro[3]);
 	struct text test = create_text(speeds_str, 100, 100, WHITE, font);
 */
-	struct text intext = create_text("hello", 200, 300, WHITE, font);
-	struct input inbo = create_input(intext, font, GREEN, BLUE, WHITE);
-
+	struct text intext = create_text("hello", 200, 300, WHITE, BLACK, font);
+	struct input *inbo = create_input_from_text(intext, font, GREEN, BLUE, WHITE);
+	struct input *intwo = create_input("hello2", 100, 100, 0, 0, font, grey, darkgrey, WHITE);
+	
 	while (running) {
 		a = SDL_GetTicks();
 		delta = a - b;
@@ -60,7 +67,8 @@ int main()
 			b = a;
 			clear_screen();
 			//render_text(&test);
-			render_input_box(&inbo);
+			render_input_box(inbo);
+			render_input_box(intwo);
 			SDL_RenderPresent(renderer);
 		}
 		SDL_Delay(1);
