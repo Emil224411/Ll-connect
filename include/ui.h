@@ -1,9 +1,13 @@
 #ifndef UI_H
 #define UI_H
 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 #include <SDL2/SDL_image.h>
+
+#define MAX_TEXT_SIZE 256
 
 #define SDL_COLOR_ARG(C) C.r, C.g, C.b, C.a
 
@@ -22,20 +26,22 @@ SDL_Renderer *renderer;
 SDL_Event event;
 
 struct text {
-	char *str;
-	int show, rerender;
+	char str[MAX_TEXT_SIZE];
+	int show;
 	SDL_Color fg_color, bg_color;
-	SDL_Rect pos;
+	SDL_Rect src, dst;
 	SDL_Texture *texture;
 } text;
 
 struct input {
 	int index, selected;
 	struct text text;
+	int resize_box;
 	SDL_Rect outer_box;
 	SDL_Color outer_box_color, background_color;
 
 } input;
+static struct input *selected_input;
 static int input_box_arr_total_len;
 static int input_box_arr_used_len;
 static struct input **input_box_arr;
@@ -48,13 +54,14 @@ void clear_screen();
 
 struct text create_text(char *string, int x, int y, SDL_Color fg_color, SDL_Color bg_color, TTF_Font* f);
 void destroy_text_texture(struct text *text);
-void render_text(struct text *t);
+void render_text(struct text *t, SDL_Rect *src);
 void render_text_texture(struct text *t, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f);
 void change_text_and_render_texture(struct text *text, char *new_text, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f);
 
-struct input *create_input_from_text(struct text text, TTF_Font *f, SDL_Color outer_color, SDL_Color background_color, SDL_Color text_color);
-struct input *create_input(char *text, int x, int y, int w, int h, TTF_Font *f, SDL_Color outer_color, SDL_Color background_color, SDL_Color text_color);
+struct input *create_input_from_text(struct text text, int resize_box, TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color);
+struct input *create_input(char *text, int resize_box, int x, int y, int w, int h, TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color);
 void destroy_input_box(struct input *input_box);
+void change_input_box_text(struct input *input_box, char *str);
 void render_input_box(struct input *input_box);
 
 #endif

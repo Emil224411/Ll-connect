@@ -52,8 +52,8 @@ int main()
 	struct text test = create_text(speeds_str, 100, 100, WHITE, font);
 */
 	struct text intext = create_text("hello", 200, 300, WHITE, BLACK, font);
-	struct input *inbo = create_input_from_text(intext, font, GREEN, BLUE, WHITE);
-	struct input *intwo = create_input("hello2", 100, 100, 0, 0, font, grey, darkgrey, WHITE);
+	struct input *inbo = create_input_from_text(intext, 1, font, GREEN, BLUE, WHITE);
+	struct input *intwo = create_input("hello2", 0, 100, 100, 0, 0, font, grey, darkgrey, WHITE);
 	
 	while (running) {
 		a = SDL_GetTicks();
