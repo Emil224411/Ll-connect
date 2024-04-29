@@ -17,7 +17,7 @@ int ui_init()
 		printf("TTF_OpenFont failed error: %s\n", TTF_GetError());
 		return -1;
 	}
-	window = SDL_CreateWindow("lianlipoop", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 800, 400, SDL_WINDOW_OPENGL);
+	window = SDL_CreateWindow("lianlipoop", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_W, WINDOW_H, SDL_WINDOW_OPENGL);
 	if (window == NULL) {
 		printf("SDL_CreateWindow failed err: %s\n", SDL_GetError());
 		return -1;
@@ -28,10 +28,14 @@ int ui_init()
 		return -1;
 	}
 
-	input_box_arr = malloc(sizeof(struct input*)*10);
+	input_box_arr = malloc(sizeof(struct input*) * 10);
 	input_box_arr_total_len = 10;
 	input_box_arr_used_len = 0;
 	selected_input = NULL;
+
+	button_arr = malloc(sizeof(struct button*) * 10);
+	button_arr_total_len = 10;
+	button_arr_used_len = 0;
 
 	SDL_StartTextInput();
 	return 0;
@@ -59,6 +63,11 @@ void ui_shutdown()
 	free(input_box_arr);
 	TTF_Quit();
 	SDL_Quit();
+}
+
+void show_screen()
+{
+	SDL_RenderPresent(renderer);
 }
 
 void clear_screen()
@@ -123,7 +132,16 @@ void mousebutton(SDL_MouseButtonEvent mouse_data)
 			SDL_StopTextInput();
 		}
 	}
-	if (!hit) selected_input = NULL;
+	if (!hit) {
+		selected_input = NULL;
+		for (int i = 0; i < button_arr_used_len; i++) {
+			SDL_Rect button_pos = button_arr[i]->outer_box;
+			if (mouse_data.x < button_pos.x + button_pos.w && mouse_data.x > button_pos.x 
+			 && mouse_data.y < button_pos.y + button_pos.h && mouse_data.y > button_pos.y) {
+				button_arr[i]->function();
+			}
+		}
+	}
 }
 
 struct text create_text(char *string, int x, int y, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f)
@@ -172,6 +190,77 @@ void render_text(struct text *t, SDL_Rect *src)
 	SDL_RenderCopy(renderer, t->texture, src, &t->dst);
 }
 
+struct button *create_button(char *string, int x, int y, int w, int h, TTF_Font *f, void (*function)(), SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color)
+{
+	struct button *return_button = malloc(sizeof(struct button));
+	struct button new_button = { { 0 }, function, { x, y, }, outer_color, bg_color };
+
+	if (button_arr_used_len + 1 > button_arr_total_len) {
+		button_arr = (struct button**)realloc(button_arr, sizeof(struct button*) * button_arr_total_len + 10);
+		button_arr_total_len += 10;
+	}
+	if (string != NULL) {
+		new_button.text = create_text(string, x + 5, y + 5, text_color, bg_color, f);
+	}
+	if (w == 0 && h == 0) {
+		new_button.outer_box.w = new_button.text.dst.w + 10;
+		new_button.outer_box.h = new_button.text.dst.h + 10;
+	}
+
+	memcpy(return_button, &new_button, sizeof(struct button));
+	button_arr[button_arr_used_len] = return_button;
+	button_arr_used_len += 1;
+
+	return return_button;
+}
+
+void render_button(struct button *button)
+{
+	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(button->bg_color));
+	SDL_RenderFillRect(renderer, &button->outer_box);
+	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(button->outer_box_color));
+	SDL_RenderDrawRect(renderer, &button->outer_box);
+	render_text(&button->text, NULL);
+}
+
+// 	   |---------|
+// 	-> |some text|
+// 	   |---------|
+struct input *create_input(char *string, int resize_box, int x, int y, int w, int h, TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color)
+{
+	struct input *return_input = malloc(sizeof(struct input));
+	struct input new_input = { .selected = 0, .text = 0, .resize_box = resize_box, 
+					.outer_box = { x, y }, .outer_box_color = outer_color, 
+					.bg_color = bg_color };
+
+	if (input_box_arr_used_len + 1 > input_box_arr_total_len) {
+		input_box_arr = (struct input**)realloc(input_box_arr, sizeof(struct input*) * input_box_arr_total_len + 10);
+		button_arr_total_len += 10;
+	}
+
+	if (string != NULL) {
+		new_input.text = create_text(string, x+5, y+5, text_color, bg_color, f);
+	}
+
+	if (w == 0 && h == 0) {
+		new_input.outer_box.w = new_input.text.dst.w + 10;
+		new_input.outer_box.h = new_input.text.dst.h + 10;
+	}
+
+	if (!resize_box) {
+		new_input.text.src = new_input.text.dst;
+		new_input.text.src.x = 0;
+		new_input.text.src.y = 0;
+	}
+
+	memcpy(return_input, &new_input, sizeof(struct input));
+	return_input->index = input_box_arr_used_len;
+	input_box_arr[input_box_arr_used_len] = return_input;
+	input_box_arr_used_len += 1;
+
+	return return_input;
+}
+
 //		 |---------|
 // some text  -> |some text|
 //		 |---------|
@@ -199,43 +288,6 @@ struct input *create_input_from_text(struct text text, int resize_box, TTF_Font 
 	return return_input;
 }
 
-// 	   |---------|
-// 	-> |some text|
-// 	   |---------|
-struct input *create_input(char *string, int resize_box, int x, int y, int w, int h, TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color)
-{
-	struct input *return_input = malloc(sizeof(struct input));
-	struct input new_input = { .selected = 0, .text = 0, .resize_box = resize_box, 
-					.outer_box = { x, y }, .outer_box_color = outer_color, 
-					.background_color = bg_color };
-
-	if (input_box_arr_used_len + 1 > input_box_arr_total_len) {
-		input_box_arr = (struct input**)realloc(input_box_arr, sizeof(struct input*) * input_box_arr_total_len + 10);
-	}
-
-	if (string != NULL) {
-		new_input.text = create_text(string, x+5, y+5, text_color, bg_color, f);
-	}
-
-	if (w == 0 && h == 0) {
-		new_input.outer_box.w = new_input.text.dst.w + 10;
-		new_input.outer_box.h = new_input.text.dst.h + 10;
-	}
-
-	if (!resize_box) {
-		new_input.text.src = new_input.text.dst;
-		new_input.text.src.x = 0;
-		new_input.text.src.y = 0;
-	}
-
-	memcpy(return_input, &new_input, sizeof(struct input));
-	return_input->index = input_box_arr_used_len;
-	input_box_arr[input_box_arr_used_len] = return_input;
-	input_box_arr_used_len += 1;
-
-	return return_input;
-}
-
 void change_input_box_text(struct input *input_box, char *str)
 {
 	SDL_Rect prev_input_pos = input_box->outer_box;
@@ -247,8 +299,6 @@ void change_input_box_text(struct input *input_box, char *str)
 	strncpy(input_box->text.str, str, MAX_TEXT_SIZE);
 	render_text_texture(&input_box->text, input_box->text.fg_color, input_box->text.bg_color, font);
 
-	//input_box->outer_box.h = input_box->resize_box ? input_box->text.dst.h + prev_input_pos.h : input_box->outer_box.h;
-	//input_box->outer_box.w = input_box->resize_box ? input_box->text.dst.w + prev_input_pos.w : input_box->outer_box.w;
 	input_box->outer_box.h = input_box->text.dst.h + prev_input_pos.h;
 	input_box->outer_box.w = input_box->text.dst.w + prev_input_pos.w;
 
@@ -257,15 +307,16 @@ void change_input_box_text(struct input *input_box, char *str)
 
 void render_input_box(struct input *input_box)
 {
-	//if (!input_box->resize_box && !input_box->selected) {
-	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(input_box->background_color));
+	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(input_box->bg_color));
 	SDL_RenderFillRect(renderer, &input_box->outer_box);
 	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(input_box->outer_box_color));
 	SDL_RenderDrawRect(renderer, &input_box->outer_box);
 	if (input_box->resize_box || input_box->selected) render_text(&input_box->text, NULL);
 	else {
-		input_box->text.dst.h = input_box->outer_box.h;
-		input_box->text.dst.w = input_box->outer_box.w;
+		input_box->text.dst.h  = input_box->text.src.h;
+		input_box->text.dst.w  = input_box->text.src.w;
+		input_box->outer_box.h = input_box->text.dst.h + 10;
+		input_box->outer_box.w = input_box->text.dst.w + 10;
 		render_text(&input_box->text, &input_box->text.src);
 	}
 }
