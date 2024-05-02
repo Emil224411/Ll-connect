@@ -1,5 +1,6 @@
 #include "../include/ui.h"
 
+
 int ui_init() 
 {
 	window = NULL;
@@ -27,6 +28,7 @@ int ui_init()
 		printf("SDL_CreateRenderer failed err: %s\n", SDL_GetError());
 		return -1;
 	}
+	TTF_SetFontWrappedAlign(font, TTF_WRAPPED_ALIGN_LEFT);
 
 	input_box_arr = malloc(sizeof(struct input*) * 10);
 	input_box_arr_total_len = 10;
@@ -83,7 +85,13 @@ void handle_event(SDL_Event *event)
 			running = 0;
 			break;
 		case SDL_MOUSEBUTTONDOWN:
-			mousebutton(event->button);
+			mouse_button_down(event);
+			break;
+		case SDL_MOUSEBUTTONUP:
+			mouse_button_up(event);
+			break;
+		case SDL_MOUSEMOTION:
+			mouse_move(event);
 			break;
 		case SDL_KEYDOWN:
 			switch (event->key.keysym.sym) {
@@ -116,9 +124,28 @@ void handle_event(SDL_Event *event)
 	}
 }
 
-void mousebutton(SDL_MouseButtonEvent mouse_data)
+void mouse_move(SDL_Event *event)
+{
+	if (selected_button != NULL && selected_button->movable) {
+		selected_button->function(selected_button, event);
+	}
+}
+
+void mouse_button_up(SDL_Event *event)
+{
+	if (selected_button != NULL) {
+		selected_button->function(selected_button, event);
+		selected_button = NULL;
+	} 
+	if (selected_input != NULL && selected_input->function != NULL) {
+		selected_input->function(selected_input, event);
+		selected_input = NULL;
+	}
+}
+void mouse_button_down(SDL_Event *event)
 {
 	int hit = 0;
+	SDL_MouseButtonEvent mouse_data = event->button;
 	for (int i = 0; i < input_box_arr_used_len; i++) {
 		SDL_Rect box_pos = input_box_arr[i]->outer_box;
 		if (mouse_data.x < box_pos.x + box_pos.w && mouse_data.x > box_pos.x 
@@ -138,27 +165,45 @@ void mousebutton(SDL_MouseButtonEvent mouse_data)
 			SDL_Rect button_pos = button_arr[i]->outer_box;
 			if (mouse_data.x < button_pos.x + button_pos.w && mouse_data.x > button_pos.x 
 			 && mouse_data.y < button_pos.y + button_pos.h && mouse_data.y > button_pos.y) {
-				button_arr[i]->function();
+				selected_button = button_arr[i];
 			}
+
 		}
 	}
 }
 
-struct text create_text(char *string, int x, int y, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f)
+SDL_Texture *create_texture_from_surface(SDL_Surface *sur)
 {
-	printf("create_text\nstring = %s\n", string);
+	SDL_Texture *textest = SDL_CreateTextureFromSurface(renderer, sur);
+	if (textest == NULL) {
+		printf("create texture did a epic fail\n");
+		printf("%s\n", SDL_GetError());
+		return NULL;
+	}
+	return textest;
+}
+
+struct text create_text(char *string, int x, int y, int w, int h, int wrap_length, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f)
+{
+	
 	char full_str[MAX_TEXT_SIZE];
 	
-	struct text new_text = { .str = 0, .show = 0, .fg_color = fg_color, .bg_color = bg_color, .dst = { x, y, }, };
-	if (strlen(string) < MAX_TEXT_SIZE) {
-		printf("string len = %ld\n", strlen(new_text.str));
-		strcpy(new_text.str, string);
-		printf("full_str = %s\n", new_text.str);
+	struct text new_text = { .str = 0, .show = 0, .wrap_length = wrap_length, .fg_color = fg_color, .bg_color = bg_color, .dst = { x, y, }, };
+	
+	strncpy(new_text.str, string, MAX_TEXT_SIZE);
+	if (w != 0 && h != 0) {
+		new_text.static_size = 1;
+		new_text.dst.w = w;
+		new_text.dst.h = h;
+	} else {
+		new_text.static_size = 0;
 	}
-	SDL_Surface *surface = TTF_RenderText_Shaded(f, new_text.str, fg_color, bg_color);
-	new_text.texture = SDL_CreateTextureFromSurface(renderer, surface);
-	TTF_SizeText(f, new_text.str, &new_text.dst.w, &new_text.dst.h);
-	SDL_FreeSurface(surface);
+#ifdef INFO
+	printf("create_text\nstring = %s\n", string);
+	printf("string len = %ld\n", strlen(string));
+	printf("static_size = %d\nwrap_length = %d\n\n", new_text.static_size, wrap_length);
+#endif
+	render_text_texture(&new_text, new_text.fg_color, new_text.bg_color, f);
 	return new_text;
 }
 
@@ -169,9 +214,13 @@ void destroy_text_texture(struct text *text)
 
 void render_text_texture(struct text *t, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f)
 {
-	SDL_Surface *surface = TTF_RenderText_Shaded(f, t->str, fg_color, bg_color);
+	SDL_Surface *surface = TTF_RenderUTF8_Shaded_Wrapped(f, t->str, fg_color, bg_color, t->wrap_length);
 	t->texture = SDL_CreateTextureFromSurface(renderer, surface);
-	TTF_SizeText(f, t->str, &t->dst.w, &t->dst.h);
+	if (t->static_size == 0) {
+		t->dst.w = surface->w;
+		t->dst.h = surface->h;
+	}
+	
 	t->bg_color = bg_color;
 	t->fg_color = fg_color;
 	SDL_FreeSurface(surface);
@@ -190,22 +239,20 @@ void render_text(struct text *t, SDL_Rect *src)
 	SDL_RenderCopy(renderer, t->texture, src, &t->dst);
 }
 
-struct button *create_button(char *string, int x, int y, int w, int h, TTF_Font *f, void (*function)(), SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color)
+struct button *create_button(char *string, int movable, int x, int y, int w, int h, TTF_Font *f, void (*function)(), SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color)
 {
 	struct button *return_button = malloc(sizeof(struct button));
-	struct button new_button = { { 0 }, function, { x, y, }, outer_color, bg_color };
+	struct button new_button = { { 0 }, function, movable, { x, y, }, outer_color, bg_color };
 
 	if (button_arr_used_len + 1 > button_arr_total_len) {
 		button_arr = (struct button**)realloc(button_arr, sizeof(struct button*) * button_arr_total_len + 10);
 		button_arr_total_len += 10;
 	}
 	if (string != NULL) {
-		new_button.text = create_text(string, x + 5, y + 5, text_color, bg_color, f);
+		new_button.text = create_text(string, x + 5, y + 5, 0, 0, 0, text_color, bg_color, f);
 	}
-	if (w == 0 && h == 0) {
-		new_button.outer_box.w = new_button.text.dst.w + 10;
-		new_button.outer_box.h = new_button.text.dst.h + 10;
-	}
+	new_button.outer_box.w = w == 0 ? new_button.text.dst.w + 10 : w;
+	new_button.outer_box.h = h == 0 ? new_button.text.dst.h + 10 : h;
 
 	memcpy(return_button, &new_button, sizeof(struct button));
 	button_arr[button_arr_used_len] = return_button;
@@ -226,10 +273,10 @@ void render_button(struct button *button)
 // 	   |---------|
 // 	-> |some text|
 // 	   |---------|
-struct input *create_input(char *string, int resize_box, int x, int y, int w, int h, TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color)
+struct input *create_input(char *string, int resize_box, int x, int y, int w, int h, void (*function)(struct input *self, SDL_Event *event), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color)
 {
 	struct input *return_input = malloc(sizeof(struct input));
-	struct input new_input = { .selected = 0, .text = 0, .resize_box = resize_box, 
+	struct input new_input = { .selected = 0, .text = 0, .resize_box = resize_box, .function = function,
 					.outer_box = { x, y }, .outer_box_color = outer_color, 
 					.bg_color = bg_color };
 
@@ -239,7 +286,7 @@ struct input *create_input(char *string, int resize_box, int x, int y, int w, in
 	}
 
 	if (string != NULL) {
-		new_input.text = create_text(string, x+5, y+5, text_color, bg_color, f);
+		new_input.text = create_text(string, x+5, y+5, 0, 0, 0, text_color, bg_color, f);
 	}
 
 	if (w == 0 && h == 0) {
@@ -264,17 +311,18 @@ struct input *create_input(char *string, int resize_box, int x, int y, int w, in
 //		 |---------|
 // some text  -> |some text|
 //		 |---------|
-struct input *create_input_from_text(struct text text, int resize_box, TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color)
+struct input *create_input_from_text(struct text text, int resize_box, void (*function)(struct input *self, SDL_Event *event), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color)
 {
 	struct input *return_input = malloc(sizeof(struct input));
-	struct input new_input = { 0, 0, text, resize_box, { text.dst.x, text.dst.y, }, outer_color, bg_color };
+	struct input new_input = { 0, 0, text, resize_box, function, { text.dst.x, text.dst.y, }, outer_color, bg_color };
 
 	if (input_box_arr_used_len + 1 > input_box_arr_total_len) {
 		input_box_arr = (struct input**)realloc(input_box_arr, sizeof(struct input*) * input_box_arr_total_len + 10);
 	}
 
 	render_text_texture(&new_input.text, text_color, bg_color, f);
-	TTF_SizeText(f, new_input.text.str, &new_input.outer_box.w, &new_input.outer_box.h);
+	new_input.outer_box.w = new_input.text.dst.w;
+	new_input.outer_box.h = new_input.text.dst.h;
 	new_input.outer_box.x -= 2;
 	new_input.outer_box.y -= 5;
 	new_input.outer_box.w += 10;
@@ -290,19 +338,18 @@ struct input *create_input_from_text(struct text text, int resize_box, TTF_Font 
 
 void change_input_box_text(struct input *input_box, char *str)
 {
-	SDL_Rect prev_input_pos = input_box->outer_box;
+	SDL_Rect prev_input_margin = input_box->outer_box;
 	SDL_Rect prev_text_pos = input_box->text.dst;
-	prev_input_pos.w = input_box->outer_box.w - input_box->text.dst.w;
-	prev_input_pos.h = input_box->outer_box.h - input_box->text.dst.h;
+	prev_input_margin.w = input_box->outer_box.w - input_box->text.dst.w;
+	prev_input_margin.h = input_box->outer_box.h - input_box->text.dst.h;
 
-	size_t len = strlen(input_box->text.str);
 	strncpy(input_box->text.str, str, MAX_TEXT_SIZE);
 	render_text_texture(&input_box->text, input_box->text.fg_color, input_box->text.bg_color, font);
 
-	input_box->outer_box.h = input_box->text.dst.h + prev_input_pos.h;
-	input_box->outer_box.w = input_box->text.dst.w + prev_input_pos.w;
-
-
+	if (input_box->selected) {
+		input_box->outer_box.h = input_box->text.dst.h + prev_input_margin.h;
+		input_box->outer_box.w = input_box->text.dst.w + prev_input_margin.w;
+	}
 }
 
 void render_input_box(struct input *input_box)
@@ -313,10 +360,12 @@ void render_input_box(struct input *input_box)
 	SDL_RenderDrawRect(renderer, &input_box->outer_box);
 	if (input_box->resize_box || input_box->selected) render_text(&input_box->text, NULL);
 	else {
-		input_box->text.dst.h  = input_box->text.src.h;
-		input_box->text.dst.w  = input_box->text.src.w;
-		input_box->outer_box.h = input_box->text.dst.h + 10;
-		input_box->outer_box.w = input_box->text.dst.w + 10;
+		//input_box->text.dst.h  = input_box->text.src.h;
+		//input_box->text.dst.w  = input_box->text.src.w;
+		//input_box->outer_box.h = input_box->text.dst.h + 10;
+		//input_box->outer_box.w = input_box->text.dst.w + 10;
+		input_box->outer_box.h = input_box->text.src.h + 10;
+		input_box->outer_box.w = input_box->text.src.w + 10;
 		render_text(&input_box->text, &input_box->text.src);
 	}
 }
