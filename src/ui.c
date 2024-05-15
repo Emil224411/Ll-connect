@@ -1,6 +1,5 @@
 #include "../include/ui.h"
 
-
 int ui_init() 
 {
 	window = NULL;
@@ -62,7 +61,13 @@ void ui_shutdown()
 		destroy_input_box(input_box_arr[i]);
 		input_box_arr[i] = NULL;
 	}
+	for (int i = 0; i < button_arr_used_len; i++) {
+		if (button_arr[i]->text.texture != NULL) {
+			destroy_text_texture(&button_arr[i]->text);
+		}
+	}
 	free(input_box_arr);
+	free(button_arr);
 	TTF_Quit();
 	SDL_Quit();
 }
@@ -74,7 +79,7 @@ void show_screen()
 
 void clear_screen()
 {
-	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(BLACK));
+	SDL_SetRenderDrawColor(renderer, 23, 23, 23, 255);
 	SDL_RenderClear(renderer);
 }
 
@@ -133,41 +138,36 @@ void mouse_move(SDL_Event *event)
 
 void mouse_button_up(SDL_Event *event)
 {
-	if (selected_button != NULL) {
+	SDL_MouseButtonEvent mouse_data = event->button;
+	if (selected_button != NULL && selected_button->function != NULL) {
 		selected_button->function(selected_button, event);
 		selected_button = NULL;
 	} 
-	if (selected_input != NULL && selected_input->function != NULL) {
-		selected_input->function(selected_input, event);
-		selected_input = NULL;
+	if (selected_input == NULL) {
+		int hit = 0;
+		for (int i = 0; i < input_box_arr_used_len; i++) {
+			SDL_Rect box_pos = input_box_arr[i]->outer_box;
+			if (mouse_data.x < box_pos.x + box_pos.w && mouse_data.x > box_pos.x 
+			 && mouse_data.y < box_pos.y + box_pos.h && mouse_data.y > box_pos.y) {
+				hit = 1;
+				input_box_arr[i]->selected = 1;
+				selected_input = input_box_arr[i];
+				SDL_StartTextInput();
+			} else if (input_box_arr[i]->selected != 0) {
+				input_box_arr[i]->selected = 0;
+				SDL_StopTextInput();
+			}
+		}
 	}
 }
 void mouse_button_down(SDL_Event *event)
 {
-	int hit = 0;
 	SDL_MouseButtonEvent mouse_data = event->button;
-	for (int i = 0; i < input_box_arr_used_len; i++) {
-		SDL_Rect box_pos = input_box_arr[i]->outer_box;
-		if (mouse_data.x < box_pos.x + box_pos.w && mouse_data.x > box_pos.x 
-		 && mouse_data.y < box_pos.y + box_pos.h && mouse_data.y > box_pos.y) {
-			hit = 1;
-			input_box_arr[i]->selected = 1;
-			selected_input = input_box_arr[i];
-			SDL_StartTextInput();
-		} else if (input_box_arr[i]->selected != 0) {
-			input_box_arr[i]->selected = 0;
-			SDL_StopTextInput();
-		}
-	}
-	if (!hit) {
-		selected_input = NULL;
-		for (int i = 0; i < button_arr_used_len; i++) {
-			SDL_Rect button_pos = button_arr[i]->outer_box;
-			if (mouse_data.x < button_pos.x + button_pos.w && mouse_data.x > button_pos.x 
-			 && mouse_data.y < button_pos.y + button_pos.h && mouse_data.y > button_pos.y) {
-				selected_button = button_arr[i];
-			}
-
+	for (int i = 0; i < button_arr_used_len; i++) {
+		SDL_Rect button_pos = button_arr[i]->outer_box;
+		if (mouse_data.x < button_pos.x + button_pos.w && mouse_data.x > button_pos.x 
+		 && mouse_data.y < button_pos.y + button_pos.h && mouse_data.y > button_pos.y) {
+			selected_button = button_arr[i];
 		}
 	}
 }
@@ -377,7 +377,10 @@ void destroy_input_box(struct input *input_box)
 	free(input_box);
 }
 
+struct drop_down_menu *create_drop_down_menu(struct text text, int x, int y, int w, int h, void (*function)(struct drop_down_menu *self, SDL_Event *event), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color tc)
+{
 
+}
 
 
 

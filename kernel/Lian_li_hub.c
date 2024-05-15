@@ -2,6 +2,7 @@
 #include <linux/init.h>
 #include <linux/proc_fs.h>
 #include <linux/usb.h>
+#include <linux/string.h>
 
 #define VENDOR_ID 0x0cf2
 #define PRODUCT_ID 0xa104
@@ -9,8 +10,44 @@
 MODULE_LICENSE("GPL");
 
 static struct usb_device *dev;
-static struct proc_dir_entry *proc_fan_speed;
-static struct proc_dir_entry *proc_rgb;
+static struct proc_dir_entry *proc_dir;
+static struct proc_dir_entry *proc_mbsync;
+
+static struct proc_dir_entry *proc_port_one;
+static struct proc_dir_entry *proc_fan_count_one;
+static struct proc_dir_entry *proc_fan_speed_one;
+static struct proc_dir_entry *proc_inner_and_outer_rgb_one;
+static struct proc_dir_entry *proc_inner_rgb_one;
+static struct proc_dir_entry *proc_outer_rgb_one;
+static struct proc_dir_entry *proc_inner_colors_one;
+static struct proc_dir_entry *proc_outer_colors_one;
+
+static struct proc_dir_entry *proc_port_two;
+static struct proc_dir_entry *proc_fan_count_two;
+static struct proc_dir_entry *proc_fan_speed_two;
+static struct proc_dir_entry *proc_inner_and_outer_rgb_two;
+static struct proc_dir_entry *proc_inner_rgb_two;
+static struct proc_dir_entry *proc_outer_rgb_two;
+static struct proc_dir_entry *proc_inner_colors_two;
+static struct proc_dir_entry *proc_outer_colors_two;
+
+static struct proc_dir_entry *proc_port_three;
+static struct proc_dir_entry *proc_fan_count_three;
+static struct proc_dir_entry *proc_fan_speed_three;
+static struct proc_dir_entry *proc_inner_and_outer_rgb_three;
+static struct proc_dir_entry *proc_inner_rgb_three;
+static struct proc_dir_entry *proc_outer_rgb_three;
+static struct proc_dir_entry *proc_inner_colors_three;
+static struct proc_dir_entry *proc_outer_colors_three;
+
+static struct proc_dir_entry *proc_port_four;
+static struct proc_dir_entry *proc_fan_count_four;
+static struct proc_dir_entry *proc_fan_speed_four;
+static struct proc_dir_entry *proc_inner_and_outer_rgb_four;
+static struct proc_dir_entry *proc_inner_rgb_four;
+static struct proc_dir_entry *proc_outer_rgb_four;
+static struct proc_dir_entry *proc_inner_colors_four;
+static struct proc_dir_entry *proc_outer_colors_four;
 
 static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID, PRODUCT_ID) },
@@ -20,15 +57,16 @@ MODULE_DEVICE_TABLE(usb, dev_table);
 
 struct rgb_data {
 	int mode, brightness, speed, direction;
-	unsigned char inner_color[351];
-	unsigned char outer_color[351];
+	unsigned char colors[351];
 };
 
-struct port {
+struct port_data {
 	int fan_speed, fan_speed_rpm, fan_count;
-	struct rgb_data rgb;
+	struct rgb_data inner_rgb, outer_rgb;
 };
-static struct port ports[4];
+static struct port_data ports[4];
+
+static int mb_sync_state;
 
 /*
  * port from 1 to 4
@@ -39,41 +77,246 @@ static struct port ports[4];
  * 4. outer  0x11 
  * 5. inner  0x10 
  */ 
-static void set_rgb(int port, int fan_count, int mode, int speed, int brightness, int direction)
+static void set_inner_and_outer_rgb(int port, int mode, int speed, int brightness, int direction)
 {
 	int ret;
 	const size_t packet_size = 353;
 	unsigned char *buffer = kcalloc(packet_size, sizeof(*buffer), GFP_KERNEL);
-	unsigned char data[5][353] = { { 0xe0, 0x10, 0x60, port, fan_count }, 
+
+	unsigned char data[5][353] =  { { 0xe0, 0x10, 0x60, port, ports[port-1].fan_count, }, 
 					{ 0xe0, 0x30 + (2 * (port - 1)), },  
 					{ 0xe0, 0x31 + (2 * (port - 1)), },  
 					{ 0xe0, 0x11 + (2 * (port - 1)), mode, speed, direction, brightness },  
 					{ 0xe0, 0x10 + (2 * (port - 1)), mode, speed, direction, brightness },  
 	};
-	memcpy(&data[1][2], ports[port-1].rgb.inner_color, packet_size - 2);
-	memcpy(&data[2][2], ports[port-1].rgb.outer_color, packet_size - 2);
+	memcpy(&data[1][2], ports[port-1].inner_rgb.colors, packet_size - 2);
+	memcpy(&data[2][2], ports[port-1].outer_rgb.colors, packet_size - 2);
+
 	for (int i = 0; i < 5; i++) {
 		memcpy(buffer, data[i], packet_size);
 
 		ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0x0), 0x09, 0x21, 0x02e0, 0x01, buffer, packet_size, 1000);
 		if (ret != packet_size) {
-			printk("Lian Li Hub: set_rgb failed sending packet %d error %d", i, ret);
+			printk(KERN_ERR "Lian Li Hub: set_rgb failed sending packet %d error %d", i, ret);
 		}
 	}
-	ports[port-1].rgb.mode 	     = mode;
-	ports[port-1].rgb.brightness = brightness;
-	ports[port-1].rgb.speed      = speed;
-	ports[port-1].rgb.direction  = direction;
+	ports[port-1].inner_rgb.mode       = ports[port-1].outer_rgb.mode       = mode;
+	ports[port-1].inner_rgb.brightness = ports[port-1].outer_rgb.brightness = brightness;
+	ports[port-1].inner_rgb.speed      = ports[port-1].outer_rgb.speed 	= speed;
+	ports[port-1].inner_rgb.direction  = ports[port-1].outer_rgb.direction 	= direction;
 }
 
-//buffer should be 65 in size
-static void get_speed(void)
+static void set_inner_rgb(int port, int mode, int speed, int brightness, int direction)
+{
+	struct rgb_data *out_rgb = &ports[port-1].outer_rgb;
+	const size_t packet_size = 353;
+	unsigned char *buffer = kcalloc(packet_size+1, sizeof(*buffer), GFP_KERNEL);
+	unsigned char data[4][353] =  { { 0xe0, 0x10, 0x60, port, ports[port-1].fan_count, }, 
+					{ 0xe0, 0x30 + (2 * (port - 1)), },  
+					{ 0xe0, 0x11 + (2 * (port - 1)), out_rgb->mode, out_rgb->speed, out_rgb->direction, out_rgb->brightness },  
+					{ 0xe0, 0x10 + (2 * (port - 1)), mode, speed, direction, brightness } };
+	memcpy(&data[1][2], ports[port-1].inner_rgb.colors, packet_size - 2);
+	int err = 0;
+	for (int i = 0; i < 4; i++) {
+		memcpy(buffer, data[i], packet_size);
+		int ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0x0), 0x09, 0x21, 0x02e0, 0x01, buffer, packet_size, 1000);
+		if (ret != packet_size) {
+			printk(KERN_ERR "Lian Li Hub: set_rgb failed sending packet %d error %d", i, ret);
+			err = 1;
+		}
+	}
+	if (err == 0) {
+		ports[port-1].inner_rgb.mode 	   = mode;
+		ports[port-1].inner_rgb.brightness = brightness;
+		ports[port-1].inner_rgb.speed      = speed;
+		ports[port-1].inner_rgb.direction  = direction;
+	}
+}
+
+static void set_outer_rgb(int port, int mode, int speed, int brightness, int direction)
+{
+	struct rgb_data *in_rgb = &ports[port-1].inner_rgb;
+	const size_t packet_size = 353;
+	unsigned char *buffer = kcalloc(packet_size, sizeof(*buffer), GFP_KERNEL);
+	unsigned char data[4][353] =  { { 0xe0, 0x10, 0x60, port, ports[port-1].fan_count, }, 
+					{ 0xe0, 0x31 + (2 * (port - 1)), },  
+					{ 0xe0, 0x11 + (2 * (port - 1)), mode, speed, direction, brightness },  
+					{ 0xe0, 0x10 + (2 * (port - 1)), in_rgb->mode, in_rgb->speed, in_rgb->direction, in_rgb->brightness } };
+	memcpy(&data[1][2], ports[port-1].outer_rgb.colors, packet_size - 2);
+	int err = 0;
+	for (int i = 0; i < 4; i++) {
+		memcpy(buffer, data[i], packet_size);
+		int ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0x0), 0x09, 0x21, 0x02e0, 0x01, buffer, packet_size, 1000);
+		if (ret != packet_size) {
+			printk(KERN_ERR "Lian Li Hub: set_rgb failed sending packet %d error %d", i, ret);
+			err = 1;
+		}
+	}
+	if (err == 0) {
+		ports[port-1].inner_rgb.mode 	   = mode;
+		ports[port-1].inner_rgb.brightness = brightness;
+		ports[port-1].inner_rgb.speed      = speed;
+		ports[port-1].inner_rgb.direction  = direction;
+	}
+}
+
+static ssize_t read_colors(struct file *f, char *ubuf, size_t count, loff_t *offs)
+{
+	size_t textsize = 702;
+	char *text = kcalloc(textsize, sizeof(*text), GFP_KERNEL);
+	int to_copy, not_copied, delta;
+	int port = 0;
+	const char *parent_name = f->f_path.dentry->d_parent->d_name.name;
+	const char *name = f->f_path.dentry->d_name.name;
+	unsigned char *colors;
+
+	to_copy = min(count, textsize);
+	if (strcmp(parent_name, "Port_one") == 0) {
+		port = 0;
+	} else if (strcmp(parent_name, "Port_two") == 0) {
+		port = 1;
+	} else if (strcmp(parent_name, "Port_three") == 0) {
+		port = 2;
+	} else if (strcmp(parent_name, "Port_four") == 0) {
+		port = 3;
+	}
+
+	if      (strcmp(name, "inner_colors") == 0) colors = ports[port].inner_rgb.colors;
+	else if (strcmp(name, "outer_colors") == 0) colors = ports[port].outer_rgb.colors;
+
+	int text_i = 0;
+	for (int i = 0; i < 351; i++) {
+		sprintf(&text[text_i], "%02x", colors[i]);
+		text_i += 2;
+	}
+
+	not_copied = copy_to_user(ubuf, text, to_copy);
+	delta = to_copy - not_copied;
+
+	kfree(text);
+
+	if (*offs) return 0;
+	else *offs = textsize;
+
+	return delta;
+}
+
+static ssize_t write_colors(struct file *f, const char *ubuf, size_t count, loff_t *offs)
+{
+	size_t text_size = 351;
+	char *text = kcalloc(text_size*2, sizeof(*text), GFP_KERNEL);
+	int to_copy, not_copied, copied;
+	int port = 0;
+	const char *parent_name = f->f_path.dentry->d_parent->d_name.name;
+	const char *name = f->f_path.dentry->d_name.name;
+	unsigned char *colors;
+
+	if (strcmp(parent_name, "Port_one") == 0) {
+		port = 0;
+	} else if (strcmp(parent_name, "Port_two") == 0) {
+		port = 1;
+	} else if (strcmp(parent_name, "Port_three") == 0) {
+		port = 2;
+	} else if (strcmp(parent_name, "Port_four") == 0) {
+		port = 3;
+	}
+
+	if      (strcmp(name, "inner_colors") == 0) colors = ports[port].inner_rgb.colors;
+	else if (strcmp(name, "outer_colors") == 0) colors = ports[port].outer_rgb.colors;
+
+	to_copy = min(count, text_size*2);
+
+	not_copied = copy_from_user(text, ubuf, to_copy);
+
+	copied = to_copy - not_copied;
+
+	int text_i = 0;
+	for (int i = 0; i < text_size; i++) {
+		sscanf(&text[text_i], "%02hhx", &colors[i]); 
+		text_i += 2;
+	}
+
+	kfree(text);
+	return copied;
+
+}
+
+static ssize_t read_rgb(struct file *f, char *ubuf, size_t count, loff_t *offs)
+{
+	size_t textsize = 128;
+	char *text = kcalloc(textsize, sizeof(*text), GFP_KERNEL);
+	int to_copy, not_copied, delta;
+	int port = 0;
+	const char *parent_name = f->f_path.dentry->d_parent->d_name.name;
+
+	to_copy = min(count, textsize);
+	if (strcmp(parent_name, "Port_one") == 0) {
+		port = 0;
+	} else if (strcmp(parent_name, "Port_two") == 0) {
+		port = 1;
+	} else if (strcmp(parent_name, "Port_three") == 0) {
+		port = 2;
+	} else if (strcmp(parent_name, "Port_four") == 0) {
+		port = 3;
+	}
+
+	sprintf(text, "%d %d %d %d\n%d %d %d %d\n",
+			ports[port].inner_rgb.mode, ports[port].inner_rgb.speed, ports[port].inner_rgb.direction, ports[port].inner_rgb.brightness, 
+			ports[port].outer_rgb.mode, ports[port].outer_rgb.speed, ports[port].outer_rgb.direction, ports[port].outer_rgb.brightness);
+
+	not_copied = copy_to_user(ubuf, text, to_copy);
+	delta = to_copy - not_copied;
+
+	kfree(text);
+
+	if (*offs) return 0;
+	else *offs = textsize;
+
+	return delta;
+}
+
+static ssize_t write_rgb(struct file *f, const char *ubuf, size_t count, loff_t *offs)
+{
+	const char *parent_name = f->f_path.dentry->d_parent->d_name.name;
+	const char *name = f->f_path.dentry->d_name.name;
+	char *text = kcalloc(32, sizeof(char), GFP_KERNEL);
+
+	int to_copy, not_copied, delta;
+	int mode, speed, direction, brightness; 
+	int port = 0;
+
+	if (strcmp(parent_name, "Port_one") == 0) {
+		port = 0;
+	} else if (strcmp(parent_name, "Port_two") == 0) {
+		port = 1;
+	} else if (strcmp(parent_name, "Port_three") == 0) {
+		port = 2;
+	} else if (strcmp(parent_name, "Port_four") == 0) {
+		port = 3;
+	}
+
+	to_copy = min(count, 32);
+	not_copied = copy_from_user(text, ubuf, to_copy);
+	
+	sscanf(text, "%d %d %d %d", &mode, &speed, &direction, &brightness);
+
+	if      (strcmp(name, "inner_and_outer_rgb") == 0) set_inner_and_outer_rgb(port+1,  mode, speed, brightness, direction);
+	else if (strcmp(name, "inner_rgb") == 0)     		     set_inner_rgb(port+1,  mode, speed, brightness, direction);
+	else if (strcmp(name, "outer_rgb") == 0)     		     set_outer_rgb(port+1,  mode, speed, brightness, direction);
+
+	delta = to_copy - not_copied;
+
+	kfree(text);
+	return delta;
+}
+
+static void get_speed_in_rpm(void)
 {
 	int size = 65;
 	unsigned char *response = kcalloc(size, sizeof(*response), GFP_KERNEL);
 	int ret = usb_control_msg(dev, usb_rcvctrlpipe(dev, 0x80), 0x01, 0xa1, 0x01e0, 1, response, size, 1000);
 	if (ret != size) {
-		printk("Lian Li Hub: get_speed failed error %d\n", ret);
+		printk(KERN_ERR "Lian Li Hub: get_speed failed error %d\n", ret);
 	} else {
 		ports[0].fan_speed_rpm = (response[2] << 8) + response[3];
 		ports[1].fan_speed_rpm = (response[4] << 8) + response[5];
@@ -83,17 +326,21 @@ static void get_speed(void)
 	kfree(response);
 }
 
-static void set_speed(int new_speeds[])
+static void set_speeds(int port_one, int port_two, int port_three, int port_four)
 {
+	int new_speeds[] = { port_one, port_two, port_three, port_four };
 	int datalen = 353;
 	unsigned char *mbuff = kcalloc(datalen, sizeof(*mbuff), GFP_KERNEL);
-	unsigned char data[5][353] = { { 0xe0, 0x50, }, { 0xe0, 0x20, 0x00, new_speeds[0], }, 
-					{ 0xe0, 0x21, 0x00, new_speeds[1], }, { 0xe0, 0x22, 0x00, new_speeds[2], }, { 0xe0, 0x23, 0x00, new_speeds[3], } };
+	unsigned char data[5][353] =  { { 0xe0, 0x50, }, 
+					{ 0xe0, 0x20, 0x00, new_speeds[0], }, 
+					{ 0xe0, 0x21, 0x00, new_speeds[1], }, 
+					{ 0xe0, 0x22, 0x00, new_speeds[2], }, 
+					{ 0xe0, 0x23, 0x00, new_speeds[3], } };
 	for (int i = 0; i < 5; i++) {
 		memcpy(mbuff, data[i], 353);
 		int ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0), 0x09, 0x21, 0x02e0, 1, mbuff, datalen, 100);
 		if (ret != datalen) {
-			printk("Lian Li Hub - failed to send usb_control_msg with data[%d] err: %d", i, ret);
+			printk(KERN_ERR "Lian Li Hub: failed to send usb_control_msg with data[%d] error %d", i, ret);
 		} else if (i >= 1) {
 			ports[i-1].fan_speed = new_speeds[i-1];
 		}
@@ -102,20 +349,51 @@ static void set_speed(int new_speeds[])
 	kfree(mbuff);
 }
 
-static ssize_t read_rgb(struct file *f, char *ubuf, size_t count, loff_t *offs)
+static void set_speed(int port, int new_speed)
 {
-	size_t textsize = 128;
+	int datalen = 353;
+	unsigned char *mbuff = kcalloc(datalen, sizeof(*mbuff), GFP_KERNEL);
+
+	unsigned char data[2][353] =  { { 0xe0, 0x50, }, 
+					{ 0xe0, 0x20 +  (port - 1), 0x00, new_speed, }, };
+
+	for (int i = 0; i < 2; i++) {
+		memcpy(mbuff, data[i], datalen);
+
+		int ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0), 0x09, 0x21, 0x02e0, 1, mbuff, datalen, 100);
+
+		if (ret != datalen) {
+			printk(KERN_ERR "Lian Li Hub: failed to send usb_control_msg with data[%d] error %d", i, ret);
+		}
+	}
+	ports[port-1].fan_speed = new_speed;
+	kfree(mbuff);
+}
+
+static void mb_sync(int enable)
+{
+	int datalen = 353;
+	unsigned char *buf = kcalloc(datalen, sizeof(*buf), GFP_KERNEL);
+	unsigned char data[353] = { 0xe0, 0x10, 0x61, enable, };
+
+	memcpy(buf, data, datalen);
+	int ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0), 0x09, 0x21, 0x02e0, 1, buf, datalen, 100);
+	if (ret != datalen) {
+		printk(KERN_ERR "Lian Li Hub: failed to send mb sync error %d", ret);
+		return;
+	}
+	mb_sync_state = enable;
+}
+
+static ssize_t read_mbsync(struct file *f, char *ubuf, size_t count, loff_t *offs)
+{
+	size_t textsize = 3;
 	char *text = kcalloc(textsize, sizeof(*text), GFP_KERNEL);
 	int to_copy, not_copied, delta;
 
 	to_copy = min(count, textsize);
 
-	sprintf(text, "port 1: %d %d, %d, %d\nport 2: %d %d, %d, %d\nport 3: %d %d, %d, %d\nport 4: %d %d, %d, %d\n", 
-			ports[0].rgb.mode, ports[0].rgb.speed, ports[0].rgb.direction, ports[0].rgb.brightness, 
-			ports[1].rgb.mode, ports[1].rgb.speed, ports[1].rgb.direction, ports[1].rgb.brightness, 
-			ports[2].rgb.mode, ports[2].rgb.speed, ports[2].rgb.direction, ports[2].rgb.brightness, 
-			ports[3].rgb.mode, ports[3].rgb.speed, ports[3].rgb.direction, ports[3].rgb.brightness);
-
+	sprintf(text, "%d\n", mb_sync_state);
 	not_copied = copy_to_user(ubuf, text, to_copy);
 	delta = to_copy - not_copied;
 
@@ -126,41 +404,54 @@ static ssize_t read_rgb(struct file *f, char *ubuf, size_t count, loff_t *offs)
 
 	return delta;
 }
-static ssize_t write_rgb(struct file *f, const char *ubuf, size_t count, loff_t *offs)
-{
-	char *text = kcalloc(32, sizeof(char), GFP_KERNEL);
-	int to_copy, not_copied, delta;
-	int p, mode, speed, direction, brightness; 
 
-	to_copy = min(count, 32);
+static ssize_t write_mbsync(struct file *f, const char *ubuf, size_t count, loff_t *offs)
+{
+	size_t textsize = 3;
+	char *text = kcalloc(textsize, sizeof(*text), GFP_KERNEL);
+	int to_copy, not_copied, delta;
+	int sync;
+
+	to_copy = min(count, textsize);
 
 	not_copied = copy_from_user(text, ubuf, to_copy);
 
-	sscanf(text, "%d %d %d %d %d", &p, &mode, &speed, &direction, &brightness);
-	printk("write rgb set to %d, %d, %d, %d, %d\n", p, mode, speed, direction, brightness);
+	sscanf(text, "%d", &sync);
 
-	set_rgb(p, ports[p-1].fan_count, mode, speed, brightness, direction);
+	mb_sync(sync);
 
 	delta = to_copy - not_copied;
 
 	kfree(text);
 	return delta;
 }
+
 static ssize_t read_fan_speed(struct file *f, char *ubuf, size_t count, loff_t *offs)
 {
-	get_speed();
+	get_speed_in_rpm();
 	size_t textsize = 128;
 	char *text = kcalloc(textsize, sizeof(*text), GFP_KERNEL);
-	int to_copy, not_copied, delta;
+	int to_copy, not_copied, copied;
+	int port = 0;
+	const char *parent_name = f->f_path.dentry->d_parent->d_name.name;
+
+	if (strcmp(parent_name, "Port_one") == 0) {
+		port = 0;
+	} else if (strcmp(parent_name, "Port_two") == 0) {
+		port = 1;
+	} else if (strcmp(parent_name, "Port_three") == 0) {
+		port = 2;
+	} else if (strcmp(parent_name, "Port_four") == 0) {
+		port = 3;
+	}
+
+	sprintf(text, "%d %d\n", ports[port].fan_speed, ports[port].fan_speed_rpm);
 
 	to_copy = min(count, textsize);
 
-	sprintf(text, "port\t:\t1,\t2,\t3,\t4\n%%\t:\t%d,\t%d,\t%d,\t%d\nrpm\t:\t%d,\t%d,\t%d,\t%d\n", 
-			ports[0].fan_speed, ports[1].fan_speed, ports[2].fan_speed, ports[3].fan_speed,
-			ports[0].fan_speed_rpm, ports[1].fan_speed_rpm, ports[2].fan_speed_rpm, ports[3].fan_speed_rpm);
-	
 	not_copied = copy_to_user(ubuf, text, to_copy);
-	delta = to_copy - not_copied;
+
+	copied = to_copy - not_copied;
 
 	kfree(text);
 
@@ -168,28 +459,111 @@ static ssize_t read_fan_speed(struct file *f, char *ubuf, size_t count, loff_t *
 	if (*offs) return 0;
 	else *offs = textsize;
 
-	return delta;
+	return copied;
 }
 
 static ssize_t write_fan_speed(struct file *f, const char *ubuf, size_t count, loff_t *offs)
 {
-	char *text= kcalloc(32, sizeof(char), GFP_KERNEL);
-	int to_copy, not_copied, delta;
-	int new_speed[4];
+	size_t text_size = 32;
+	char *text= kcalloc(text_size, sizeof(*text), GFP_KERNEL);
+	int to_copy, not_copied, copied;
+	int speed;
+	const char *parent_name = f->f_path.dentry->d_parent->d_name.name;
 
-	to_copy = min(count, 32);
+	to_copy = min(count, text_size);
 
 	not_copied = copy_from_user(text, ubuf, to_copy);
 
-	sscanf(text, "%d %d %d %d", &new_speed[0], &new_speed[1], &new_speed[2], &new_speed[3]);
+	copied = to_copy - not_copied;
 
-	set_speed(new_speed);
+	sscanf(text, "%d", &speed);
 
-	delta = to_copy - not_copied;
+	if (strcmp(parent_name, "Port_one") == 0) {
+		set_speed(1, speed);
+	} else if (strcmp(parent_name, "Port_two") == 0) {
+		set_speed(2, speed);
+	} else if (strcmp(parent_name, "Port_three") == 0) {
+		set_speed(3, speed);
+	} else if (strcmp(parent_name, "Port_four") == 0) {
+		set_speed(4, speed);
+	}
+
 
 	kfree(text);
-	return delta;
+	return copied;
 }
+
+static ssize_t write_fan_count(struct file *f, const char *ubuf, size_t count, loff_t *offs)
+{
+	size_t text_size = 16;
+	char *text = kcalloc(text_size, sizeof(*text), GFP_KERNEL);
+	int to_copy, not_copied, copied;
+	const char *parent_name = f->f_path.dentry->d_parent->d_name.name;
+	int fan_count = 0;
+
+	to_copy = min(count, text_size);
+	
+	not_copied = copy_from_user(text, ubuf, to_copy);
+	
+	copied = to_copy - not_copied;
+
+	sscanf(text, "%d", &fan_count);
+	
+	if (strcmp(parent_name, "Port_one") == 0) {
+		ports[0].fan_count = fan_count;
+	} else if (strcmp(parent_name, "Port_two") == 0) {
+		ports[1].fan_count = fan_count;
+	} else if (strcmp(parent_name, "Port_three") == 0) {
+		ports[2].fan_count = fan_count;
+	} else if (strcmp(parent_name, "Port_four") == 0) {
+		ports[3].fan_count = fan_count;
+	}
+
+	kfree(text);
+	return copied;
+}
+
+static ssize_t read_fan_count(struct file *f, char *ubuf, size_t count, loff_t *offs)
+{
+	size_t text_size = 16;
+	char *text = kcalloc(text_size, sizeof(*text), GFP_KERNEL);
+	int to_copy, not_copied, copied;
+	const char *parent_name = f->f_path.dentry->d_parent->d_name.name;
+	int port = 0;
+
+	if (strcmp(parent_name, "Port_one") == 0) {
+		port = 0;
+	} else if (strcmp(parent_name, "Port_two") == 0) {
+		port = 1;
+	} else if (strcmp(parent_name, "Port_three") == 0) {
+		port = 2;
+	} else if (strcmp(parent_name, "Port_four") == 0) {
+		port = 3;
+	}
+
+	sprintf(text, "%d", ports[port].fan_count);
+
+	to_copy = min(count, text_size);
+
+	not_copied = copy_to_user(ubuf, text, to_copy);
+
+	copied = to_copy - not_copied;
+
+	if (*offs) return 0;
+	else *offs = text_size;
+
+	return copied;
+}
+
+static struct proc_ops pops_colors = {
+	.proc_read = read_colors,
+	.proc_write = write_colors,
+};
+
+static struct proc_ops pops_fan_count = {
+	.proc_read = read_fan_count,
+	.proc_write = write_fan_count,
+};
 
 static struct proc_ops pops_rgb = {
 	.proc_read = read_rgb,
@@ -201,40 +575,106 @@ static struct proc_ops pops_fan_speed = {
 	.proc_write = write_fan_speed,
 };
 
+static struct proc_ops pops_mb_sync = {
+	.proc_read = read_mbsync,
+	.proc_write = write_mbsync,
+};
+
+#define ERROR(str) { printk(KERN_ERR "Lian Li Hub: %s\n", str); return -1; }
 static int dev_probe(struct usb_interface *intf, const struct usb_device_id *id)
 {
-	printk("Lian Li Hub: driver probe\n");
-
 	dev = interface_to_usbdev(intf);
-	if (dev == NULL) {
-		printk("Lian Li Hub: error getting dev from intf");
-		return -1;
-	}
-	proc_rgb = proc_create("rgb", 0666, NULL, &pops_rgb);
-	if (proc_rgb == NULL) {
-		printk("Lian Li Hub: error proc_create rgb failed");
-		return -1;
-	}
-	proc_fan_speed = proc_create("fan_speeds", 0666, NULL, &pops_fan_speed);
-	if (proc_fan_speed == NULL) {
-		printk("Lian Li Hub: error proc_create fan speed failed");
-		return -1;
-	}
+	if (dev == NULL) ERROR("error getting dev from intf");
+	
+	proc_dir = proc_mkdir("Lian_li_hub", NULL);
+	if (proc_dir == NULL) ERROR("proc_mkdir Lian li hub failed");
 
-	int defaultspeeds[] = { 30, 30, 40, 0 };
-	set_speed(defaultspeeds);
+	proc_mbsync = proc_create("mb_sync", 0666, proc_dir, &pops_mb_sync);
+	if (proc_mbsync == NULL) ERROR("proc_create mb_sync failed");
+	// port one
+	proc_port_one = proc_mkdir("Port_one", proc_dir);
+	if (proc_port_one == NULL) ERROR("proc_mkdir port_one failed");
+	proc_fan_count_one = proc_create("fan_count", 0666, proc_port_one, &pops_fan_count);
+	if (proc_fan_count_one == NULL) ERROR("proc_create fan_count_one failed");
+	proc_inner_and_outer_rgb_one = proc_create("inner_and_outer_rgb", 0666, proc_port_one, &pops_rgb);
+	if (proc_inner_and_outer_rgb_one == NULL) ERROR("proc_create inner_and_outer_rgb_one failed");
+	proc_inner_rgb_one = proc_create("inner_rgb", 0666, proc_port_one, &pops_rgb);
+	if (proc_inner_rgb_one == NULL) ERROR("proc_create inner_rgb_one failed");
+	proc_outer_rgb_one = proc_create("outer_rgb", 0666, proc_port_one, &pops_rgb);
+	if (proc_outer_rgb_one == NULL) ERROR("proc_create outer_rgb_one failed");
+	proc_inner_colors_one = proc_create("inner_colors", 0666, proc_port_one, &pops_colors);
+	if (proc_inner_colors_one == NULL) ERROR("proc_create inner_colors_one failed");
+	proc_outer_colors_one = proc_create("outer_colors", 0666, proc_port_one, &pops_colors);
+	if (proc_outer_colors_one == NULL) ERROR("proc_create outer_colors_one failed");
+	proc_fan_speed_one = proc_create("fan_speed", 0666, proc_port_one, &pops_fan_speed);
+	if (proc_fan_speed_one == NULL) ERROR("proc_create fan_speed_one failed");
+	//port two
+	proc_port_two = proc_mkdir("Port_two", proc_dir);
+	if (proc_port_two == NULL) ERROR("proc_mkdir port_two failed");
+	proc_fan_count_two = proc_create("fan_count", 0666, proc_port_two, &pops_fan_count);
+	if (proc_fan_count_two == NULL) ERROR("proc_create fan_count_two failed");
+	proc_inner_and_outer_rgb_two = proc_create("inner_and_outer_rgb", 0666, proc_port_two, &pops_rgb);
+	if (proc_inner_and_outer_rgb_two == NULL) ERROR("proc_create inner_and_outer_rgb_two failed");
+	proc_inner_rgb_two = proc_create("inner_rgb", 0666, proc_port_two, &pops_rgb);
+	if (proc_inner_rgb_two == NULL) ERROR("proc_create inner_rgb_two failed");
+	proc_outer_rgb_two = proc_create("outer_rgb", 0666, proc_port_two, &pops_rgb);
+	if (proc_outer_rgb_two == NULL) ERROR("proc_create outer_rgb_two failed");
+	proc_inner_colors_two = proc_create("inner_colors", 0666, proc_port_two, &pops_colors);
+	if (proc_inner_colors_two == NULL) ERROR("proc_create inner_colors_two failed");
+	proc_outer_colors_two = proc_create("outer_colors", 0666, proc_port_two, &pops_colors);
+	if (proc_outer_colors_two == NULL) ERROR("proc_create outer_colors_two failed");
+	proc_fan_speed_two = proc_create("fan_speed", 0666, proc_port_two, &pops_fan_speed);
+	if (proc_fan_speed_two == NULL) ERROR("proc_create fan_speed_two failed");
+	// port three
+	proc_port_three = proc_mkdir("Port_three", proc_dir);
+	if (proc_port_three == NULL) ERROR("proc_mkdir port_three failed");
+	proc_fan_count_three = proc_create("fan_count", 0666, proc_port_three, &pops_fan_count);
+	if (proc_fan_count_three == NULL) ERROR("proc_create fan_count_three failed");
+	proc_inner_and_outer_rgb_three = proc_create("inner_and_outer_rgb", 0666, proc_port_three, &pops_rgb);
+	if (proc_inner_and_outer_rgb_three == NULL) ERROR("proc_create inner_and_outer_rgb_three failed");
+	proc_inner_rgb_three = proc_create("inner_rgb", 0666, proc_port_three, &pops_rgb);
+	if (proc_inner_rgb_three == NULL) ERROR("proc_create inner_rgb_three failed");
+	proc_outer_rgb_three = proc_create("outer_rgb", 0666, proc_port_three, &pops_rgb);
+	if (proc_outer_rgb_three == NULL) ERROR("proc_create outer_rgb_three failed");
+	proc_inner_colors_three = proc_create("inner_colors", 0666, proc_port_three, &pops_colors);
+	if (proc_inner_colors_three == NULL) ERROR("proc_create inner_colors_three failed");
+	proc_outer_colors_three = proc_create("outer_colors", 0666, proc_port_three, &pops_colors);
+	if (proc_outer_colors_three == NULL) ERROR("proc_create outer_colors_three failed");
+	proc_fan_speed_three = proc_create("fan_speed", 0666, proc_port_three, &pops_fan_speed);
+	if (proc_fan_speed_three == NULL) ERROR("proc_create fan_speed_three failed");
+	// port four
+	proc_port_four = proc_mkdir("Port_four", proc_dir);
+	if (proc_port_four == NULL) ERROR("proc_mkdir port_four failed");
+	proc_fan_count_four = proc_create("fan_count", 0666, proc_port_four, &pops_fan_count);
+	if (proc_fan_count_four == NULL) ERROR("proc_create fan_count_four failed");
+	proc_inner_and_outer_rgb_four = proc_create("inner_and_outer_rgb", 0666, proc_port_four, &pops_rgb);
+	if (proc_inner_and_outer_rgb_four == NULL) ERROR("proc_create inner_and_outer_rgb_four failed");
+	proc_inner_rgb_four = proc_create("inner_rgb", 0666, proc_port_four, &pops_rgb);
+	if (proc_inner_rgb_four == NULL) ERROR("proc_create inner_rgb_four failed");
+	proc_outer_rgb_four = proc_create("outer_rgb", 0666, proc_port_four, &pops_rgb);
+	if (proc_outer_rgb_four == NULL) ERROR("proc_create outer_rgb_four failed");
+	proc_inner_colors_four = proc_create("inner_colors", 0666, proc_port_four, &pops_colors);
+	if (proc_inner_colors_four == NULL) ERROR("proc_create inner_colors_four failed");
+	proc_outer_colors_four = proc_create("outer_colors", 0666, proc_port_four, &pops_colors);
+	if (proc_outer_colors_four == NULL) ERROR("proc_create outer_colors_four failed");
+	proc_fan_speed_four = proc_create("fan_speed", 0666, proc_port_four, &pops_fan_speed);
+	if (proc_fan_speed_four == NULL) ERROR("proc_create fan_speed_four failed");
 
-	get_speed();
+	set_speeds(30, 30, 40, 0);
 
-	for (int i = 0; i < 96; i += 3) {
-		ports[0].rgb.inner_color[i]     = 0xff;
-		ports[0].rgb.inner_color[i + 1] = 0x00;
-		ports[0].rgb.inner_color[i + 2] = 0x00;
-	}
-	for (int i = 0; i < 144; i += 3) {
-		ports[0].rgb.outer_color[i]     = 0xff;
-		ports[0].rgb.outer_color[i + 1] = 0x00;
-		ports[0].rgb.outer_color[i + 2] = 0x00;
+	get_speed_in_rpm();
+
+	for (int j = 0; j < 4; j++) {
+		for (int i = 0; i < 96; i += 3) {
+			ports[j].inner_rgb.colors[i]     = 0xff;
+			ports[j].inner_rgb.colors[i + 1] = 0x00;
+			ports[j].inner_rgb.colors[i + 2] = 0x00;
+		}
+		for (int i = 0; i < 144; i += 3) {
+			ports[j].outer_rgb.colors[i]     = 0xff;
+			ports[j].outer_rgb.colors[i + 1] = 0x00;
+			ports[j].outer_rgb.colors[i + 2] = 0x00;
+		}
 	}
 
 	ports[0].fan_count = 4;
@@ -242,16 +682,26 @@ static int dev_probe(struct usb_interface *intf, const struct usb_device_id *id)
 	ports[2].fan_count = 3;
 	ports[3].fan_count = 1;
 	
-	set_rgb(1, 4, 1, 2, 0, 0);
+	set_inner_and_outer_rgb(1, 1, 2, 0, 0);
 
+	printk(KERN_INFO"Lian Li Hub: driver probed\n");
 	return 0;
 }
 
 static void dev_disconnect(struct usb_interface *intf)
 {
-	proc_remove(proc_rgb);
-	proc_remove(proc_fan_speed);
-	printk("Lian Li Hub - driver disconnect\n");
+	proc_remove(proc_inner_and_outer_rgb_one);
+	proc_remove(proc_fan_speed_one);
+	proc_remove(proc_fan_speed_two);
+	proc_remove(proc_fan_speed_three);
+	proc_remove(proc_fan_speed_four);
+	proc_remove(proc_port_one);
+	proc_remove(proc_port_two);
+	proc_remove(proc_port_three);
+	proc_remove(proc_port_four);
+	proc_remove(proc_mbsync);
+	proc_remove(proc_dir);
+	printk(KERN_INFO "Lian Li Hub: driver disconnect\n");
 }
 
 static struct usb_driver driver = {
@@ -264,10 +714,10 @@ static struct usb_driver driver = {
 static int __init controller_init(void)
 {
 	int res;
-	printk("Lian Li Hub - driver init\n");
+	printk(KERN_INFO "Lian Li Hub: driver init\n");
 	res = usb_register(&driver);
 	if (res) {
-		printk("Lian Li Hub - Error during register\n");
+		printk(KERN_ERR "Lian Li Hub: Error during register\n");
 		return -res;
 	}
 	return 0;
@@ -276,7 +726,7 @@ static int __init controller_init(void)
 static void __exit controller_exit(void)
 {
 	usb_deregister(&driver);
-	printk("Lian Li Hub - driver exit\n");
+	printk(KERN_INFO "Lian Li Hub: driver exit\n");
 }
 
 module_init(controller_init);

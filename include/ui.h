@@ -34,7 +34,7 @@ struct text {
 	SDL_Color fg_color, bg_color;
 	SDL_Rect src, dst;
 	SDL_Texture *texture;
-} text;
+};
 
 struct button {
 	struct text text;
@@ -42,7 +42,7 @@ struct button {
 	int movable;
 	SDL_Rect outer_box;
 	SDL_Color outer_box_color, bg_color;
-} button;
+};
 static struct button *selected_button;
 static int button_arr_total_len, button_arr_used_len;
 static struct button **button_arr;
@@ -55,11 +55,19 @@ struct input {
 	SDL_Rect outer_box;
 	SDL_Color outer_box_color, bg_color;
 
-} input;
+};
 static struct input *selected_input;
 static int input_box_arr_total_len;
 static int input_box_arr_used_len;
 static struct input **input_box_arr;
+
+struct drop_down_menu {
+	int selected;
+	struct text text;
+	void (*function)(struct drop_down_menu *self, SDL_Event *event);
+	SDL_Rect pos;
+	SDL_Color outer_box_color, bg_color;
+};
 
 int ui_init();
 void ui_shutdown();
@@ -86,5 +94,7 @@ struct input *create_input(char *text, int resize_box, int x, int y, int w, int 
 void destroy_input_box(struct input *input_box);
 void change_input_box_text(struct input *input_box, char *str);
 void render_input_box(struct input *input_box);
+
+struct drop_down_menu *create_drop_down_menu(struct text text, int x, int y, int w, int h, void (*function)(struct drop_down_menu *self, SDL_Event *event), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color tc);
 
 #endif

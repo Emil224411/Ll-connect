@@ -4,6 +4,18 @@ set fan speed:
 	e0 20(20-23) 00 64(max speed ca 2000 rpm) 
 	e0 20(20-23) 00 0c(min speed ca 250  rpm)
 
+enable fan speed sync mb:
+	e0 10 62 11
+	e0 10 62 22
+	e0 10 62 44
+	e0 10 62 88
+
+disable fan speed sync mb:
+	e0 10 62 10
+	e0 10 62 20
+	e0 10 62 40
+	e0 10 62 80
+
 brightnes:
 	0%   = 08
 	25%  = 03
