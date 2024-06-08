@@ -13,42 +13,6 @@ static struct usb_device *dev;
 static struct proc_dir_entry *proc_dir;
 static struct proc_dir_entry *proc_mbsync;
 
-static struct proc_dir_entry *proc_port_one;
-static struct proc_dir_entry *proc_fan_count_one;
-static struct proc_dir_entry *proc_fan_speed_one;
-static struct proc_dir_entry *proc_inner_and_outer_rgb_one;
-static struct proc_dir_entry *proc_inner_rgb_one;
-static struct proc_dir_entry *proc_outer_rgb_one;
-static struct proc_dir_entry *proc_inner_colors_one;
-static struct proc_dir_entry *proc_outer_colors_one;
-
-static struct proc_dir_entry *proc_port_two;
-static struct proc_dir_entry *proc_fan_count_two;
-static struct proc_dir_entry *proc_fan_speed_two;
-static struct proc_dir_entry *proc_inner_and_outer_rgb_two;
-static struct proc_dir_entry *proc_inner_rgb_two;
-static struct proc_dir_entry *proc_outer_rgb_two;
-static struct proc_dir_entry *proc_inner_colors_two;
-static struct proc_dir_entry *proc_outer_colors_two;
-
-static struct proc_dir_entry *proc_port_three;
-static struct proc_dir_entry *proc_fan_count_three;
-static struct proc_dir_entry *proc_fan_speed_three;
-static struct proc_dir_entry *proc_inner_and_outer_rgb_three;
-static struct proc_dir_entry *proc_inner_rgb_three;
-static struct proc_dir_entry *proc_outer_rgb_three;
-static struct proc_dir_entry *proc_inner_colors_three;
-static struct proc_dir_entry *proc_outer_colors_three;
-
-static struct proc_dir_entry *proc_port_four;
-static struct proc_dir_entry *proc_fan_count_four;
-static struct proc_dir_entry *proc_fan_speed_four;
-static struct proc_dir_entry *proc_inner_and_outer_rgb_four;
-static struct proc_dir_entry *proc_inner_rgb_four;
-static struct proc_dir_entry *proc_outer_rgb_four;
-static struct proc_dir_entry *proc_inner_colors_four;
-static struct proc_dir_entry *proc_outer_colors_four;
-
 static struct usb_device_id dev_table[] = {
 	{ USB_DEVICE(VENDOR_ID, PRODUCT_ID) },
 	{},
@@ -63,6 +27,14 @@ struct rgb_data {
 struct port_data {
 	int fan_speed, fan_speed_rpm, fan_count;
 	struct rgb_data inner_rgb, outer_rgb;
+	struct proc_dir_entry *proc_port;
+	struct proc_dir_entry *proc_fan_count;
+	struct proc_dir_entry *proc_fan_speed;
+	struct proc_dir_entry *proc_inner_and_outer_rgb;
+	struct proc_dir_entry *proc_inner_rgb;
+	struct proc_dir_entry *proc_outer_rgb;
+	struct proc_dir_entry *proc_inner_colors;
+	struct proc_dir_entry *proc_outer_colors;
 };
 static struct port_data ports[4];
 
@@ -580,85 +552,52 @@ static struct proc_ops pops_mb_sync = {
 	.proc_write = write_mbsync,
 };
 
-#define ERROR(str) { printk(KERN_ERR "Lian Li Hub: %s\n", str); return -1; }
+#define ERROR(str, i) { printk(KERN_ERR "Lian Li Hub: %s, %d\n", str, i); return -1; }
 static int dev_probe(struct usb_interface *intf, const struct usb_device_id *id)
 {
 	dev = interface_to_usbdev(intf);
-	if (dev == NULL) ERROR("error getting dev from intf");
+	if (dev == NULL) ERROR("error getting dev from intf", 0);
 	
 	proc_dir = proc_mkdir("Lian_li_hub", NULL);
-	if (proc_dir == NULL) ERROR("proc_mkdir Lian li hub failed");
+	if (proc_dir == NULL) ERROR("proc_mkdir Lian li hub failed", 0);
 
 	proc_mbsync = proc_create("mb_sync", 0666, proc_dir, &pops_mb_sync);
-	if (proc_mbsync == NULL) ERROR("proc_create mb_sync failed");
+	if (proc_mbsync == NULL) ERROR("proc_create mb_sync failed", 0);
 	// port one
-	proc_port_one = proc_mkdir("Port_one", proc_dir);
-	if (proc_port_one == NULL) ERROR("proc_mkdir port_one failed");
-	proc_fan_count_one = proc_create("fan_count", 0666, proc_port_one, &pops_fan_count);
-	if (proc_fan_count_one == NULL) ERROR("proc_create fan_count_one failed");
-	proc_inner_and_outer_rgb_one = proc_create("inner_and_outer_rgb", 0666, proc_port_one, &pops_rgb);
-	if (proc_inner_and_outer_rgb_one == NULL) ERROR("proc_create inner_and_outer_rgb_one failed");
-	proc_inner_rgb_one = proc_create("inner_rgb", 0666, proc_port_one, &pops_rgb);
-	if (proc_inner_rgb_one == NULL) ERROR("proc_create inner_rgb_one failed");
-	proc_outer_rgb_one = proc_create("outer_rgb", 0666, proc_port_one, &pops_rgb);
-	if (proc_outer_rgb_one == NULL) ERROR("proc_create outer_rgb_one failed");
-	proc_inner_colors_one = proc_create("inner_colors", 0666, proc_port_one, &pops_colors);
-	if (proc_inner_colors_one == NULL) ERROR("proc_create inner_colors_one failed");
-	proc_outer_colors_one = proc_create("outer_colors", 0666, proc_port_one, &pops_colors);
-	if (proc_outer_colors_one == NULL) ERROR("proc_create outer_colors_one failed");
-	proc_fan_speed_one = proc_create("fan_speed", 0666, proc_port_one, &pops_fan_speed);
-	if (proc_fan_speed_one == NULL) ERROR("proc_create fan_speed_one failed");
-	//port two
-	proc_port_two = proc_mkdir("Port_two", proc_dir);
-	if (proc_port_two == NULL) ERROR("proc_mkdir port_two failed");
-	proc_fan_count_two = proc_create("fan_count", 0666, proc_port_two, &pops_fan_count);
-	if (proc_fan_count_two == NULL) ERROR("proc_create fan_count_two failed");
-	proc_inner_and_outer_rgb_two = proc_create("inner_and_outer_rgb", 0666, proc_port_two, &pops_rgb);
-	if (proc_inner_and_outer_rgb_two == NULL) ERROR("proc_create inner_and_outer_rgb_two failed");
-	proc_inner_rgb_two = proc_create("inner_rgb", 0666, proc_port_two, &pops_rgb);
-	if (proc_inner_rgb_two == NULL) ERROR("proc_create inner_rgb_two failed");
-	proc_outer_rgb_two = proc_create("outer_rgb", 0666, proc_port_two, &pops_rgb);
-	if (proc_outer_rgb_two == NULL) ERROR("proc_create outer_rgb_two failed");
-	proc_inner_colors_two = proc_create("inner_colors", 0666, proc_port_two, &pops_colors);
-	if (proc_inner_colors_two == NULL) ERROR("proc_create inner_colors_two failed");
-	proc_outer_colors_two = proc_create("outer_colors", 0666, proc_port_two, &pops_colors);
-	if (proc_outer_colors_two == NULL) ERROR("proc_create outer_colors_two failed");
-	proc_fan_speed_two = proc_create("fan_speed", 0666, proc_port_two, &pops_fan_speed);
-	if (proc_fan_speed_two == NULL) ERROR("proc_create fan_speed_two failed");
-	// port three
-	proc_port_three = proc_mkdir("Port_three", proc_dir);
-	if (proc_port_three == NULL) ERROR("proc_mkdir port_three failed");
-	proc_fan_count_three = proc_create("fan_count", 0666, proc_port_three, &pops_fan_count);
-	if (proc_fan_count_three == NULL) ERROR("proc_create fan_count_three failed");
-	proc_inner_and_outer_rgb_three = proc_create("inner_and_outer_rgb", 0666, proc_port_three, &pops_rgb);
-	if (proc_inner_and_outer_rgb_three == NULL) ERROR("proc_create inner_and_outer_rgb_three failed");
-	proc_inner_rgb_three = proc_create("inner_rgb", 0666, proc_port_three, &pops_rgb);
-	if (proc_inner_rgb_three == NULL) ERROR("proc_create inner_rgb_three failed");
-	proc_outer_rgb_three = proc_create("outer_rgb", 0666, proc_port_three, &pops_rgb);
-	if (proc_outer_rgb_three == NULL) ERROR("proc_create outer_rgb_three failed");
-	proc_inner_colors_three = proc_create("inner_colors", 0666, proc_port_three, &pops_colors);
-	if (proc_inner_colors_three == NULL) ERROR("proc_create inner_colors_three failed");
-	proc_outer_colors_three = proc_create("outer_colors", 0666, proc_port_three, &pops_colors);
-	if (proc_outer_colors_three == NULL) ERROR("proc_create outer_colors_three failed");
-	proc_fan_speed_three = proc_create("fan_speed", 0666, proc_port_three, &pops_fan_speed);
-	if (proc_fan_speed_three == NULL) ERROR("proc_create fan_speed_three failed");
-	// port four
-	proc_port_four = proc_mkdir("Port_four", proc_dir);
-	if (proc_port_four == NULL) ERROR("proc_mkdir port_four failed");
-	proc_fan_count_four = proc_create("fan_count", 0666, proc_port_four, &pops_fan_count);
-	if (proc_fan_count_four == NULL) ERROR("proc_create fan_count_four failed");
-	proc_inner_and_outer_rgb_four = proc_create("inner_and_outer_rgb", 0666, proc_port_four, &pops_rgb);
-	if (proc_inner_and_outer_rgb_four == NULL) ERROR("proc_create inner_and_outer_rgb_four failed");
-	proc_inner_rgb_four = proc_create("inner_rgb", 0666, proc_port_four, &pops_rgb);
-	if (proc_inner_rgb_four == NULL) ERROR("proc_create inner_rgb_four failed");
-	proc_outer_rgb_four = proc_create("outer_rgb", 0666, proc_port_four, &pops_rgb);
-	if (proc_outer_rgb_four == NULL) ERROR("proc_create outer_rgb_four failed");
-	proc_inner_colors_four = proc_create("inner_colors", 0666, proc_port_four, &pops_colors);
-	if (proc_inner_colors_four == NULL) ERROR("proc_create inner_colors_four failed");
-	proc_outer_colors_four = proc_create("outer_colors", 0666, proc_port_four, &pops_colors);
-	if (proc_outer_colors_four == NULL) ERROR("proc_create outer_colors_four failed");
-	proc_fan_speed_four = proc_create("fan_speed", 0666, proc_port_four, &pops_fan_speed);
-	if (proc_fan_speed_four == NULL) ERROR("proc_create fan_speed_four failed");
+	for (int i = 0; i < 4; i++) {
+		switch (i) {
+			case 0:
+				ports[i].proc_port = proc_mkdir("Port_one", proc_dir);
+				if (ports[i].proc_port == NULL) ERROR("proc_mkdir port_one failed", i);
+				break;
+			case 1:
+				ports[i].proc_port = proc_mkdir("Port_two", proc_dir);
+				if (ports[i].proc_port == NULL) ERROR("proc_mkdir port_two failed", i);
+				break;
+			case 2:
+				ports[i].proc_port = proc_mkdir("Port_three", proc_dir);
+				if (ports[i].proc_port == NULL) ERROR("proc_mkdir port_three failed", i);
+				break;
+			case 3:
+				ports[i].proc_port = proc_mkdir("Port_four", proc_dir);
+				if (ports[i].proc_port == NULL) ERROR("proc_mkdir port_four failed", i);
+				break;
+		}
+		ports[i].proc_fan_count = proc_create("fan_count", 0666, ports[i].proc_port, &pops_fan_count);
+		if (ports[i].proc_fan_count == NULL) ERROR("proc_create fan_count_one failed", i);
+		ports[i].proc_inner_and_outer_rgb = proc_create("inner_and_outer_rgb", 0666, ports[i].proc_port, &pops_rgb);
+		if (ports[i].proc_inner_and_outer_rgb == NULL) ERROR("proc_create inner_and_outer_rgb_one failed", i);
+		ports[i].proc_inner_rgb = proc_create("inner_rgb", 0666, ports[i].proc_port, &pops_rgb);
+		if (ports[i].proc_inner_rgb == NULL) ERROR("proc_create inner_rgb_one failed", i);
+		ports[i].proc_outer_rgb = proc_create("outer_rgb", 0666, ports[i].proc_port, &pops_rgb);
+		if (ports[i].proc_outer_rgb == NULL) ERROR("proc_create outer_rgb_one failed", i);
+		ports[i].proc_inner_colors = proc_create("inner_colors", 0666, ports[i].proc_port, &pops_colors);
+		if (ports[i].proc_inner_colors == NULL) ERROR("proc_create inner_colors_one failed", i);
+		ports[i].proc_outer_colors = proc_create("outer_colors", 0666, ports[i].proc_port, &pops_colors);
+		if (ports[i].proc_outer_colors == NULL) ERROR("proc_create outer_colors_one failed", i);
+		ports[i].proc_fan_speed = proc_create("fan_speed", 0666, ports[i].proc_port, &pops_fan_speed);
+		if (ports[i].proc_fan_speed == NULL) ERROR("proc_create fan_speed_one failed", i);
+	}
 
 	set_speeds(30, 30, 40, 0);
 
@@ -690,16 +629,16 @@ static int dev_probe(struct usb_interface *intf, const struct usb_device_id *id)
 
 static void dev_disconnect(struct usb_interface *intf)
 {
-	proc_remove(proc_inner_and_outer_rgb_one);
-	proc_remove(proc_fan_speed_one);
-	proc_remove(proc_fan_speed_two);
-	proc_remove(proc_fan_speed_three);
-	proc_remove(proc_fan_speed_four);
-	proc_remove(proc_port_one);
-	proc_remove(proc_port_two);
-	proc_remove(proc_port_three);
-	proc_remove(proc_port_four);
-	proc_remove(proc_mbsync);
+	for (int i = 0; i < 4; i++) {
+		proc_remove(ports[i].proc_fan_count);
+		proc_remove(ports[i].proc_fan_speed);
+		proc_remove(ports[i].proc_inner_and_outer_rgb);
+		proc_remove(ports[i].proc_inner_rgb);
+		proc_remove(ports[i].proc_inner_colors);
+		proc_remove(ports[i].proc_outer_rgb);
+		proc_remove(ports[i].proc_outer_colors);
+		proc_remove(ports[i].proc_port);
+	}
 	proc_remove(proc_dir);
 	printk(KERN_INFO "Lian Li Hub: driver disconnect\n");
 }

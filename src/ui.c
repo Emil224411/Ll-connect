@@ -37,6 +37,12 @@ int ui_init()
 	button_arr = malloc(sizeof(struct button*) * 10);
 	button_arr_total_len = 10;
 	button_arr_used_len = 0;
+	selected_button = NULL;
+
+	ddm_arr = malloc(sizeof(struct drop_down_menu*) * 10);
+	ddm_arr_total_len = 10;
+	ddm_arr_used_len = 0;
+	selected_ddm = NULL;
 
 	SDL_StartTextInput();
 	return 0;
@@ -66,8 +72,12 @@ void ui_shutdown()
 			destroy_text_texture(&button_arr[i]->text);
 		}
 	}
+	for (int i = 0; i < ddm_arr_used_len; i++) {
+		destroy_ddm(ddm_arr[i]);
+	}
 	free(input_box_arr);
 	free(button_arr);
+	free(ddm_arr);
 	TTF_Quit();
 	SDL_Quit();
 }
@@ -94,6 +104,9 @@ void handle_event(SDL_Event *event)
 			break;
 		case SDL_MOUSEBUTTONUP:
 			mouse_button_up(event);
+			break;
+		case SDL_MOUSEWHEEL:
+			mouse_wheel(&event->wheel);
 			break;
 		case SDL_MOUSEMOTION:
 			mouse_move(event);
@@ -129,13 +142,46 @@ void handle_event(SDL_Event *event)
 	}
 }
 
-void mouse_move(SDL_Event *event)
+/* 	
+ *  		TODO currently you can scroll forever so limit scroll_offset 
+ *  		to selected_ddm->text[selected_ddm->items].dst.y - selected_ddm->default_pos.y :)
+ */
+void mouse_wheel(SDL_MouseWheelEvent *event)
 {
-	if (selected_button != NULL && selected_button->movable) {
-		selected_button->function(selected_button, event);
+	int wheely = event->y;
+	SDL_Rect mouse_pos = { event->mouseX, event->mouseY, 0 };
+	if (selected_ddm != NULL && CHECK_RECT(mouse_pos, selected_ddm->drop_pos) ) {
+		int lty = selected_ddm->text[selected_ddm->items-1].dst.y; 
+		int lth = selected_ddm->text[selected_ddm->items-1].dst.h;
+		int dpy = selected_ddm->drop_pos.y, dph = selected_ddm->drop_pos.h;
+
+		selected_ddm->scroll_offset += wheely * 10;
+		if (selected_ddm->scroll_offset > 0) 
+			selected_ddm->scroll_offset = 0;
+		else if (selected_ddm->scroll_offset < -(lty + lth - dpy - dph)) 
+			selected_ddm->scroll_offset = -(lty + lth - dpy - dph);
+
+		selected_ddm->update_highlight = 1;
 	}
 }
 
+void mouse_move(SDL_Event *event)
+{
+	mouse_x = event->motion.x;
+	mouse_y = event->motion.y;
+	if (selected_button != NULL && selected_button->movable) {
+		selected_button->function(selected_button, event);
+	}
+	if (selected_ddm != NULL && CHECK_RECT(event->motion, selected_ddm->drop_pos)){ 
+		selected_ddm->update_highlight = 1;
+	}
+}
+/* LATER: only check if button or input_box is visible mabey create array with all showen things idk */
+
+/* 
+ * TODO when closing ddm by clicking outside it scroll_offset should be set to zero.
+ * 	currently scroll_offset stays the same unless you click on a text thingy
+ */
 void mouse_button_up(SDL_Event *event)
 {
 	SDL_MouseButtonEvent mouse_data = event->button;
@@ -143,30 +189,51 @@ void mouse_button_up(SDL_Event *event)
 		selected_button->function(selected_button, event);
 		selected_button = NULL;
 	} 
-	if (selected_input == NULL) {
-		int hit = 0;
-		for (int i = 0; i < input_box_arr_used_len; i++) {
-			SDL_Rect box_pos = input_box_arr[i]->outer_box;
-			if (mouse_data.x < box_pos.x + box_pos.w && mouse_data.x > box_pos.x 
-			 && mouse_data.y < box_pos.y + box_pos.h && mouse_data.y > box_pos.y) {
-				hit = 1;
-				input_box_arr[i]->selected = 1;
-				selected_input = input_box_arr[i];
-				SDL_StartTextInput();
-			} else if (input_box_arr[i]->selected != 0) {
-				input_box_arr[i]->selected = 0;
-				SDL_StopTextInput();
+	int hit = 0;
+	for (int i = 0; i < input_box_arr_used_len; i++) {
+		if (CHECK_RECT(mouse_data, input_box_arr[i]->outer_box))  {
+			hit = 1;
+			input_box_arr[i]->selected = 1;
+			selected_input = input_box_arr[i];
+			SDL_StartTextInput();
+		} else if (input_box_arr[i]->selected != 0) {
+			input_box_arr[i]->selected = 0;
+			SDL_StopTextInput();
+		}
+	}
+	if (hit == 0) selected_input = NULL;
+	hit = 0;
+	if (selected_ddm != NULL && CHECK_RECT(mouse_data, selected_ddm->drop_pos)) {
+		for (int i = 0; i < selected_ddm->items; i++) {
+			SDL_Rect pos = selected_ddm->text[i].dst;
+			if (selected_ddm->text[i].show && mouse_data.x < pos.x + selected_ddm->default_pos.w && mouse_data.x > pos.x 
+					&& mouse_data.y < pos.y + pos.h + selected_ddm->scroll_offset && mouse_data.y > pos.y + selected_ddm->scroll_offset) {
+				selected_ddm->selected_text_index = i;
+				selected_ddm->scroll_offset = -(selected_ddm->text[i].dst.y - selected_ddm->used_pos.y - 2);
+				selected_ddm->function(selected_ddm, event);
+				selected_ddm->selected = 0;
+				selected_ddm = NULL;
+				break;
 			}
 		}
+	} else {
+		for (int i = 0; i < ddm_arr_used_len; i++) {
+			if (CHECK_RECT(mouse_data, ddm_arr[i]->used_pos)) {
+				hit = 1;
+				ddm_arr[i]->selected = 1;
+				selected_ddm = ddm_arr[i];
+			} else if (ddm_arr[i]->selected != 0) {
+				ddm_arr[i]->selected = 0;
+			}
+		}
+		if (hit == 0) selected_ddm = NULL;
 	}
 }
 void mouse_button_down(SDL_Event *event)
 {
 	SDL_MouseButtonEvent mouse_data = event->button;
 	for (int i = 0; i < button_arr_used_len; i++) {
-		SDL_Rect button_pos = button_arr[i]->outer_box;
-		if (mouse_data.x < button_pos.x + button_pos.w && mouse_data.x > button_pos.x 
-		 && mouse_data.y < button_pos.y + button_pos.h && mouse_data.y > button_pos.y) {
+		if (CHECK_RECT(event->button, button_arr[i]->outer_box)) {
 			selected_button = button_arr[i];
 		}
 	}
@@ -185,18 +252,18 @@ SDL_Texture *create_texture_from_surface(SDL_Surface *sur)
 
 struct text create_text(char *string, int x, int y, int w, int h, int wrap_length, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f)
 {
-	
 	char full_str[MAX_TEXT_SIZE];
 	
 	struct text new_text = { .str = 0, .show = 0, .wrap_length = wrap_length, .fg_color = fg_color, .bg_color = bg_color, .dst = { x, y, }, };
 	
 	strncpy(new_text.str, string, MAX_TEXT_SIZE);
-	if (w != 0 && h != 0) {
-		new_text.static_size = 1;
+	if (w != 0) {
+		new_text.static_w = 1;
 		new_text.dst.w = w;
+	} 
+	if (h != 0) {
+		new_text.static_h = 1;
 		new_text.dst.h = h;
-	} else {
-		new_text.static_size = 0;
 	}
 #ifdef INFO
 	printf("create_text\nstring = %s\n", string);
@@ -216,11 +283,12 @@ void render_text_texture(struct text *t, SDL_Color fg_color, SDL_Color bg_color,
 {
 	SDL_Surface *surface = TTF_RenderUTF8_Shaded_Wrapped(f, t->str, fg_color, bg_color, t->wrap_length);
 	t->texture = SDL_CreateTextureFromSurface(renderer, surface);
-	if (t->static_size == 0) {
+	if (t->static_w == 0) {
 		t->dst.w = surface->w;
+	}
+	if (t->static_h == 0) {
 		t->dst.h = surface->h;
 	}
-	
 	t->bg_color = bg_color;
 	t->fg_color = fg_color;
 	SDL_FreeSurface(surface);
@@ -245,7 +313,7 @@ struct button *create_button(char *string, int movable, int x, int y, int w, int
 	struct button new_button = { { 0 }, function, movable, { x, y, }, outer_color, bg_color };
 
 	if (button_arr_used_len + 1 > button_arr_total_len) {
-		button_arr = (struct button**)realloc(button_arr, sizeof(struct button*) * button_arr_total_len + 10);
+		button_arr = (struct button**)realloc(button_arr, sizeof(struct button*) * (button_arr_total_len + 5));
 		button_arr_total_len += 10;
 	}
 	if (string != NULL) {
@@ -281,7 +349,7 @@ struct input *create_input(char *string, int resize_box, int x, int y, int w, in
 					.bg_color = bg_color };
 
 	if (input_box_arr_used_len + 1 > input_box_arr_total_len) {
-		input_box_arr = (struct input**)realloc(input_box_arr, sizeof(struct input*) * input_box_arr_total_len + 10);
+		input_box_arr = (struct input**)realloc(input_box_arr, sizeof(struct input*) * (input_box_arr_total_len + 5));
 		button_arr_total_len += 10;
 	}
 
@@ -317,7 +385,7 @@ struct input *create_input_from_text(struct text text, int resize_box, void (*fu
 	struct input new_input = { 0, 0, text, resize_box, function, { text.dst.x, text.dst.y, }, outer_color, bg_color };
 
 	if (input_box_arr_used_len + 1 > input_box_arr_total_len) {
-		input_box_arr = (struct input**)realloc(input_box_arr, sizeof(struct input*) * input_box_arr_total_len + 10);
+		input_box_arr = (struct input**)realloc(input_box_arr, sizeof(struct input*) * (input_box_arr_total_len + 5));
 	}
 
 	render_text_texture(&new_input.text, text_color, bg_color, f);
@@ -360,6 +428,7 @@ void render_input_box(struct input *input_box)
 	SDL_RenderDrawRect(renderer, &input_box->outer_box);
 	if (input_box->resize_box || input_box->selected) render_text(&input_box->text, NULL);
 	else {
+		//why did i comment this out???
 		//input_box->text.dst.h  = input_box->text.src.h;
 		//input_box->text.dst.w  = input_box->text.src.w;
 		//input_box->outer_box.h = input_box->text.dst.h + 10;
@@ -377,12 +446,111 @@ void destroy_input_box(struct input *input_box)
 	free(input_box);
 }
 
-struct drop_down_menu *create_drop_down_menu(struct text text, int x, int y, int w, int h, void (*function)(struct drop_down_menu *self, SDL_Event *event), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color tc)
+struct drop_down_menu *create_drop_down_menu(int items, char item_str[][MAX_TEXT_SIZE], int x, int y, int w, int h, int dw, int dh, void (*function)(struct drop_down_menu *self, SDL_Event *event), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color tc)
 {
+	SDL_Rect pos = { x, y, w, h };
+	SDL_Rect dpos = { x, y, dw, dh };
 
+	struct text *text_arr = malloc(sizeof(struct text) * items);
+	struct drop_down_menu *ddm_heap = malloc(sizeof(struct drop_down_menu));
+	struct drop_down_menu ddm = { 0, 0, ddm_arr_used_len, 0,items, text_arr, function, 0, pos, pos, dpos, {0}, outer_color, bg_color };
+
+	ddm_arr_used_len += 1;
+	if (ddm_arr_used_len > ddm_arr_total_len) {
+		struct drop_down_menu **tmp_ddm_arr = realloc(ddm_arr, sizeof(struct drop_down_menu*) * (ddm_arr_total_len + 5));
+		if (tmp_ddm_arr != NULL) ddm_arr = tmp_ddm_arr;
+	}
+	int prev_height = 0;
+	for (int i = 0; i < items; i++) {
+		ddm.text[i] = create_text(item_str[i], 0, 0, 0, 0, w, tc, bg_color, f);
+		ddm.text[i].dst.y = ddm.default_pos.y + prev_height + 2;
+		ddm.text[i].dst.x = ddm.default_pos.x + 4;
+		prev_height += ddm.text[i].dst.h;
+		ddm.text[i].show = 0;
+	}
+	ddm.text[0].show = 1;
+
+	memcpy(ddm_heap, &ddm, sizeof(struct drop_down_menu));
+	ddm_arr[ddm_arr_used_len-1] = ddm_heap;
+	return ddm_arr[ddm_arr_used_len-1];
 }
 
+void destroy_ddm(struct drop_down_menu *ddm) 
+{
+	for (int i = 0; i < ddm->items; i++) {
+		destroy_text_texture(&ddm->text[i]);
+	}
+	free(ddm->text);
+	free(ddm);
+}
 
+/* 	mabey split up in to a few functions but idk 	*/
+void render_ddm(struct drop_down_menu *ddm)
+{
+	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(ddm->bg_color));
+	if (ddm->selected == 0) {
+		ddm->used_pos = ddm->default_pos;
+
+		if (ddm->text[ddm->selected_text_index].dst.h >= ddm->used_pos.h) 
+			ddm->used_pos.h = ddm->text[ddm->selected_text_index].dst.h + 2;
+
+		SDL_RenderFillRect(renderer, &ddm->used_pos);
+
+		for (int i = 0; i < ddm->items; i++) ddm->text[i].show = i == ddm->selected_text_index ? 1 : 0;
+
+		struct text tmp_text = { .texture = ddm->text[ddm->selected_text_index].texture, .static_h = 0, 
+					 .static_w = 0, .dst = ddm->text[ddm->selected_text_index].dst };
+
+		tmp_text.dst.x = ddm->default_pos.x + 4;
+		tmp_text.dst.y = ddm->default_pos.y + 2;
+
+		render_text(&tmp_text, NULL);
+
+		SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(ddm->outer_box_color));
+		SDL_RenderDrawRect(renderer, &ddm->used_pos);
+	} else {
+		SDL_RenderFillRect(renderer, &ddm->drop_pos);
+		int too_big = 0;
+		for (int i = 0; i < ddm->items && !too_big; i++) {
+			ddm->text[i].show = 1;
+			struct text tmp_text = { .show = 1, .texture = ddm->text[i].texture, 
+					.dst = ddm->text[i].dst, .src = { 0, 0, ddm->text[i].dst.w, ddm->text[i].dst.h} };
+
+			tmp_text.dst.y += ddm->scroll_offset;
+			if (tmp_text.dst.y + tmp_text.dst.h > ddm->default_pos.y && tmp_text.dst.y < ddm->default_pos.y) {
+				tmp_text.src.y = ddm->default_pos.y - tmp_text.dst.y;
+				tmp_text.src.h = tmp_text.dst.h = (tmp_text.dst.y + tmp_text.dst.h) - ddm->default_pos.y;
+				tmp_text.dst.y = ddm->default_pos.y;
+				render_text(&tmp_text, &tmp_text.src);
+			} else if (tmp_text.dst.y + tmp_text.dst.h > ddm->default_pos.y + ddm->drop_pos.h) {
+				too_big = 1;
+				tmp_text.src.h = tmp_text.dst.h = (ddm->default_pos.y + ddm->drop_pos.h) - tmp_text.dst.y;
+				render_text(&tmp_text, &tmp_text.src);
+			} else if (tmp_text.dst.y + tmp_text.dst.h > ddm->default_pos.y) {
+				render_text(&tmp_text, NULL);
+			} else ddm->text[i].show = 0;
+			ddm->text[i].src = tmp_text.src;
+		}
+		SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(ddm->outer_box_color));
+		SDL_RenderDrawRect(renderer, &ddm->drop_pos);
+		if (ddm->update_highlight) update_ddm_highlight(mouse_x, mouse_y, ddm);
+		SDL_RenderDrawRect(renderer, &ddm->highlight_pos);
+	}
+}
+
+void update_ddm_highlight(int x, int y, struct drop_down_menu *ddm)
+{
+	ddm->highlight_pos.x = ddm->default_pos.x + 1;
+	for (int i = 0; i < ddm->items; i++) {
+		if (ddm->text[i].show && ddm->text[i].dst.y + ddm->scroll_offset < y && 
+				ddm->text[i].dst.y + ddm->text[i].dst.h + ddm->scroll_offset > y) {
+			ddm->highlight_pos.y = ddm->text[i].dst.y + ddm->text[i].src.y + ddm->scroll_offset;
+			ddm->highlight_pos.h = ddm->text[i].src.h;
+			break;
+		}
+	}
+	ddm->highlight_pos.w = ddm->default_pos.w - 2;
+}
 
 
 

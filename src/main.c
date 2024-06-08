@@ -38,6 +38,7 @@ inline SDL_Surface *create_white_black_picker(Uint8 red, Uint8 green, Uint8 blue
 void select_button(struct button *self, SDL_Event *event);
 void select_button2(struct button *self, SDL_Event *event);
 void deselect_input(struct input *self, SDL_Event *event);
+void ddm_select(struct drop_down_menu *d, SDL_Event *event);
 int update_speed_str();
 int init();
 
@@ -54,6 +55,8 @@ struct input *color_input;
 struct text color_text;
 
 struct button *color_buttons[6];
+struct drop_down_menu *ddm;
+int rgb_mode_i;
 
 int main()
 {
@@ -89,13 +92,15 @@ int main()
 		if (delta > 1000/60.0) {
 			b = a;
 			clear_screen();
-			
+
 			SDL_RenderCopy(renderer, color_picker_texture, NULL, &color_picker_pos);
 			SDL_RenderCopy(renderer, other_picker_texture, NULL, &other_picker_pos);
 			render_button(color_selector);
 			render_button(black_white_selector);
 			render_text(&speeds, NULL);
 			render_input_box(color_input);
+			
+			render_ddm(ddm);
 			show_screen();
 		}
 		if (delta2 > 1000/1.0) {
@@ -118,15 +123,31 @@ int main()
 
 int init()
 {
+	
+	FILE *f = fopen("/proc/modules", "r");
+	char *line;
+	size_t n;
+	int mod_loaded = 0;
+	while (getline(&line, &n, f) != -1) {
+		if (strncmp("Lian_li_hub", line, strlen("Lian_li_hub")) == 0) {
+			mod_loaded = 1;
+		}
+	}
+	if (!mod_loaded) {
+		printf("load kernel module Lian_li_hub and try again\n");
+		free(line);
+		fclose(f);
+		return -1;
+	}
 	strcpy(font_path, "/usr/share/fonts/TTF/HackNerdFont-Regular.ttf");
 	if (ui_init()) {
 		printf("ui_init failed\n");
-		return 1;
+		return -1;
 	}
 
 	if (update_speed_str() != 0) {
 		printf("update_speed_str failed");
-		return 1;
+		return -1;
 	}
 
 	speeds = create_text(speeds_str, 10, 10, 0, 0, 0, WHITE, BLACK, font);
@@ -153,8 +174,23 @@ int init()
 	for (int i = 0; i < 6; i++) {
 		color_buttons[i] = create_button(NULL, 0, WINDOW_W-350, WINDOW_H-100, 50, 50, font, NULL, WHITE, BLACK, WHITE);
 	}
+	char tmp_str[30][256];
+	for (int i = 0; i < 30; i++) {
+		strncpy(tmp_str[i], rgb_modes[i].name, MAX_TEXT_SIZE);
+		tmp_str[i][255] = '\0';
+	}
+	
+	ddm = create_drop_down_menu(30, tmp_str, 10, 100, 150, 30, 150, 300, ddm_select, font, WHITE, BLACK, WHITE);
 
 	return 0;
+}
+
+void ddm_select(struct drop_down_menu *d, SDL_Event *event)
+{
+	if (d->selected) {
+		rgb_mode_i = d->selected_text_index;
+		printf("rgb_mode_i = %d, rgb_mode = %s\n", rgb_mode_i, rgb_modes[rgb_mode_i].name);
+	}
 }
 
 

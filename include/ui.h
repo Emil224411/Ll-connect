@@ -13,6 +13,7 @@
 #define MAX_TEXT_SIZE 256
 
 #define SDL_COLOR_ARG(C) C.r, C.g, C.b, C.a
+#define CHECK_RECT(r1, r2) r1.x < r2.x + r2.w && r1.x > r2.x && r1.y < r2.y + r2.h && r1.y > r2.y
 
 SDL_Color BLACK   = {   0,   0,   0, SDL_ALPHA_OPAQUE };
 SDL_Color WHITE   = { 255, 255, 255, SDL_ALPHA_OPAQUE };
@@ -27,10 +28,11 @@ int running;
 SDL_Window   *window;
 SDL_Renderer *renderer;
 SDL_Event event;
+static int mouse_x, mouse_y;
 
 struct text {
 	char str[MAX_TEXT_SIZE];
-	int show, static_size, wrap_length;
+	int show, static_w, static_h, wrap_length;
 	SDL_Color fg_color, bg_color;
 	SDL_Rect src, dst;
 	SDL_Texture *texture;
@@ -62,18 +64,27 @@ static int input_box_arr_used_len;
 static struct input **input_box_arr;
 
 struct drop_down_menu {
-	int selected;
-	struct text text;
+	int selected, selected_text_index, update_highlight;
+	int index; /* privat */
+	int items;
+	struct text *text;
 	void (*function)(struct drop_down_menu *self, SDL_Event *event);
-	SDL_Rect pos;
+	int scroll_offset;
+	SDL_Rect default_pos, used_pos, drop_pos, highlight_pos;
 	SDL_Color outer_box_color, bg_color;
 };
+static struct drop_down_menu **ddm_arr;
+static struct drop_down_menu *selected_ddm;
+static int ddm_arr_total_len;
+static int ddm_arr_used_len;
+
 
 int ui_init();
 void ui_shutdown();
 void handle_event(SDL_Event *event);
 void mouse_button_down(SDL_Event *event);
 void mouse_button_up(SDL_Event *event);
+void mouse_wheel(SDL_MouseWheelEvent *event);
 void mouse_move(SDL_Event *event);
 void show_screen();
 void clear_screen();
@@ -95,6 +106,9 @@ void destroy_input_box(struct input *input_box);
 void change_input_box_text(struct input *input_box, char *str);
 void render_input_box(struct input *input_box);
 
-struct drop_down_menu *create_drop_down_menu(struct text text, int x, int y, int w, int h, void (*function)(struct drop_down_menu *self, SDL_Event *event), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color tc);
+struct drop_down_menu *create_drop_down_menu(int items, char item_str[][MAX_TEXT_SIZE], int x, int y, int w, int h, int dw, int dh, void (*function)(struct drop_down_menu *self, SDL_Event *event), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color tc);
+void destroy_ddm(struct drop_down_menu *ddm);
+void render_ddm(struct drop_down_menu *ddm);
+void update_ddm_highlight(int x, int y, struct drop_down_menu *ddm);
 
 #endif

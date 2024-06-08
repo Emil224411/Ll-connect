@@ -5,6 +5,7 @@
 #include "ui.h"
 
 #ifdef ON_MAC
+/* 	TODO paths are worng should take 2 minutes to fix correct path for mac are on macbook 	*/
 #define HUB_PATH "../Lian_li_hub/"
 #define MBSYNC_PATH "../Lian_li_hub/mb_sync"
 #define PORT_ONE_PATH "../Lian_li_hub/Port_one"
