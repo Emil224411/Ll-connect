@@ -36,7 +36,6 @@ int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 
 	strcpy(path, p->path);
 	strcat(path, "/inner_colors");
-	printf("file at path %s\n", path);
 
 	FILE *f = fopen(path, "w");
 	if (f == NULL) {
@@ -56,7 +55,6 @@ int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 
 	strcpy(path, p->path);
 	strcat(path, "/inner_rgb");
-	printf("file at path %s\n", path);
 
 	f = fopen(path, "w");
 	if (f == NULL) {
@@ -80,7 +78,6 @@ int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 
 	strcpy(path, p->path);
 	strcat(path, "/outer_colors");
-	printf("file at path %s\n", path);
 
 	FILE *f = fopen(path, "w");
 	if (f == NULL) {
@@ -101,7 +98,6 @@ int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 
 	strcpy(path, p->path);
 	strcat(path, "/outer_rgb");
-	printf("file at path %s\n", path);
 	f = fopen(path, "w");
 	if (f == NULL) {
 		printf("set_outer_rgb failed to open file at path %s\n", path);
@@ -114,7 +110,6 @@ int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 	p->rgb.inner_direction = direction;
 	p->rgb.inner_speed     = speed;
 	p->rgb.inner_mode      = new_mode;
-
 	return 0;
 }
 
