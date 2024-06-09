@@ -87,9 +87,9 @@ void show_screen()
 	SDL_RenderPresent(renderer);
 }
 
-void clear_screen()
+void clear_screen(SDL_Color color)
 {
-	SDL_SetRenderDrawColor(renderer, 23, 23, 23, 255);
+	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(color));
 	SDL_RenderClear(renderer);
 }
 
@@ -100,10 +100,11 @@ void handle_event(SDL_Event *event)
 			running = 0;
 			break;
 		case SDL_MOUSEBUTTONDOWN:
-			mouse_button_down(event);
+			//mabey create a mouse_button_down function for stuff that should happen regardless of left or right
+			if (event->button.button == SDL_BUTTON_LEFT) lmouse_button_down(event);
 			break;
 		case SDL_MOUSEBUTTONUP:
-			mouse_button_up(event);
+			if (event->button.button == SDL_BUTTON_LEFT) lmouse_button_up(event);
 			break;
 		case SDL_MOUSEWHEEL:
 			mouse_wheel(&event->wheel);
@@ -142,10 +143,6 @@ void handle_event(SDL_Event *event)
 	}
 }
 
-/* 	
- *  		TODO currently you can scroll forever so limit scroll_offset 
- *  		to selected_ddm->text[selected_ddm->items].dst.y - selected_ddm->default_pos.y :)
- */
 void mouse_wheel(SDL_MouseWheelEvent *event)
 {
 	int wheely = event->y;
@@ -170,23 +167,18 @@ void mouse_move(SDL_Event *event)
 	mouse_x = event->motion.x;
 	mouse_y = event->motion.y;
 	if (selected_button != NULL && selected_button->movable) {
-		selected_button->function(selected_button, event);
+		selected_button->on_move(selected_button, event);
 	}
 	if (selected_ddm != NULL && CHECK_RECT(event->motion, selected_ddm->drop_pos)){ 
 		selected_ddm->update_highlight = 1;
 	}
 }
 /* LATER: only check if button or input_box is visible mabey create array with all showen things idk */
-
-/* 
- * TODO when closing ddm by clicking outside it scroll_offset should be set to zero.
- * 	currently scroll_offset stays the same unless you click on a text thingy
- */
-void mouse_button_up(SDL_Event *event)
+void lmouse_button_up(SDL_Event *event)
 {
 	SDL_MouseButtonEvent mouse_data = event->button;
-	if (selected_button != NULL && selected_button->function != NULL) {
-		selected_button->function(selected_button, event);
+	if (selected_button != NULL && selected_button->on_click != NULL) {
+		selected_button->on_click(selected_button, event);
 		selected_button = NULL;
 	} 
 	int hit = 0;
@@ -226,10 +218,13 @@ void mouse_button_up(SDL_Event *event)
 				ddm_arr[i]->selected = 0;
 			}
 		}
-		if (hit == 0) selected_ddm = NULL;
+		if (hit == 0) {
+			if (selected_ddm != NULL) selected_ddm->scroll_offset = -(selected_ddm->text[selected_ddm->selected_text_index].dst.y - selected_ddm->used_pos.y - 2);
+			selected_ddm = NULL;
+		}
 	}
 }
-void mouse_button_down(SDL_Event *event)
+void lmouse_button_down(SDL_Event *event)
 {
 	SDL_MouseButtonEvent mouse_data = event->button;
 	for (int i = 0; i < button_arr_used_len; i++) {
@@ -270,7 +265,9 @@ struct text create_text(char *string, int x, int y, int w, int h, int wrap_lengt
 	printf("string len = %ld\n", strlen(string));
 	printf("static_size = %d\nwrap_length = %d\n\n", new_text.static_size, wrap_length);
 #endif
-	render_text_texture(&new_text, new_text.fg_color, new_text.bg_color, f);
+	if (render_text_texture(&new_text, new_text.fg_color, new_text.bg_color, f) != 0) {
+		printf("ui.c render_text_texture failed from create_text\n");
+	}
 	return new_text;
 }
 
@@ -279,12 +276,18 @@ void destroy_text_texture(struct text *text)
 	SDL_DestroyTexture(text->texture);
 }
 
-void render_text_texture(struct text *t, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f)
+int render_text_texture(struct text *t, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f)
 {
 	SDL_Surface *surface = TTF_RenderUTF8_Shaded_Wrapped(f, t->str, fg_color, bg_color, t->wrap_length);
+	if (surface == NULL) {
+		printf("ui.c render_text_texture failed surface error: %s\n", SDL_GetError());
+		return -1;
+	}
+	if (t->texture != NULL) SDL_DestroyTexture(t->texture);
 	t->texture = SDL_CreateTextureFromSurface(renderer, surface);
 	if (t->static_w == 0) {
 		t->dst.w = surface->w;
+
 	}
 	if (t->static_h == 0) {
 		t->dst.h = surface->h;
@@ -292,6 +295,7 @@ void render_text_texture(struct text *t, SDL_Color fg_color, SDL_Color bg_color,
 	t->bg_color = bg_color;
 	t->fg_color = fg_color;
 	SDL_FreeSurface(surface);
+	return 0;
 }
 
 void change_text_and_render_texture(struct text *text, char *new_text, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f)
@@ -307,10 +311,10 @@ void render_text(struct text *t, SDL_Rect *src)
 	SDL_RenderCopy(renderer, t->texture, src, &t->dst);
 }
 
-struct button *create_button(char *string, int movable, int x, int y, int w, int h, TTF_Font *f, void (*function)(), SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color)
+struct button *create_button(char *string, int movable, int x, int y, int w, int h, TTF_Font *f, void (*on_click)(), void (*on_move)(), SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color)
 {
 	struct button *return_button = malloc(sizeof(struct button));
-	struct button new_button = { { 0 }, function, movable, { x, y, }, outer_color, bg_color };
+	struct button new_button = { { 0 }, on_click, on_move, movable, { x, y, }, outer_color, bg_color };
 
 	if (button_arr_used_len + 1 > button_arr_total_len) {
 		button_arr = (struct button**)realloc(button_arr, sizeof(struct button*) * (button_arr_total_len + 5));
@@ -499,12 +503,16 @@ void render_ddm(struct drop_down_menu *ddm)
 		for (int i = 0; i < ddm->items; i++) ddm->text[i].show = i == ddm->selected_text_index ? 1 : 0;
 
 		struct text tmp_text = { .texture = ddm->text[ddm->selected_text_index].texture, .static_h = 0, 
-					 .static_w = 0, .dst = ddm->text[ddm->selected_text_index].dst };
+					 .static_w = 0, .dst = ddm->text[ddm->selected_text_index].dst, .src = { 0, 0, ddm->text[ddm->selected_text_index].dst.w,  ddm->text[ddm->selected_text_index].dst.h } };
 
 		tmp_text.dst.x = ddm->default_pos.x + 4;
 		tmp_text.dst.y = ddm->default_pos.y + 2;
+		if (tmp_text.dst.x + tmp_text.dst.w > ddm->drop_pos.x + ddm->drop_pos.w) {
+			tmp_text.src.w -= (tmp_text.dst.x + tmp_text.dst.w) - (ddm->default_pos.x + ddm->default_pos.w);
+			tmp_text.dst.w -= (tmp_text.dst.x + tmp_text.dst.w) - (ddm->default_pos.x + ddm->default_pos.w);
+		}
 
-		render_text(&tmp_text, NULL);
+		render_text(&tmp_text, &tmp_text.src);
 
 		SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(ddm->outer_box_color));
 		SDL_RenderDrawRect(renderer, &ddm->used_pos);
@@ -517,6 +525,10 @@ void render_ddm(struct drop_down_menu *ddm)
 					.dst = ddm->text[i].dst, .src = { 0, 0, ddm->text[i].dst.w, ddm->text[i].dst.h} };
 
 			tmp_text.dst.y += ddm->scroll_offset;
+			if (tmp_text.dst.x + tmp_text.dst.w > ddm->drop_pos.x + ddm->drop_pos.w) {
+				tmp_text.src.w -= (tmp_text.dst.x + tmp_text.dst.w) - (ddm->default_pos.x + ddm->default_pos.w);
+				tmp_text.dst.w -= (tmp_text.dst.x + tmp_text.dst.w) - (ddm->default_pos.x + ddm->default_pos.w);
+			}
 			if (tmp_text.dst.y + tmp_text.dst.h > ddm->default_pos.y && tmp_text.dst.y < ddm->default_pos.y) {
 				tmp_text.src.y = ddm->default_pos.y - tmp_text.dst.y;
 				tmp_text.src.h = tmp_text.dst.h = (tmp_text.dst.y + tmp_text.dst.h) - ddm->default_pos.y;
@@ -527,7 +539,7 @@ void render_ddm(struct drop_down_menu *ddm)
 				tmp_text.src.h = tmp_text.dst.h = (ddm->default_pos.y + ddm->drop_pos.h) - tmp_text.dst.y;
 				render_text(&tmp_text, &tmp_text.src);
 			} else if (tmp_text.dst.y + tmp_text.dst.h > ddm->default_pos.y) {
-				render_text(&tmp_text, NULL);
+				render_text(&tmp_text, &tmp_text.src);
 			} else ddm->text[i].show = 0;
 			ddm->text[i].src = tmp_text.src;
 		}

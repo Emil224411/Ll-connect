@@ -1,5 +1,4 @@
-#include "controller.h"
-
+const int rgb_modes_amount = 56;
 const struct rgb_mode rgb_modes[] = 
 		     {  { "Static Color",      0x01, 6, INNER | OUTER }, 
 			{ "Breathing",         0x02, 6, INNER | OUTER },

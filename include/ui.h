@@ -40,7 +40,8 @@ struct text {
 
 struct button {
 	struct text text;
-	void (*function) (struct button *self, SDL_Event *event);
+	void (*on_click) (struct button *self, SDL_Event *event);
+	void (*on_move) (struct button *self, SDL_Event *event);
 	int movable;
 	SDL_Rect outer_box;
 	SDL_Color outer_box_color, bg_color;
@@ -82,22 +83,22 @@ static int ddm_arr_used_len;
 int ui_init();
 void ui_shutdown();
 void handle_event(SDL_Event *event);
-void mouse_button_down(SDL_Event *event);
-void mouse_button_up(SDL_Event *event);
+void lmouse_button_down(SDL_Event *event);
+void lmouse_button_up(SDL_Event *event);
 void mouse_wheel(SDL_MouseWheelEvent *event);
 void mouse_move(SDL_Event *event);
 void show_screen();
-void clear_screen();
+void clear_screen(SDL_Color color);
 
 SDL_Texture *create_texture_from_surface(SDL_Surface *sur);
 
 struct text create_text(char *string, int x, int y, int w, int h, int wrap_length, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f);
 void destroy_text_texture(struct text *text);
 void render_text(struct text *t, SDL_Rect *src);
-void render_text_texture(struct text *t, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f);
+int render_text_texture(struct text *t, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f);
 void change_text_and_render_texture(struct text *text, char *new_text, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f);
 
-struct button *create_button(char *string, int movable, int x, int y, int w, int h, TTF_Font *f, void (*function)(struct button *self, SDL_Event *event), SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color);
+struct button *create_button(char *string, int movable, int x, int y, int w, int h, TTF_Font *f, void (*on_click)(struct button *self, SDL_Event *e), void (*on_move)(struct button *self, SDL_Event *e), SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color);
 void render_button(struct button *button);
 
 struct input *create_input_from_text(struct text text, int resize_box, void (*function)(struct input *self, SDL_Event *event), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color);
