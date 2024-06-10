@@ -21,10 +21,10 @@
 #define PORT_FOUR_PATH "/proc/Lian_li_hub/Port_four"
 #endif
 
-#define INNER 		00001
-#define OUTER 		00010
-#define INNER_OR_OUTER 	00100
-#define MERGE 		01000
+#define INNER 		0b0001
+#define OUTER 		0b0010
+#define INNER_OR_OUTER 	0b0100
+#define MERGE 		0b1000
 
 struct color {
 	Uint8 r, g, b;
@@ -40,10 +40,10 @@ struct rgb_mode {
 struct rgb_data {
 	const struct rgb_mode *inner_mode;
 	int inner_speed, inner_brightnes, inner_direction;
-	struct color inner_color[32];
+	struct color inner_color[48];
 	const struct rgb_mode *outer_mode;
 	int outer_speed, outer_brightnes, outer_direction;
-	struct color outer_color[48];
+	struct color outer_color[72];
 };
 
 struct port {
@@ -65,6 +65,7 @@ int set_fan_speed(struct port *p, int speed);
 int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int brightnes, int direction, struct color *new_colors);
 /* new_colors lenght should be 144. */
 int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, struct color *new_colors);
+int set_inner_and_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, struct color *new_outer_colors, struct color *new_inner_colors);
 int set_mb_sync(int state);
 
 #endif

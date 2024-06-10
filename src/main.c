@@ -5,9 +5,11 @@
  |--------------------------------------------------------------------------------------------------------------|
  |														|
  |						TODO list							|
- |		1. make the input_box for the colors work as a input_box not just a box:/.			|
- |		2. also look at the code that is handeling text input since its kind of broken for 		|
- |		   the input_box(from 1.). 									|
+ | 		1. look at the usb packets being sent when setting rgb mode to Rainbow. 			|
+ | 		2. fix color pickers so they update the color input_box porperly.				|
+ |		3. make the input_box for the colors work as a input_box not just a box:/.			|
+ |		4. not very importent rn but refactor or rewrite the input_box code. 				|
+ | 														|
  |														|
  \**************************************************************************************************************/
 #include <stdio.h>
@@ -53,7 +55,11 @@ void change_white_black_picker(SDL_Surface *surface, Uint8 red, Uint8 green, Uin
 void select_button(struct button *self, SDL_Event *event);
 void select_button2(struct button *self, SDL_Event *event);
 void deselect_input(struct input *self, SDL_Event *event);
-void ddm_select(struct drop_down_menu *d, SDL_Event *event);
+void rgb_mode_ddm_select(struct drop_down_menu *d, SDL_Event *event);
+void fan_ring_select(struct drop_down_menu *d, SDL_Event *event);
+void color_buttons_click(struct button *self, SDL_Event *e);
+void create_color_buttons();
+void apply(struct button *self, SDL_Event *e);
 int update_speed_str();
 int init();
 
@@ -71,8 +77,12 @@ struct input *color_input;
 struct text color_text;
 
 struct button *color_buttons[6];
-struct drop_down_menu *ddm;
+int selected_color_button;
+struct button *apply_rgb;
+struct drop_down_menu *rgb_mode_ddm;
+struct drop_down_menu *fan_ring_ddm;
 int rgb_mode_i;
+int rgb_mode_ring_type;
 
 int main()
 {
@@ -80,13 +90,6 @@ int main()
 		printf("init failed:(\n");
 		return 1;
 	}
-	struct color new_outer_color[48] = { 0 };
-	for (int i = 0; i < 48; i++) {
-		new_outer_color[i].r = 0xff;
-		new_outer_color[i].g = 0;
-		new_outer_color[i].b = 0;
-	}
-	set_outer_rgb(&ports[1], &rgb_modes[0], 0x02, 0x0, 0x0, new_outer_color);
 
 	SDL_Event event;
 	unsigned int a = SDL_GetTicks();
@@ -109,7 +112,6 @@ int main()
 			clear_screen(edarkgrey);
 
 			if (change == 1) {
-
 				change_white_black_picker(other_picker_surface, color_selector->bg_color.r, color_selector->bg_color.g, color_selector->bg_color.b);
 				SDL_DestroyTexture(other_picker_texture);
 				other_picker_texture = create_texture_from_surface(other_picker_surface);
@@ -118,11 +120,14 @@ int main()
 			SDL_RenderCopy(renderer, color_picker_texture, NULL, &color_picker_pos);
 			SDL_RenderCopy(renderer, other_picker_texture, NULL, &other_picker_pos);
 			render_button(color_selector);
+			render_button(apply_rgb);
 			render_button(black_white_selector);
+			for (int i = 0; i < 6; i++) render_button(color_buttons[i]);
 			render_text(&speeds, NULL);
 			render_input_box(color_input);
 			
-			render_ddm(ddm);
+			render_ddm(rgb_mode_ddm);
+			render_ddm(fan_ring_ddm);
 			show_screen();
 		}
 		if (delta2 > 1000/1.0) {
@@ -188,7 +193,7 @@ int init()
 	color_picker_surface = create_rgb_color_picker_surface();
 	color_picker_texture = create_texture_from_surface(color_picker_surface);
 
-	color_input = create_input("255, 255, 255", 0, color_picker_pos.x, color_picker_pos.y + color_picker_pos.h + 10, 0, 0, NULL, font, WHITE, edarkgrey, WHITE);
+	color_input = create_input("255, 255, 255", 0, 13, color_picker_pos.x, color_picker_pos.y + color_picker_pos.h + 10, 0, 0, NULL, font, WHITE, edarkgrey, WHITE);
 
 	other_picker_pos.x = color_picker_pos.x;
 	other_picker_pos.y = color_picker_pos.y - 210;
@@ -197,25 +202,128 @@ int init()
 	other_picker_surface = create_white_black_picker(255, 0, 0);
 	other_picker_texture = create_texture_from_surface(other_picker_surface);
 
-	color_selector = create_button(NULL, 1, color_picker_pos.x, color_picker_pos.y + (color_picker_pos.h/2-10), 20, 20, font, select_button2, select_button2, WHITE, BLACK, WHITE);
-	black_white_selector = create_button(NULL, 1, other_picker_pos.x, other_picker_pos.y + other_picker_pos.h/2, 25, 25, font, select_button, select_button, WHITE, BLACK, WHITE);
+	color_selector = create_button(NULL, 1, 1, color_picker_pos.x, color_picker_pos.y + (color_picker_pos.h/2-10), 20, 20, font, select_button2, select_button2, WHITE, BLACK, WHITE);
+	black_white_selector = create_button(NULL, 1, 1, other_picker_pos.x, other_picker_pos.y + other_picker_pos.h/2, 25, 25, font, select_button, select_button, WHITE, BLACK, WHITE);
 	
+	create_color_buttons();
 	char tmp_str[rgb_modes_amount][MAX_TEXT_SIZE];
 	for (int i = 0; i < rgb_modes_amount; i++) {
 		strncpy(tmp_str[i], rgb_modes[i].name, MAX_TEXT_SIZE);
 	}
 	
-	ddm = create_drop_down_menu(rgb_modes_amount, tmp_str, 10, 100, 150, 30, 150, 300, ddm_select, font, WHITE, edarkgrey, WHITE);
+	rgb_mode_ddm = create_drop_down_menu(rgb_modes_amount, tmp_str, 45, 100, 150, 0, 150, 300, rgb_mode_ddm_select, font, WHITE, edarkgrey, WHITE);
+	char str[][MAX_TEXT_SIZE] = { "O", "I", "OI" };
+	fan_ring_ddm = create_drop_down_menu(3, str, 10, 100, 0, 0, 0, 70, fan_ring_select, font, WHITE, edarkgrey, WHITE);
+
+	apply_rgb = create_button("apply", 0, 1, color_input->outer_box.x + color_input->outer_box.w + 100, color_input->outer_box.y, 0, 0, font, apply, NULL, WHITE, edarkgrey, WHITE);
+
 
 	return 0;
 }
 
-void ddm_select(struct drop_down_menu *d, SDL_Event *event)
+void apply(struct button *self, SDL_Event *e)
+{
+	if (rgb_mode_ring_type == 0) {
+		printf("outer\n");
+		int rj = 0;
+		for (int i = 0; i < ports[0].fan_count; i++) {
+			for (int j = 0; j < 12; j++) {
+				ports[0].rgb.outer_color[rj].r = color_buttons[i]->bg_color.r;
+				ports[0].rgb.outer_color[rj].g = color_buttons[i]->bg_color.g;
+				ports[0].rgb.outer_color[rj].b = color_buttons[i]->bg_color.b;
+				rj++;
+				printf("rj = %d\n", rj);
+				printf("i = %d\n", i);
+			}
+		}
+		set_outer_rgb(&ports[0], &rgb_modes[rgb_mode_i], 0, 0, 0, ports[0].rgb.outer_color);
+	}
+	if (rgb_mode_ring_type == 1) {
+		printf("inner\n");
+		int rj = 0;
+		for (int i = 0; i < ports[0].fan_count; i++) {
+			for (int j = 0; j < 8; j++) {
+				ports[0].rgb.inner_color[rj].r = color_buttons[i]->bg_color.r;
+				ports[0].rgb.inner_color[rj].g = color_buttons[i]->bg_color.g;
+				ports[0].rgb.inner_color[rj].b = color_buttons[i]->bg_color.b;
+				rj++;
+			}
+		}
+		set_inner_rgb(&ports[0], &rgb_modes[rgb_mode_i], 0, 0, 0, ports[0].rgb.inner_color);
+	}
+
+	if (rgb_mode_ring_type == 2) {
+		printf("inner and outer\n");
+		int rj = 0, rrj = 0;
+		for (int i = 0; i < rgb_modes[rgb_mode_i].colors; i++) {
+			for (int j = 0; j < 8; j++) {
+				ports[0].rgb.inner_color[rj].r = color_buttons[i]->bg_color.r;
+				ports[0].rgb.inner_color[rj].g = color_buttons[i]->bg_color.g;
+				ports[0].rgb.inner_color[rj].b = color_buttons[i]->bg_color.b;
+				rj++;
+			}
+			for (int j = 0; j < 12; j++) {
+				ports[0].rgb.outer_color[rrj].r = color_buttons[i]->bg_color.r;
+				ports[0].rgb.outer_color[rrj].g = color_buttons[i]->bg_color.g;
+				ports[0].rgb.outer_color[rrj].b = color_buttons[i]->bg_color.b;
+				rrj++;
+			}
+		}
+		printf("stil good\n");
+		set_inner_and_outer_rgb(&ports[0], &rgb_modes[rgb_mode_i], 0, 0, 0, ports[0].rgb.outer_color, ports[0].rgb.inner_color);
+	}
+}
+
+void color_buttons_click(struct button *self, SDL_Event *e)
+{
+	for (int i = 0; i < 6; i++){
+		if (color_buttons[i] == self) {
+			selected_color_button = i;
+		}
+	}
+}
+
+void create_color_buttons()
+{
+	for (int i = 0; i < 6; i++) {
+		color_buttons[i] = create_button(NULL, 0, 1, other_picker_pos.x - 35, other_picker_pos.y + 35 * i, 
+						30, 30, font, color_buttons_click, NULL, WHITE, RED, WHITE);
+		if (i > rgb_modes[rgb_mode_i].colors) color_buttons[i]->show = 0;
+	}
+}
+
+void rgb_mode_ddm_select(struct drop_down_menu *d, SDL_Event *event)
 {
 	if (d->selected) {
 		rgb_mode_i = d->selected_text_index;
+		for (int i = 0; i < 6; i++) {
+			if (rgb_modes[rgb_mode_i].colors <= i) color_buttons[i]->show = 0;
+			else color_buttons[i]->show = 1;
+		}
+		for (int i = 0; i < rgb_modes_amount; i++) {
+			if (strcmp(rgb_modes[i].name, d->text[d->selected_text_index].str) == 0) rgb_mode_i = i;
+		}
 		printf("rgb_mode_i = %d, rgb_mode = %s\n", rgb_mode_i, rgb_modes[rgb_mode_i].name);
 	}
+}
+
+void fan_ring_select(struct drop_down_menu *d, SDL_Event *event)
+{
+	int strings_added = 0;
+	char newstr[50][MAX_TEXT_SIZE];
+	rgb_mode_ring_type = d->selected_text_index;
+	int mask;
+	if (rgb_mode_ring_type == 0) mask = OUTER;
+	else if (rgb_mode_ring_type == 1) mask = INNER;
+	if (rgb_mode_ring_type == 2) mask = (INNER | OUTER);
+
+	for (int i = 0; i < rgb_modes_amount; i++) {
+		if ((rgb_modes[i].outerorinner & mask) == mask) {
+			strncpy(newstr[strings_added], rgb_modes[i].name, MAX_TEXT_SIZE);
+			strings_added++;
+		}
+	}
+	change_ddm_text_arr(rgb_mode_ddm, strings_added, newstr, font);
 }
 
 
@@ -270,10 +378,6 @@ int update_speed_str()
 	return 0;
 }
 
-void create_colors()
-{
-
-}
  /**************************************************************\
  | 								|
  | 	do at some point: come up with a better way for this 	|
@@ -420,9 +524,9 @@ void select_button2(struct button *self, SDL_Event *event)
 	Uint32 pixel = pixels[((self->outer_box.y - color_picker_pos.y)*color_picker_surface->h/color_picker_pos.h) * 
 					color_picker_surface->w + ((self->outer_box.x - color_picker_pos.x) * color_picker_surface->w/color_picker_pos.w)];
 
-	self->bg_color.r = pixel >> 16;
-	self->bg_color.g = pixel >> 8;
-	self->bg_color.b = pixel;
+	color_buttons[selected_color_button]->bg_color.r = self->bg_color.r = pixel >> 16;
+	color_buttons[selected_color_button]->bg_color.g = self->bg_color.g = pixel >> 8;
+	color_buttons[selected_color_button]->bg_color.b = self->bg_color.b = pixel;
 	self->outer_box.x -= self->outer_box.w/2;
 	//self->outer_box.y -= self->outer_box.h/2;
 
@@ -460,9 +564,9 @@ void select_button(struct button *self, SDL_Event *event)
 	Uint32 *pixels = (Uint32*)other_picker_surface->pixels;
 	Uint32 pixel = pixels[(index_y) * other_picker_surface->w + (index_x)];
 
-	self->bg_color.r = pixel >> 16;
-	self->bg_color.g = pixel >> 8;
-	self->bg_color.b = pixel;
+	color_buttons[selected_color_button]->bg_color.r = self->bg_color.r = pixel >> 16;
+	color_buttons[selected_color_button]->bg_color.g = self->bg_color.g = pixel >> 8;
+	color_buttons[selected_color_button]->bg_color.b = self->bg_color.b = pixel;
 	self->outer_box.x -= self->outer_box.w/2;
 	self->outer_box.y -= self->outer_box.h/2;
 

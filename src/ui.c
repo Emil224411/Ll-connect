@@ -134,8 +134,11 @@ void handle_event(SDL_Event *event)
 		case SDL_TEXTINPUT:
 			if (selected_input != NULL) {
 				size_t len = strlen(selected_input->text.str);
-				char *tmpstr = strncat(selected_input->text.str, event->text.text, MAX_TEXT_SIZE - len);
-				change_input_box_text(selected_input, tmpstr);
+				if (len >= selected_input->max_len) break;
+				if (selected_input->max_len > 0) {
+					char *tmpstr = strncat(selected_input->text.str, event->text.text, MAX_TEXT_SIZE - len);
+					change_input_box_text(selected_input, tmpstr);
+				}
 			}
 			break;
 		default:
@@ -202,7 +205,7 @@ void lmouse_button_up(SDL_Event *event)
 					&& mouse_data.y < pos.y + pos.h + selected_ddm->scroll_offset && mouse_data.y > pos.y + selected_ddm->scroll_offset) {
 				selected_ddm->selected_text_index = i;
 				selected_ddm->scroll_offset = -(selected_ddm->text[i].dst.y - selected_ddm->used_pos.y - 2);
-				selected_ddm->function(selected_ddm, event);
+				if (selected_ddm->function != NULL) selected_ddm->function(selected_ddm, event);
 				selected_ddm->selected = 0;
 				selected_ddm = NULL;
 				break;
@@ -311,10 +314,10 @@ void render_text(struct text *t, SDL_Rect *src)
 	SDL_RenderCopy(renderer, t->texture, src, &t->dst);
 }
 
-struct button *create_button(char *string, int movable, int x, int y, int w, int h, TTF_Font *f, void (*on_click)(), void (*on_move)(), SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color)
+struct button *create_button(char *string, int movable, int show, int x, int y, int w, int h, TTF_Font *f, void (*on_click)(), void (*on_move)(), SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color)
 {
 	struct button *return_button = malloc(sizeof(struct button));
-	struct button new_button = { { 0 }, on_click, on_move, movable, { x, y, }, outer_color, bg_color };
+	struct button new_button = { { 0 }, on_click, on_move, movable, show, { x, y, }, outer_color, bg_color };
 
 	if (button_arr_used_len + 1 > button_arr_total_len) {
 		button_arr = (struct button**)realloc(button_arr, sizeof(struct button*) * (button_arr_total_len + 5));
@@ -335,6 +338,7 @@ struct button *create_button(char *string, int movable, int x, int y, int w, int
 
 void render_button(struct button *button)
 {
+	if (button->show == 0) return;
 	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(button->bg_color));
 	SDL_RenderFillRect(renderer, &button->outer_box);
 	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(button->outer_box_color));
@@ -345,12 +349,12 @@ void render_button(struct button *button)
 // 	   |---------|
 // 	-> |some text|
 // 	   |---------|
-struct input *create_input(char *string, int resize_box, int x, int y, int w, int h, void (*function)(struct input *self, SDL_Event *event), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color)
+struct input *create_input(char *string, int resize_box, int max_len, int x, int y, int w, int h, void (*function)(struct input *self, SDL_Event *event), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color)
 {
 	struct input *return_input = malloc(sizeof(struct input));
 	struct input new_input = { .selected = 0, .text = 0, .resize_box = resize_box, .function = function,
-					.outer_box = { x, y }, .outer_box_color = outer_color, 
-					.bg_color = bg_color };
+					.default_outer_box = { x, y, }, .outer_box = { x, y }, .outer_box_color = outer_color, 
+					.bg_color = bg_color, .max_len = max_len };
 
 	if (input_box_arr_used_len + 1 > input_box_arr_total_len) {
 		input_box_arr = (struct input**)realloc(input_box_arr, sizeof(struct input*) * (input_box_arr_total_len + 5));
@@ -361,10 +365,12 @@ struct input *create_input(char *string, int resize_box, int x, int y, int w, in
 		new_input.text = create_text(string, x+5, y+5, 0, 0, 0, text_color, bg_color, f);
 	}
 
-	if (w == 0 && h == 0) {
-		new_input.outer_box.w = new_input.text.dst.w + 10;
-		new_input.outer_box.h = new_input.text.dst.h + 10;
-	}
+	if (w == 0) {
+		new_input.default_outer_box.w = new_input.outer_box.w = new_input.text.dst.w + 10;
+	} else  new_input.default_outer_box.w = new_input.outer_box.w = w;
+	if (h == 0) {
+		new_input.default_outer_box.h = new_input.outer_box.h = new_input.text.dst.h + 10;
+	} else  new_input.default_outer_box.w = new_input.outer_box.w = h;
 
 	if (!resize_box) {
 		new_input.text.src = new_input.text.dst;
@@ -386,13 +392,19 @@ struct input *create_input(char *string, int resize_box, int x, int y, int w, in
 struct input *create_input_from_text(struct text text, int resize_box, void (*function)(struct input *self, SDL_Event *event), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color)
 {
 	struct input *return_input = malloc(sizeof(struct input));
-	struct input new_input = { 0, 0, text, resize_box, function, { text.dst.x, text.dst.y, }, outer_color, bg_color };
+	struct input new_input = { 0, 0, 0, text, resize_box, function, { text.dst.x, text.dst.y }, { text.dst.x, text.dst.y, }, outer_color, bg_color };
 
 	if (input_box_arr_used_len + 1 > input_box_arr_total_len) {
 		input_box_arr = (struct input**)realloc(input_box_arr, sizeof(struct input*) * (input_box_arr_total_len + 5));
 	}
 
 	render_text_texture(&new_input.text, text_color, bg_color, f);
+	new_input.default_outer_box.w = new_input.text.dst.w;
+	new_input.default_outer_box.h = new_input.text.dst.h;
+	new_input.default_outer_box.x -= 2;
+	new_input.default_outer_box.y -= 5;
+	new_input.default_outer_box.w += 10;
+	new_input.default_outer_box.h += 10;
 	new_input.outer_box.w = new_input.text.dst.w;
 	new_input.outer_box.h = new_input.text.dst.h;
 	new_input.outer_box.x -= 2;
@@ -418,7 +430,7 @@ void change_input_box_text(struct input *input_box, char *str)
 	strncpy(input_box->text.str, str, MAX_TEXT_SIZE);
 	render_text_texture(&input_box->text, input_box->text.fg_color, input_box->text.bg_color, font);
 
-	if (input_box->selected) {
+	if (input_box->selected && input_box->outer_box.w < input_box->text.dst.w) {
 		input_box->outer_box.h = input_box->text.dst.h + prev_input_margin.h;
 		input_box->outer_box.w = input_box->text.dst.w + prev_input_margin.w;
 	}
@@ -426,21 +438,25 @@ void change_input_box_text(struct input *input_box, char *str)
 
 void render_input_box(struct input *input_box)
 {
+	if (input_box->resize_box || input_box->selected) {
+		input_box->text.src.x = 0; 
+		input_box->text.src.y = 0;
+		input_box->text.src.w = input_box->text.dst.w;
+		input_box->text.src.h = input_box->text.dst.h;
+	} else {
+		//why did i comment this out???
+		//input_box->text.dst.h  = input_box->default_outer_box.h-10;
+		//input_box->text.dst.w  = input_box->default_outer_box.w-10;
+		input_box->outer_box.h = input_box->default_outer_box.h;
+		input_box->outer_box.w = input_box->default_outer_box.w;
+		//input_box->outer_box.h = input_box->text.src.h + 10;
+		//input_box->outer_box.w = input_box->text.src.w + 10;
+	}
 	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(input_box->bg_color));
 	SDL_RenderFillRect(renderer, &input_box->outer_box);
 	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(input_box->outer_box_color));
 	SDL_RenderDrawRect(renderer, &input_box->outer_box);
-	if (input_box->resize_box || input_box->selected) render_text(&input_box->text, NULL);
-	else {
-		//why did i comment this out???
-		//input_box->text.dst.h  = input_box->text.src.h;
-		//input_box->text.dst.w  = input_box->text.src.w;
-		//input_box->outer_box.h = input_box->text.dst.h + 10;
-		//input_box->outer_box.w = input_box->text.dst.w + 10;
-		input_box->outer_box.h = input_box->text.src.h + 10;
-		input_box->outer_box.w = input_box->text.src.w + 10;
-		render_text(&input_box->text, &input_box->text.src);
-	}
+	render_text(&input_box->text, &input_box->text.src);
 }
 
 void destroy_input_box(struct input *input_box)
@@ -457,16 +473,23 @@ struct drop_down_menu *create_drop_down_menu(int items, char item_str[][MAX_TEXT
 
 	struct text *text_arr = malloc(sizeof(struct text) * items);
 	struct drop_down_menu *ddm_heap = malloc(sizeof(struct drop_down_menu));
-	struct drop_down_menu ddm = { 0, 0, ddm_arr_used_len, 0,items, text_arr, function, 0, pos, pos, dpos, {0}, outer_color, bg_color };
+	struct drop_down_menu ddm = { 0, 0, 0, ddm_arr_used_len, 1, 1, items, text_arr, function, 0, pos, pos, dpos, {0}, outer_color, bg_color };
+	if (pos.h == 0)
+		ddm.static_h = 0;
 
+	if (pos.w == 0)
+		ddm.static_w = 0;
 	ddm_arr_used_len += 1;
 	if (ddm_arr_used_len > ddm_arr_total_len) {
 		struct drop_down_menu **tmp_ddm_arr = realloc(ddm_arr, sizeof(struct drop_down_menu*) * (ddm_arr_total_len + 5));
 		if (tmp_ddm_arr != NULL) ddm_arr = tmp_ddm_arr;
 	}
 	int prev_height = 0;
+	int bigest_w = ddm.default_pos.w, bigest_h = ddm.default_pos.h;
 	for (int i = 0; i < items; i++) {
 		ddm.text[i] = create_text(item_str[i], 0, 0, 0, 0, w, tc, bg_color, f);
+		if (!ddm.static_w && bigest_w < ddm.text[i].dst.w) bigest_w = ddm.text[i].dst.w;
+		if (!ddm.static_h && bigest_h < ddm.text[i].dst.h) bigest_h = ddm.text[i].dst.h;
 		ddm.text[i].dst.y = ddm.default_pos.y + prev_height + 2;
 		ddm.text[i].dst.x = ddm.default_pos.x + 4;
 		prev_height += ddm.text[i].dst.h;
@@ -474,9 +497,48 @@ struct drop_down_menu *create_drop_down_menu(int items, char item_str[][MAX_TEXT
 	}
 	ddm.text[0].show = 1;
 
+	if (!ddm.static_w) ddm.used_pos.w = ddm.default_pos.w = bigest_w + 8;
+	if (dpos.w == 0) ddm.drop_pos.w = bigest_w + 8;
+	if (!ddm.static_h) ddm.used_pos.h = ddm.default_pos.h = ddm.text[0].dst.h + 4;
+	if (dpos.h == 0) ddm.drop_pos.h = ddm.text[0].dst.h + 4;
+
+	//printf("create dmm\nddm.default_pos = { %d, %d, %d, %d }, ddm.used_pos = { %d, %d, %d, %d }, ddm.drop_pos = { %d, %d, %d, %d }\n", 
+	//		ddm.default_pos.x, ddm.default_pos.y, ddm.default_pos.w, ddm.default_pos.h, ddm.used_pos.x, ddm.used_pos.y, ddm.used_pos.w, ddm.used_pos.h,
+	//		ddm.drop_pos.x, ddm.drop_pos.y, ddm.drop_pos.w, ddm.drop_pos.h);
+
 	memcpy(ddm_heap, &ddm, sizeof(struct drop_down_menu));
 	ddm_arr[ddm_arr_used_len-1] = ddm_heap;
 	return ddm_arr[ddm_arr_used_len-1];
+}
+
+void change_ddm_text_arr(struct drop_down_menu *ddm, int items, char newstr[][MAX_TEXT_SIZE], TTF_Font *f)
+{
+	struct text *new_text_arr = malloc(sizeof(struct text) * items);
+	SDL_Color tc = ddm->text[0].fg_color;
+	for (int i = 0; i < ddm->items; i++) {
+		destroy_text_texture(&ddm->text[i]);
+	}
+	free(ddm->text);
+	ddm->text = new_text_arr;
+	int prev_height = 0;
+	int bigest_w = ddm->default_pos.w, bigest_h = ddm->default_pos.h;
+	for (int i = 0; i < items; i++) {
+		ddm->text[i] = create_text(newstr[i], 0, 0, 0, 0, ddm->default_pos.w, tc, ddm->bg_color, f);
+		printf("str = %s\n", newstr[i]);
+		if (!ddm->static_w && bigest_w < ddm->text[i].dst.w) bigest_w = ddm->text[i].dst.w;
+		if (!ddm->static_h && bigest_h < ddm->text[i].dst.h) bigest_h = ddm->text[i].dst.h;
+		ddm->text[i].dst.y = ddm->default_pos.y + prev_height + 2;
+		ddm->text[i].dst.x = ddm->default_pos.x + 4;
+		prev_height += ddm->text[i].dst.h;
+		ddm->text[i].show = 0;
+	}
+	ddm->items = items;
+	ddm->selected_text_index = 0;
+	ddm->scroll_offset = 0;
+	ddm->text[0].show = 1;
+	printf("create dmm\nddm.default_pos = { %d, %d, %d, %d }, ddm.used_pos = { %d, %d, %d, %d }, ddm.drop_pos = { %d, %d, %d, %d }\n", 
+			ddm->default_pos.x, ddm->default_pos.y, ddm->default_pos.w, ddm->default_pos.h, ddm->used_pos.x, ddm->used_pos.y, ddm->used_pos.w, ddm->used_pos.h,
+			ddm->drop_pos.x, ddm->drop_pos.y, ddm->drop_pos.w, ddm->drop_pos.h);
 }
 
 void destroy_ddm(struct drop_down_menu *ddm) 
