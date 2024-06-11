@@ -5,17 +5,19 @@
  |--------------------------------------------------------------------------------------------------------------|
  |														|
  |						TODO list							|
- |		1. make slider for selecting speed brightnes and buttons for direction.  			|
- | 		2. make apply too all button(might require apply to all function in driver). 			|
- | 		3. add a way to select ports. 									|
- | 		4. test which rgb modes require NOT_MOVING flag(and find a new name for the flag 		|
+ |		1. mabey write functions for setting colors and setting the mode in the driver 			|
+ | 			look at usbNotes.txt:41.								|
+ |		2. make slider for selecting speed brightnes and buttons for direction.  			|
+ | 		3. make apply too all button(might require apply to all function in driver). 			|
+ | 		4. add a way to select ports. 									|
+ | 		5. test which rgb modes require NOT_MOVING flag(and find a new name for the flag 		|
  |			since Breathing needs the flag) should proply also find a better way of handeling 	|
  |			it in the driver. 									|
- |		5. input_box outer_box.w is too small causing input_box text margins to be wrong 		|
+ |		6. input_box outer_box.w is too small causing input_box text margins to be wrong 		|
  |			proply something wrong in create_input() 						|
- | 		6. make apply() shorter should be pretty easy look at the for loops 				|
- |		4. make the input_box for the colors work as a input_box not just a box:/.			|
- |		5. not very importent rn but refactor or rewrite the input_box code. 				|
+ | 		7. make apply() shorter should be pretty easy look at the for loops 				|
+ |		8. make the input_box for the colors work as a input_box not just a box:/.			|
+ |		9. not very importent rn but refactor or rewrite the input_box code. 				|
  | 														|
  |														|
  \**************************************************************************************************************/
