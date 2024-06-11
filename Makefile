@@ -13,13 +13,19 @@ LIB := $(patsubst $(SRC_DIR)/%.c, $(LIB_DIR)/lib%.so,$(SRC))
 
 all: $(TARGET)
 
-$(TARGET): $(LIB) $(MAIN)
-	gcc -g -I$(INC_DIR) -L$(LIB_DIR) -Wl,-rpath,'$$ORIGIN/../$(LIB_DIR)' -lm -lcontroller -lui -lSDL2 -o bin/run src/main.c
+$(TARGET): $(LIB_DIR)/libui.so $(LIB_DIR)/libcontroller.so $(MAIN)
+	gcc -g -I$(INC_DIR) -L$(LIB_DIR) -Wl,-rpath,'$$ORIGIN/../$(LIB_DIR)' -lcontroller -lui -lSDL2 -o bin/run src/main.c
 
-$(LIB_DIR)/lib%.so: $(OBJ_DIR)/%.o
+$(LIB_DIR)/libui.so: $(OBJ_DIR)/ui.o
 	$(CC) -g -shared -o $@ $< -lSDL2 -lSDL2_ttf
 
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
+$(LIB_DIR)/libcontroller.so: $(OBJ_DIR)/controller.o
+	$(CC) -g -shared -o $@ $<
+
+$(OBJ_DIR)/ui.o: $(SRC_DIR)/ui.c
+	$(CC) -g -c -fPIC $< -o $@
+
+$(OBJ_DIR)/controller.o: $(SRC_DIR)/controller.c
 	$(CC) -g -c -fPIC $< -o $@
 
 clean:
