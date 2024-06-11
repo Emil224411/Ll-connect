@@ -51,31 +51,51 @@ static int mb_sync_state;
  */ 
 static void set_inner_and_outer_rgb(int port, int mode, int speed, int brightness, int direction)
 {
-	int ret;
 	const size_t packet_size = 353;
-	unsigned char *buffer = kcalloc(packet_size, sizeof(*buffer), GFP_KERNEL);
-
-	unsigned char data[5][353] =  { { 0xe0, 0x10, 0x60, port, ports[port-1].fan_count, }, 
-					{ 0xe0, 0x30 + (2 * (port - 1)), },  
-					{ 0xe0, 0x31 + (2 * (port - 1)), },  
-					{ 0xe0, 0x11 + (2 * (port - 1)), mode, speed, direction, brightness },  
-					{ 0xe0, 0x10 + (2 * (port - 1)), mode, speed, direction, brightness },  
-	};
-	memcpy(&data[1][2], ports[port-1].inner_rgb.colors, packet_size - 2);
-	memcpy(&data[2][2], ports[port-1].outer_rgb.colors, packet_size - 2);
-
-	for (int i = 0; i < 5; i++) {
-		memcpy(buffer, data[i], packet_size);
-
-		ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0x0), 0x09, 0x21, 0x02e0, 0x01, buffer, packet_size, 1000);
-		if (ret != packet_size) {
-			printk(KERN_ERR "Lian Li Hub: set_rgb failed sending packet %d error %d", i, ret);
-		}
-	}
+	int ret, not_moving = 0;
+	if (mode == 1 || mode == 2) not_moving = 1;
+	unsigned char (*buffer)[353] = kcalloc(packet_size * (10 + not_moving), sizeof(unsigned char), GFP_KERNEL);
 	ports[port-1].inner_rgb.mode       = ports[port-1].outer_rgb.mode       = mode;
 	ports[port-1].inner_rgb.brightness = ports[port-1].outer_rgb.brightness = brightness;
 	ports[port-1].inner_rgb.speed      = ports[port-1].outer_rgb.speed 	= speed;
 	ports[port-1].inner_rgb.direction  = ports[port-1].outer_rgb.direction 	= direction;
+	unsigned char data[3][353] =  { { 0xe0, 0x10, 0x60, port, ports[port-1].fan_count, }, 
+					{ 0xe0, 0x30 + (2 * (port - 1)), },  
+					{ 0xe0, 0x31 + (2 * (port - 1)), },  
+					/*{ 0xe0, 0x11, ports[0].outer_rgb.mode, ports[0].outer_rgb.speed, ports[0].outer_rgb.direction, ports[0].outer_rgb.brightness },  
+					{ 0xe0, 0x10, ports[0].inner_rgb.mode, ports[0].inner_rgb.speed, ports[0].inner_rgb.direction, ports[0].inner_rgb.brightness },  
+					{ 0xe0, 0x13, ports[1].outer_rgb.mode, ports[1].outer_rgb.speed, ports[1].outer_rgb.direction, ports[1].outer_rgb.brightness },  
+					{ 0xe0, 0x12, ports[1].inner_rgb.mode, ports[1].inner_rgb.speed, ports[1].inner_rgb.direction, ports[1].inner_rgb.brightness },  
+					{ 0xe0, 0x15, ports[2].outer_rgb.mode, ports[2].outer_rgb.speed, ports[2].outer_rgb.direction, ports[2].outer_rgb.brightness },  
+					{ 0xe0, 0x14, ports[2].inner_rgb.mode, ports[2].inner_rgb.speed, ports[2].inner_rgb.direction, ports[2].inner_rgb.brightness },  
+					{ 0xe0, 0x17, ports[3].outer_rgb.mode, ports[3].outer_rgb.speed, ports[3].outer_rgb.direction, ports[3].outer_rgb.brightness },  
+					{ 0xe0, 0x16, ports[3].inner_rgb.mode, ports[3].inner_rgb.speed, ports[3].inner_rgb.direction, ports[3].inner_rgb.brightness }
+					*/
+	};
+	int j = 1 + not_moving;
+	for (int i = 0; i < 4; i++) {
+			unsigned char tmp_data[2][353] = { { 0xe0, 0x10 + j - not_moving, ports[i].outer_rgb.mode, ports[i].outer_rgb.speed, ports[i].outer_rgb.direction, ports[i].outer_rgb.brightness },  
+							   { 0xe0, 0x10 + j - 1 - not_moving, ports[i].inner_rgb.mode, ports[i].inner_rgb.speed, ports[i].inner_rgb.direction, ports[i].inner_rgb.brightness }, };
+			memcpy(&buffer[j+1], &tmp_data[0], packet_size);
+			memcpy(&buffer[j + 2], &tmp_data[1], packet_size);
+			j += 2;
+
+
+	}
+	memcpy(&buffer[0], data[0], packet_size);
+	memcpy(&data[1][2], ports[port-1].inner_rgb.colors, packet_size - 2);
+	memcpy(&buffer[1], data[1], packet_size);
+	if (not_moving == 1) {
+		memcpy(&data[2][2], ports[port-1].outer_rgb.colors, packet_size - 2);
+		memcpy(&buffer[2], data[2], packet_size);
+	}
+
+	for (int i = 0; i < 10 + not_moving; i++) {
+		ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0x0), 0x09, 0x21, 0x02e0, 0x01, &buffer[i], packet_size, 1000);
+		if (ret != packet_size) {
+			printk(KERN_ERR "Lian Li Hub: set_rgb failed sending packet %d error %d", i, ret);
+		}
+	}
 }
 
 static void set_inner_rgb(int port, int mode, int speed, int brightness, int direction)

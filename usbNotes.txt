@@ -34,6 +34,14 @@ direction:
 2 send inner color
 3 send outer color
 4 send ports mode speed etc...
+if setting inner and outer rgb only send e0 30
+and for (int i = 0; i < port.fancount; i++)
+fx. color cycle has 4 colors and port 1 has 4 fans so the packet should look like if all the colors are red
+e0 30
+fan 1: ff 00 00 ff 00 00 ff 00 00 ff 00 00
+fan 2: ff 00 00 ff 00 00 ff 00 00 ff 00 00
+fan 3: ff 00 00 ff 00 00 ff 00 00 ff 00 00
+fan 4: ff 00 00 ff 00 00 ff 00 00 ff 00 00
 set rgb mode:
 	e0 10 60 0X(port) 0X(amount of fans) 
 

@@ -2,7 +2,7 @@
 
 int set_fan_speed(struct port *p, int speed)
 {
-	char path[MAX_TEXT_SIZE];
+	char path[MAX_STR_SIZE];
 
 	strcpy(path, p->path);
 	strcat(path, "/fan_speed");
@@ -32,7 +32,7 @@ int set_mb_sync(int state)
 
 int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int brightnes, int direction, struct color *new_colors)
 {
-	char path[MAX_TEXT_SIZE];
+	char path[MAX_STR_SIZE];
 
 	strcpy(path, p->path);
 	strcat(path, "/inner_colors");
@@ -75,7 +75,7 @@ int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 
 int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, struct color *new_colors)
 {
-	char path[MAX_TEXT_SIZE];
+	char path[MAX_STR_SIZE];
 
 	strcpy(path, p->path);
 	strcat(path, "/outer_colors");
@@ -90,7 +90,6 @@ int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 	char color_str[288];
 	for (int i = 0; i < 12 * p->fan_count; i++) {
 		sprintf(&color_str[str_i], "%02x%02x%02x", new_colors[i].r, new_colors[i].b, new_colors[i].g);
-		//printf("i = %d %02x, %02x, %02x\n", i, new_colors[i].r, new_colors[i].g, new_colors[i].b);
 		str_i += 6;
 	}
 	fputs(color_str, f);
@@ -105,6 +104,7 @@ int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 		return -1;
 	}
 	fprintf(f, "%d %d %d %d", new_mode->mode, speed, direction, brightnes);
+	printf("%d %d %d %d", new_mode->mode, speed, direction, brightnes);
 	fclose(f);
 
 	p->rgb.outer_brightnes = brightnes;
@@ -116,7 +116,7 @@ int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 
 int set_inner_and_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, struct color *new_outer_colors, struct color *new_inner_colors)
 {
-	char path[MAX_TEXT_SIZE];
+	char path[MAX_STR_SIZE];
 
 	strcpy(path, p->path);
 	strcat(path, "/outer_colors");

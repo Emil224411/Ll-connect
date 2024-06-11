@@ -1,7 +1,7 @@
 const int rgb_modes_amount = 56;
 const struct rgb_mode rgb_modes[] = 
-		     {  { "Static Color",      0x01, 6, INNER | OUTER }, 
-			{ "Breathing",         0x02, 6, INNER | OUTER },
+		     {  { "Static Color",      0x01, 6, INNER | OUTER | NOT_MOVING}, 
+			{ "Breathing",         0x02, 6, INNER | OUTER | NOT_MOVING},
 			{ "Rainbow Morph",     0x04, 0, INNER | OUTER },
 			{ "Rainbow",           0x05, 0, INNER_OR_OUTER },
 			{ "Breathing Rainbow", 0x06, 0, OUTER },

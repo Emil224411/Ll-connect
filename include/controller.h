@@ -2,7 +2,9 @@
 #define CONTROLLER_H
 #include <stdio.h>
 
-#include "ui.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #ifdef ON_MAC
 /* 	TODO paths are worng should take 2 minutes to fix correct path for mac are on macbook 	*/
@@ -21,18 +23,22 @@
 #define PORT_FOUR_PATH "/proc/Lian_li_hub/Port_four"
 #endif
 
-#define INNER 		0b0001
-#define OUTER 		0b0010
-#define INNER_OR_OUTER 	0b0100
-#define MERGE 		0b1000
+#define MAX_STR_SIZE 256
+
+#define INNER 		0b00001
+#define OUTER 		0b00010
+#define INNER_OR_OUTER 	0b00100
+#define MERGE 		0b01000
+/* flag for modes where they should send inner and outer color fx. Static Color */
+#define NOT_MOVING 	0b10000
 
 struct color {
-	Uint8 r, g, b;
+	u_int8_t r, g, b;
 };
 
 struct rgb_mode {
-	char name[MAX_TEXT_SIZE];
-	Uint8 mode; 
+	char name[MAX_STR_SIZE];
+	u_int8_t mode; 
 	int colors, outerorinner;
 };
 #include "rgbmodes.h"
@@ -47,7 +53,7 @@ struct rgb_data {
 };
 
 struct port {
-	const char path[MAX_TEXT_SIZE];
+	const char path[MAX_STR_SIZE];
 	struct rgb_data rgb;
 	int fan_count, fan_speed;
 };
@@ -61,9 +67,7 @@ struct port ports[4] = {
 
 
 int set_fan_speed(struct port *p, int speed);
-/* new_colors lenght should be  96. */
 int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int brightnes, int direction, struct color *new_colors);
-/* new_colors lenght should be 144. */
 int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, struct color *new_colors);
 int set_inner_and_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, struct color *new_outer_colors, struct color *new_inner_colors);
 int set_mb_sync(int state);

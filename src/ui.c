@@ -370,7 +370,7 @@ struct input *create_input(char *string, int resize_box, int max_len, int x, int
 	} else  new_input.default_outer_box.w = new_input.outer_box.w = w;
 	if (h == 0) {
 		new_input.default_outer_box.h = new_input.outer_box.h = new_input.text.dst.h + 10;
-	} else  new_input.default_outer_box.w = new_input.outer_box.w = h;
+	} else  new_input.default_outer_box.h = new_input.outer_box.h = h;
 
 	if (!resize_box) {
 		new_input.text.src = new_input.text.dst;
