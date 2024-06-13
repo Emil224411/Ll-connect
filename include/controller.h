@@ -25,12 +25,16 @@
 
 #define MAX_STR_SIZE 256
 
-#define INNER 		0b00001
-#define OUTER 		0b00010
-#define INNER_OR_OUTER 	0b00100
-#define MERGE 		0b01000
+#define INNER 		0b00000001
+#define OUTER 		0b00000010
+#define INNER_OR_OUTER 	0b00000100
+#define MERGE 		0b00001000
 /* flag for modes where they should send inner and outer color fx. Static Color */
-#define NOT_MOVING 	0b10000
+#define NOT_MOVING 	0b00010000
+
+#define BRIGHTNESS 	0b00100000
+#define SPEED 		0b01000000
+#define DIRECTION 	0b10000000
 
 struct color {
 	u_int8_t r, g, b;
@@ -39,7 +43,7 @@ struct color {
 struct rgb_mode {
 	char name[MAX_STR_SIZE];
 	u_int8_t mode; 
-	int colors, outerorinner;
+	int colors, flags;
 };
 #include "rgbmodes.h"
 

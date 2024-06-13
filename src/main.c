@@ -5,19 +5,25 @@
  |--------------------------------------------------------------------------------------------------------------|
  |														|
  |						TODO list							|
- |		1. mabey write functions for setting colors and setting the mode in the driver 			|
+ |		1.  make buttons for direction(make them look good). 			  			|
+ | 		2.  rgb_brightness dosnt change static color might have something to do with  			|
+ |			the NOT_MOVING flag but i think you should just r*brightnes b*brightnes g*brightnes 	|
+ | 		3.  make apply too all button(might require apply to all function in driver). 			|
+ | 		4.  ddm highlighted text should disapier if mouse is not hovering over any but it dosnt  	|
+ |			witch is why sometimes you see when scrolling that the box is in the midel of 		|
+ |			two text options 									|
+ | 		5.  add a way to select ports. 									|
+ |		6.  input_box outer_box.w is too small causing input_box text margins to be wrong 		|
+ | 		7.  YOUR MISSING THE VALUE FOR SETTING SPEED TO 25 AND BRIGHTNESS TO 75 :////			|
+ |		8.  mabey write functions for setting colors and setting the mode in the driver 		|
  | 			look at usbNotes.txt:41.								|
- |		2. make slider for selecting speed brightnes and buttons for direction.  			|
- | 		3. make apply too all button(might require apply to all function in driver). 			|
- | 		4. add a way to select ports. 									|
- | 		5. test which rgb modes require NOT_MOVING flag(and find a new name for the flag 		|
+ | 		9.  test which rgb modes require NOT_MOVING flag(and find a new name for the flag 		|
  |			since Breathing needs the flag) should proply also find a better way of handeling 	|
  |			it in the driver. 									|
- |		6. input_box outer_box.w is too small causing input_box text margins to be wrong 		|
  |			proply something wrong in create_input() 						|
- | 		7. make apply() shorter should be pretty easy look at the for loops 				|
- |		8. make the input_box for the colors work as a input_box not just a box:/.			|
- |		9. not very importent rn but refactor or rewrite the input_box code. 				|
+ | 		10. make apply() shorter should be pretty easy look at the for loops 				|
+ |		12. make the input_box for the colors work as a input_box not just a box:/.			|
+ |		13. not very importent rn but refactor or rewrite the input_box code. 				|
  | 														|
  |														|
  \**************************************************************************************************************/
@@ -58,6 +64,8 @@ SDL_Rect color_picker_pos;
 
 inline SDL_Surface *create_rgb_color_picker_surface();
 inline SDL_Surface *create_white_black_picker(Uint8 red, Uint8 green, Uint8 blue);
+void rgb_speed_slider_move(struct slider *self, SDL_Event *event);
+void rgb_brightnes_slider_move(struct slider *self, SDL_Event *event);
 void change_white_black_picker(SDL_Surface *surface, Uint8 red, Uint8 green, Uint8 blue);
 void select_button(struct button *self, SDL_Event *event);
 void select_button2(struct button *self, SDL_Event *event);
@@ -71,7 +79,7 @@ int update_speed_str();
 int init();
 
 char speeds_str[MAX_TEXT_SIZE];
-struct text speeds;
+struct text *speeds;
 int speeds_pro[4] = { 0 };
 int speeds_rpm[4] = { 0 };
 
@@ -83,8 +91,14 @@ int change;
 struct input *color_input_r;
 struct input *color_input_g;
 struct input *color_input_b;
-struct text color_text;
+struct text *color_text;
 
+struct slider *rgb_speed_slider;
+struct text *rgb_speed_text;
+int rgb_speed;
+struct slider *rgb_brightnes_slider;
+struct text *rgb_brightnes_text;
+int rgb_brightnes;
 struct button *color_buttons[6];
 int selected_color_button;
 struct button *apply_rgb;
@@ -121,6 +135,7 @@ int main()
 			b = a;
 			clear_screen(edarkgrey);
 
+
 			if (change == 1) {
 				change_white_black_picker(other_picker_surface, color_selector->bg_color.r, color_selector->bg_color.g, color_selector->bg_color.b);
 				SDL_DestroyTexture(other_picker_texture);
@@ -129,17 +144,23 @@ int main()
 			}
 			SDL_RenderCopy(renderer, color_picker_texture, NULL, &color_picker_pos);
 			SDL_RenderCopy(renderer, other_picker_texture, NULL, &other_picker_pos);
+			
 			render_button(color_selector);
 			render_button(apply_rgb);
 			render_button(black_white_selector);
 			for (int i = 0; i < 6; i++) render_button(color_buttons[i]);
-			render_text(&speeds, NULL);
+			render_text(speeds, NULL);
 			render_input_box(color_input_r);
 			render_input_box(color_input_g);
 			render_input_box(color_input_b);
 			
-			render_ddm(rgb_mode_ddm);
+			render_slider(rgb_speed_slider);
+			render_slider(rgb_brightnes_slider);
 			render_ddm(fan_ring_ddm);
+			render_ddm(rgb_mode_ddm);
+			render_text(rgb_speed_text, NULL);
+			render_text(rgb_brightnes_text, NULL);
+			
 			show_screen();
 		}
 		/*if (delta2 > 1000/1.0) {
@@ -154,7 +175,7 @@ int main()
 	SDL_DestroyTexture(other_picker_texture);
 	SDL_FreeSurface(color_picker_surface);
 	SDL_FreeSurface(other_picker_surface);
-	destroy_text_texture(&speeds);
+	destroy_text_texture(speeds);
 	ui_shutdown();
 
 	return 0;
@@ -213,8 +234,8 @@ int init()
 	other_picker_surface = create_white_black_picker(255, 0, 0);
 	other_picker_texture = create_texture_from_surface(other_picker_surface);
 
-	color_selector = create_button(NULL, 1, 1, color_picker_pos.x, color_picker_pos.y, 20, 20, font, select_button2, select_button2, WHITE, BLACK, WHITE);
-	black_white_selector = create_button(NULL, 1, 1, other_picker_pos.x, other_picker_pos.y, 25, 25, font, select_button, select_button, WHITE, BLACK, WHITE);
+	color_selector = create_button(NULL, 1, 1, 1, color_picker_pos.x, color_picker_pos.y, 20, 20, font, select_button2, select_button2, WHITE, BLACK, WHITE);
+	black_white_selector = create_button(NULL, 1, 1, 1, other_picker_pos.x, other_picker_pos.y, 25, 25, font, select_button, select_button, WHITE, BLACK, WHITE);
 	
 	create_color_buttons();
 	char tmp_str[rgb_modes_amount][MAX_TEXT_SIZE];
@@ -230,10 +251,71 @@ int init()
 	color_input_g = create_input("255", 0, 3, color_picker_pos.x + color_input_r->outer_box.w + 10, color_input_r->outer_box.y, 0, 0, NULL, font, WHITE, edarkgrey, WHITE);
 	color_input_b = create_input("255", 0, 3, color_picker_pos.x + (color_input_g->outer_box.w * 2) + 20, color_input_g->outer_box.y, 0, 0, NULL, font, WHITE, edarkgrey, WHITE);
 
-	apply_rgb = create_button("Apply", 0, 1, color_input_b->outer_box.x + color_input_b->outer_box.w + 10, color_input_b->outer_box.y, 0, 0, font, apply, NULL, WHITE, edarkgrey, WHITE);
+	apply_rgb = create_button("Apply", 0, 1, 1, color_input_b->outer_box.x + color_input_b->outer_box.w + 10, color_input_b->outer_box.y, 0, 0, font, apply, NULL, WHITE, edarkgrey, WHITE);
 
+	rgb_speed_slider = create_slider(1, 40, 200, 200, 10, 20, NULL, rgb_speed_slider_move, WHITE, WHITE, grey);
+	rgb_brightnes_slider = create_slider(1, 40, 240, 200, 10, 20, NULL, rgb_brightnes_slider_move, WHITE, WHITE, grey);
+
+	rgb_speed_text = create_text("0%", rgb_speed_slider->pos.x + 210, rgb_speed_slider->button->outer_box.y - 2, 0, 0, 0, WHITE, edarkgrey, font);
+	rgb_brightnes_text = create_text("0%", rgb_brightnes_slider->pos.x + 210, rgb_brightnes_slider->button->outer_box.y - 2, 0, 0, 0, WHITE, edarkgrey, font);
 
 	return 0;
+}
+
+/*
+ * brightnes:
+ *	0%   = 08
+ *	25%  = 03
+ *	50%  = 02
+ *	100% = 00
+ */
+void rgb_brightnes_slider_move(struct slider *self, SDL_Event *event)
+{
+	static float last_p;
+	float rounded;
+	if      (self->p == 0.00) { rounded = 0.00; rgb_brightnes = 0x08; }
+	else if (self->p == 0.25) { rounded = 0.25; rgb_brightnes = 0x03; }
+	else if (self->p == 0.50) { rounded = 0.50; rgb_brightnes = 0x02; }
+								/*   |  */
+	/* TODO sniff usb packs and change value from 0x02          \ / */
+	else if (self->p == 0.75) { rounded = 0.75; rgb_brightnes = 0x02; }
+	else if (self->p == 1.00) { rounded = 1.00; rgb_brightnes = 0x00; }
+	else rounded = last_p;
+	if (rounded != last_p) {
+		char tmp_str[6];
+		sprintf(tmp_str, "%3d%%", (int)(rounded * 100));
+		change_text_and_render_texture(rgb_brightnes_text, tmp_str, WHITE, edarkgrey, font);
+	}
+	self->button->outer_box.x = self->pos.x + (self->pos.w * rounded) - self->button->outer_box.w/2;
+	last_p = rounded;
+	
+}
+/*
+ * speed:
+ *	0%   = 02 
+ *	50%  = 00 
+ *	75%  = ff   
+ *	100% = fe
+ */
+void rgb_speed_slider_move(struct slider *self, SDL_Event *event)
+{
+	static float last_p;
+	float rounded;
+	if      (self->p == 0.00) { rounded = 0.00; rgb_speed = 0x02; }
+	/* TODO sniff usb packs and change value from 0x00 */
+	else if (self->p == 0.25) { rounded = 0.25; rgb_speed = 0x00; }
+	else if (self->p == 0.50) { rounded = 0.50; rgb_speed = 0x00; }
+	else if (self->p == 0.75) { rounded = 0.75; rgb_speed = 0xff; }
+	else if (self->p == 1.00) { rounded = 1.00; rgb_speed = 0xfe; }
+	else rounded = last_p;
+	if (rounded != last_p) {
+		char tmp_str[6];
+		sprintf(tmp_str, "%3d%%", (int)(rounded * 100));
+		change_text_and_render_texture(rgb_speed_text, tmp_str, WHITE, edarkgrey, font);
+	}
+
+	self->button->outer_box.x = self->pos.x + (self->pos.w * rounded) - self->button->outer_box.w/2;
+	last_p = rounded;
 }
 
 void apply(struct button *self, SDL_Event *e)
@@ -249,7 +331,8 @@ void apply(struct button *self, SDL_Event *e)
 				rj++;
 			}
 		}
-		set_outer_rgb(&ports[0], &rgb_modes[rgb_mode_i], 0, 0, 0, ports[0].rgb.outer_color);
+		set_outer_rgb(&ports[0], &rgb_modes[rgb_mode_i], rgb_speed, 0, rgb_brightnes, ports[0].rgb.outer_color);
+		printf("port = %d, mode = %s, speed = 0x%02x, brightnes = 0x%02x\n", 0, rgb_modes[rgb_mode_i].name, rgb_speed, rgb_brightnes);
 	}
 	if (rgb_mode_ring_type == 1) {
 		printf("inner\n");
@@ -262,14 +345,15 @@ void apply(struct button *self, SDL_Event *e)
 				rj++;
 			}
 		}
-		set_inner_rgb(&ports[0], &rgb_modes[rgb_mode_i], 0, 0, 0, ports[0].rgb.inner_color);
+		set_inner_rgb(&ports[0], &rgb_modes[rgb_mode_i], rgb_speed, 0, rgb_brightnes, ports[0].rgb.inner_color);
+		printf("port = %d, mode = %s, speed = 0x%02x, brightnes = 0x%02x\n", 0, rgb_modes[rgb_mode_i].name, rgb_speed, rgb_brightnes);
 	}
 
 	if (rgb_mode_ring_type == 2) {
 		printf("inner and outer\n");
 		int rj = 0, rrj = 0;
 		
-		if ((rgb_modes[rgb_mode_i].outerorinner & NOT_MOVING) == NOT_MOVING) {
+		if ((rgb_modes[rgb_mode_i].flags & NOT_MOVING) == NOT_MOVING) {
 			for (int i = 0; i < rgb_modes[rgb_mode_i].colors; i++) {
 				for (int j = 0; j < 8; j++) {
 					ports[0].rgb.inner_color[rj].r = color_buttons[i]->bg_color.r;
@@ -298,7 +382,8 @@ void apply(struct button *self, SDL_Event *e)
 				memset(ports[0].rgb.outer_color, 0, sizeof(struct color) * 72);
 			}
 		}
-		set_inner_and_outer_rgb(&ports[0], &rgb_modes[rgb_mode_i], 0, 0, 0, ports[0].rgb.outer_color, ports[0].rgb.inner_color);
+		set_inner_and_outer_rgb(&ports[0], &rgb_modes[rgb_mode_i], rgb_speed, 0, rgb_brightnes, ports[0].rgb.outer_color, ports[0].rgb.inner_color);
+		printf("port = %d, mode = %s, speed = 0x%02x, brightnes = 0x%02x\n", 0, rgb_modes[rgb_mode_i].name, rgb_speed, rgb_brightnes);
 	}
 }
 
@@ -314,7 +399,7 @@ void color_buttons_click(struct button *self, SDL_Event *e)
 void create_color_buttons()
 {
 	for (int i = 0; i < 6; i++) {
-		color_buttons[i] = create_button(NULL, 0, 1, other_picker_pos.x + 51 * i, color_picker_pos.y + color_picker_pos.h + 10, 
+		color_buttons[i] = create_button(NULL, 0, 1, 1, other_picker_pos.x + 51 * i, color_picker_pos.y + color_picker_pos.h + 10, 
 						45, 40, font, color_buttons_click, NULL, WHITE, RED, WHITE);
 		if (i > rgb_modes[rgb_mode_i].colors) color_buttons[i]->show = 0;
 	}
@@ -325,13 +410,19 @@ void rgb_mode_ddm_select(struct drop_down_menu *d, SDL_Event *event)
 	if (d->selected) {
 		rgb_mode_i = d->selected_text_index;
 		for (int i = 0; i < rgb_modes_amount; i++) {
-			if (strcmp(rgb_modes[i].name, d->text[d->selected_text_index].str) == 0 && (rgb_modes[i].outerorinner & rgb_mode_mask) == rgb_mode_mask) rgb_mode_i = i;
+			if (strcmp(rgb_modes[i].name, d->text[d->selected_text_index]->str) == 0 
+					&& (rgb_modes[i].flags & rgb_mode_mask) == rgb_mode_mask) {
+				rgb_mode_i = i;
+				rgb_brightnes_text->show = rgb_brightnes_slider->show = (rgb_modes[i].flags & BRIGHTNESS) ? 1 : 0;
+				if (rgb_brightnes_text->show == 0) rgb_brightnes = 0;
+				rgb_speed_text->show = rgb_speed_slider->show = (rgb_modes[i].flags & SPEED) ? 1 : 0;
+				if (rgb_speed_text->show == 0) rgb_speed = 0;
+			}
 		}
 		for (int i = 0; i < 6; i++) {
 			if (rgb_modes[rgb_mode_i].colors <= i) color_buttons[i]->show = 0;
 			else color_buttons[i]->show = 1;
 		}
-		printf("rgb_mode_i = %d, rgb_mode = %s\n", rgb_mode_i, rgb_modes[rgb_mode_i].name);
 	}
 }
 
@@ -345,8 +436,8 @@ void fan_ring_select(struct drop_down_menu *d, SDL_Event *event)
 	else if (rgb_mode_ring_type == 2) rgb_mode_mask = (INNER | OUTER);
 
 	for (int i = 0; i < rgb_modes_amount; i++) {
-		if ((rgb_modes[i].outerorinner & rgb_mode_mask) == rgb_mode_mask) {
-			printf("mask = %06b, rgb_mask = %06b\n", rgb_mode_mask, rgb_modes[i].outerorinner);
+		if ((rgb_modes[i].flags & rgb_mode_mask) == rgb_mode_mask) {
+			printf("mask = %06b, rgb_mask = %06b\n", rgb_mode_mask, rgb_modes[i].flags);
 			strncpy(newstr[strings_added], rgb_modes[i].name, MAX_TEXT_SIZE);
 			strings_added++;
 		}
