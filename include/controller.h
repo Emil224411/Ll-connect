@@ -71,9 +71,11 @@ struct port ports[4] = {
 
 
 int set_fan_speed(struct port *p, int speed);
-int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int brightnes, int direction, struct color *new_colors);
-int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, struct color *new_colors);
-int set_inner_and_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, struct color *new_outer_colors, struct color *new_inner_colors);
+int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_colors);
+int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_colors);
+int set_inner_and_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_outer_colors, struct color *new_inner_colors);
+int write_outer_colors(char *path, struct color *new_colors, int fan_count, float bright, int flags);
+int write_inner_colors(char *path, struct color *new_colors, int fan_count, float bright, int flags);
 int set_mb_sync(int state);
 
 #endif

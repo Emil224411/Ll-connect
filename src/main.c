@@ -5,25 +5,22 @@
  |--------------------------------------------------------------------------------------------------------------|
  |														|
  |						TODO list							|
- |		1.  make buttons for direction(make them look good). 			  			|
- | 		2.  rgb_brightness dosnt change static color might have something to do with  			|
- |			the NOT_MOVING flag but i think you should just r*brightnes b*brightnes g*brightnes 	|
- | 		3.  make apply too all button(might require apply to all function in driver). 			|
- | 		4.  ddm highlighted text should disapier if mouse is not hovering over any but it dosnt  	|
+ | 		1.  apply too all button does not work proper with inner rgb idk why it works fine with outer? 	|
+ | 		2.  make apply() shorter should be pretty easy look at the for loops 				|
+ | 		3.  add a way to select ports. 									|
+ |		4.  make buttons for direction(make them look good). 			  			|
+ | 		5.  ddm highlighted text should disapier if mouse is not hovering over any but it dosnt  	|
  |			witch is why sometimes you see when scrolling that the box is in the midel of 		|
  |			two text options 									|
- | 		5.  add a way to select ports. 									|
  |		6.  input_box outer_box.w is too small causing input_box text margins to be wrong 		|
- | 		7.  YOUR MISSING THE VALUE FOR SETTING SPEED TO 25 AND BRIGHTNESS TO 75 :////			|
- |		8.  mabey write functions for setting colors and setting the mode in the driver 		|
+ |		7.  mabey write functions for setting colors and setting the mode in the driver 		|
  | 			look at usbNotes.txt:41.								|
- | 		9.  test which rgb modes require NOT_MOVING flag(and find a new name for the flag 		|
+ | 		8.  test which rgb modes require NOT_MOVING flag(and find a new name for the flag 		|
  |			since Breathing needs the flag) should proply also find a better way of handeling 	|
  |			it in the driver. 									|
  |			proply something wrong in create_input() 						|
- | 		10. make apply() shorter should be pretty easy look at the for loops 				|
- |		12. make the input_box for the colors work as a input_box not just a box:/.			|
- |		13. not very importent rn but refactor or rewrite the input_box code. 				|
+ |		9.  make the input_box for the colors work as a input_box not just a box:/.			|
+ |		10. not very importent rn but refactor or rewrite the input_box code. 				|
  | 														|
  |														|
  \**************************************************************************************************************/
@@ -75,8 +72,10 @@ void fan_ring_select(struct drop_down_menu *d, SDL_Event *event);
 void color_buttons_click(struct button *self, SDL_Event *e);
 void create_color_buttons();
 void apply(struct button *self, SDL_Event *e);
+void apply_all(struct button *self, SDL_Event *e);
 int update_speed_str();
 int init();
+static void set_all(int mode, int speed, int direction, int brightnes, int flag);
 
 char speeds_str[MAX_TEXT_SIZE];
 struct text *speeds;
@@ -102,6 +101,7 @@ int rgb_brightnes;
 struct button *color_buttons[6];
 int selected_color_button;
 struct button *apply_rgb;
+struct button *apply_to_all_rgb;
 struct drop_down_menu *rgb_mode_ddm;
 struct drop_down_menu *fan_ring_ddm;
 int rgb_mode_i;
@@ -147,6 +147,7 @@ int main()
 			
 			render_button(color_selector);
 			render_button(apply_rgb);
+			render_button(apply_to_all_rgb);
 			render_button(black_white_selector);
 			for (int i = 0; i < 6; i++) render_button(color_buttons[i]);
 			render_text(speeds, NULL);
@@ -163,11 +164,11 @@ int main()
 			
 			show_screen();
 		}
-		/*if (delta2 > 1000/1.0) {
+		if (delta2 > 1000/1.0) {
 			b2 = a;
 			update_speed_str();		
-			change_text_and_render_texture(&speeds, speeds_str, speeds.fg_color, speeds.bg_color, font);
-		}*/
+			change_text_and_render_texture(speeds, speeds_str, speeds->fg_color, speeds->bg_color, font);
+		}
 		SDL_Delay(1);
 	}
 
@@ -183,7 +184,7 @@ int main()
 
 int init()
 {
-	
+	set_all(0x1a, 0x01, 0, 0, INNER);
 	FILE *f = fopen("/proc/modules", "r");
 	if (f == NULL) {
 		printf("failed fopen /proc/modules\n");
@@ -252,6 +253,7 @@ int init()
 	color_input_b = create_input("255", 0, 3, color_picker_pos.x + (color_input_g->outer_box.w * 2) + 20, color_input_g->outer_box.y, 0, 0, NULL, font, WHITE, edarkgrey, WHITE);
 
 	apply_rgb = create_button("Apply", 0, 1, 1, color_input_b->outer_box.x + color_input_b->outer_box.w + 10, color_input_b->outer_box.y, 0, 0, font, apply, NULL, WHITE, edarkgrey, WHITE);
+	apply_to_all_rgb = create_button("Apply all", 0, 1, 1, apply_rgb->outer_box.x + apply_rgb->outer_box.w + 10, apply_rgb->outer_box.y, 0, 0, font, apply, NULL, WHITE, edarkgrey, WHITE);
 
 	rgb_speed_slider = create_slider(1, 40, 200, 200, 10, 20, NULL, rgb_speed_slider_move, WHITE, WHITE, grey);
 	rgb_brightnes_slider = create_slider(1, 40, 240, 200, 10, 20, NULL, rgb_brightnes_slider_move, WHITE, WHITE, grey);
@@ -262,11 +264,124 @@ int init()
 	return 0;
 }
 
+static void set_all(int mode, int speed, int brightness, int direction, int flag)
+{
+	ports[0].fan_count = 4;
+	ports[1].fan_count = 3;
+	ports[2].fan_count = 3;
+	ports[3].fan_count = 1;
+	mode 		= 0x1a;
+	speed 		= 0x01;
+	brightness 	= 0x0;
+	direction 	= 0x0;
+	flag 		= INNER;
+        const size_t packet_size = 353;
+	size_t packets_needed = 16;
+	int not_moving = 0;
+	int only_inner = 0, only_outer = 0;
+
+	if (mode == 1 || mode == 2) {
+	        packets_needed = 20;
+	        not_moving = 1;
+	}
+	if (flag & OUTER && (flag & INNER) == 0) {
+		only_outer = 1;
+		only_inner = 0;
+		packets_needed = 24;
+	} else if (flag & INNER && (flag & OUTER) == 0) {
+		only_outer = 0;
+		only_inner = 1;
+		packets_needed = 24;
+	} else if (flag & INNER && flag & OUTER) {
+		not_moving = 1;
+		packets_needed = 20;
+	}
+        unsigned char (*buffer)[353] = calloc(packet_size * packets_needed, sizeof(unsigned char));
+
+	int j = 0;
+	int port = 0;
+	for (int i = 0; i < packets_needed - 8; i += (2 + not_moving + only_inner + only_outer)) {
+	        buffer[i][0] = 0xe0;
+	        buffer[i][1] = 0x10;
+	        buffer[i][2] = 0x60;
+	        buffer[i][3] = port + 1;
+	        buffer[i][4] = ports[port].fan_count;
+	        buffer[i + 1][0] = 0xe0;
+	        buffer[i + 1][1] = 0x30 + only_outer+ j;
+		if (only_outer || only_inner) {
+			buffer[i + 2][0] = 0xe0;
+			buffer[i + 2][1] = 0x10;
+			buffer[i + 2][2] = 0x60;
+			buffer[i + 2][3] = port + 1;
+			buffer[i + 2][4] = ports[port].fan_count;
+			buffer[i + 3][0] = 0xe0;
+			buffer[i + 3][1] = 0x31 - only_outer+ j;
+			i += 1;
+
+		} else if (not_moving) {
+                	buffer[i + 2][0] = 0xe0;
+               		buffer[i + 2][1] = 0x31 + j;
+		}
+		j += 2;
+		port = port + 1;
+		//printf("buffer[%d]\t= { %02x %02x %02x %02x %02x }\nbuffer[%d]\t= { %02x %02x }\n", i, buffer[i][0], buffer[i][1], buffer[i][2], buffer[i][3], buffer[i][4],
+		//							i + 1, buffer[i + 1][0], buffer[i + 1][1]);
+		//if (not_moving) printf("buffer[%d]\t= { %02x %02x %02x %02x %02x }\n", i + 2, buffer[i + 2][0], buffer[i + 2][1], buffer[i + 2][2], buffer[i + 2][3], buffer[i + 2][4]);
+		//if (only_inner || only_outer) printf("buffer[%d]\t= { %02x %02x }\n", i + 3, buffer[i + 3][0], buffer[i + 3][1]);
+        }
+	j = 0;
+	for (int i = 0; i < 8; i += 2) {
+		buffer[packets_needed-8+i][0] = 0xe0;
+		buffer[packets_needed-8+i][1] = 0x11 + j;
+		if (flag & OUTER) {
+		        buffer[packets_needed-8+i][2] = mode;
+		        buffer[packets_needed-8+i][3] = speed;
+		        buffer[packets_needed-8+i][4] = direction;
+		        buffer[packets_needed-8+i][5] = brightness;
+		} else {
+		        buffer[packets_needed-8+i][2] = ports[i/2].rgb.outer_mode->mode;
+		        buffer[packets_needed-8+i][3] = ports[i/2].rgb.outer_speed;
+		        buffer[packets_needed-8+i][4] = ports[i/2].rgb.outer_direction;
+		        buffer[packets_needed-8+i][5] = ports[i/2].rgb.outer_brightnes;
+		}
+		buffer[packets_needed-7+i][0] = 0xe0;
+		buffer[packets_needed-7+i][1] = 0x10 + j;
+		if (flag & INNER) {
+		        buffer[packets_needed-7+i][2] = mode;
+		        buffer[packets_needed-7+i][3] = speed;
+		        buffer[packets_needed-7+i][4] = direction;
+		        buffer[packets_needed-7+i][5] = brightness;
+		} else {
+		        buffer[packets_needed-7+i][2] = ports[i/2].rgb.inner_mode->mode;
+		        buffer[packets_needed-7+i][3] = ports[i/2].rgb.inner_speed;
+		        buffer[packets_needed-7+i][4] = ports[i/2].rgb.inner_direction;
+		        buffer[packets_needed-7+i][5] = ports[i/2].rgb.inner_brightnes;
+		}
+		j += 2;
+
+		//printf("buffer[%lu]\t= { %02x %02x %02x %02x %02x %02x }\n", packets_needed-8+i, buffer[packets_needed-8+i][0], buffer[packets_needed-8+i][1], buffer[packets_needed-8+i][2], 
+		//									buffer[packets_needed-8+i][3], buffer[packets_needed-8+i][4], buffer[packets_needed-8+i][5]);
+		//printf("buffer[%lu]\t= { %02x %02x %02x %02x %02x %02x }\n", packets_needed-7+i, buffer[packets_needed-7+i][0], buffer[packets_needed-7+i][1], buffer[packets_needed-7+i][2], 
+		//									buffer[packets_needed-7+i][3], buffer[packets_needed-7+i][4], buffer[packets_needed-7+i][5]);
+	}
+	for (int i = 0; i < packets_needed; i++) {
+		printf("buffer[%d]\t= { %02x %02x %02x %02x %02x %02x }\n", i, buffer[i][0], buffer[i][1], buffer[+i][2], 
+											buffer[i][3], buffer[i][4], buffer[i][5]);
+	}
+	free(buffer);
+}
+
+void apply_all(struct button *self, SDL_Event *e)
+{
+	
+}
+
 /*
  * brightnes:
  *	0%   = 08
  *	25%  = 03
  *	50%  = 02
+ *	75%  = 01
  *	100% = 00
  */
 void rgb_brightnes_slider_move(struct slider *self, SDL_Event *event)
@@ -276,9 +391,7 @@ void rgb_brightnes_slider_move(struct slider *self, SDL_Event *event)
 	if      (self->p == 0.00) { rounded = 0.00; rgb_brightnes = 0x08; }
 	else if (self->p == 0.25) { rounded = 0.25; rgb_brightnes = 0x03; }
 	else if (self->p == 0.50) { rounded = 0.50; rgb_brightnes = 0x02; }
-								/*   |  */
-	/* TODO sniff usb packs and change value from 0x02          \ / */
-	else if (self->p == 0.75) { rounded = 0.75; rgb_brightnes = 0x02; }
+	else if (self->p == 0.75) { rounded = 0.75; rgb_brightnes = 0x01; }
 	else if (self->p == 1.00) { rounded = 1.00; rgb_brightnes = 0x00; }
 	else rounded = last_p;
 	if (rounded != last_p) {
@@ -293,6 +406,7 @@ void rgb_brightnes_slider_move(struct slider *self, SDL_Event *event)
 /*
  * speed:
  *	0%   = 02 
+ *	25%  = 01
  *	50%  = 00 
  *	75%  = ff   
  *	100% = fe
@@ -302,8 +416,7 @@ void rgb_speed_slider_move(struct slider *self, SDL_Event *event)
 	static float last_p;
 	float rounded;
 	if      (self->p == 0.00) { rounded = 0.00; rgb_speed = 0x02; }
-	/* TODO sniff usb packs and change value from 0x00 */
-	else if (self->p == 0.25) { rounded = 0.25; rgb_speed = 0x00; }
+	else if (self->p == 0.25) { rounded = 0.25; rgb_speed = 0x01; }
 	else if (self->p == 0.50) { rounded = 0.50; rgb_speed = 0x00; }
 	else if (self->p == 0.75) { rounded = 0.75; rgb_speed = 0xff; }
 	else if (self->p == 1.00) { rounded = 1.00; rgb_speed = 0xfe; }
@@ -320,33 +433,54 @@ void rgb_speed_slider_move(struct slider *self, SDL_Event *event)
 
 void apply(struct button *self, SDL_Event *e)
 {
+	int set_all = strcmp(self->text->str, apply_to_all_rgb->text->str) == 0 ? 1 : 0;
 	if (rgb_mode_ring_type == 0) {
 		printf("outer\n");
 		int rj = 0;
-		for (int i = 0; i < ports[0].fan_count; i++) {
-			for (int j = 0; j < 12; j++) {
-				ports[0].rgb.outer_color[rj].r = color_buttons[i]->bg_color.r;
-				ports[0].rgb.outer_color[rj].g = color_buttons[i]->bg_color.g;
-				ports[0].rgb.outer_color[rj].b = color_buttons[i]->bg_color.b;
-				rj++;
+		if (rgb_modes[rgb_mode_i].flags & NOT_MOVING) {
+			for (int i = 0; i < rgb_modes[rgb_mode_i].colors; i++) {
+				for (int j = 0; j < 12; j++) {
+					ports[0].rgb.outer_color[rj].r = color_buttons[i]->bg_color.r;
+					ports[0].rgb.outer_color[rj].g = color_buttons[i]->bg_color.g;
+					ports[0].rgb.outer_color[rj].b = color_buttons[i]->bg_color.b;
+					rj++;
+				}
 			}
-		}
-		set_outer_rgb(&ports[0], &rgb_modes[rgb_mode_i], rgb_speed, 0, rgb_brightnes, ports[0].rgb.outer_color);
-		printf("port = %d, mode = %s, speed = 0x%02x, brightnes = 0x%02x\n", 0, rgb_modes[rgb_mode_i].name, rgb_speed, rgb_brightnes);
+		} else if (rgb_modes[rgb_mode_i].colors > 0) {
+			for (int j = 0; j < ports[0].fan_count; j++) {
+				for (int i = 0; i < rgb_modes[rgb_mode_i].colors; i++) {
+					ports[0].rgb.outer_color[j * ports[0].fan_count + i].r = color_buttons[i]->bg_color.r;
+					ports[0].rgb.outer_color[j * ports[0].fan_count + i].g = color_buttons[i]->bg_color.g;
+					ports[0].rgb.outer_color[j * ports[0].fan_count + i].b = color_buttons[i]->bg_color.b;
+				}
+			}
+		} else memset(ports[0].rgb.outer_color, 0, sizeof(struct color) * 72);
+		set_outer_rgb(&ports[0], &rgb_modes[rgb_mode_i], rgb_speed, 0, rgb_brightnes, set_all, ports[0].rgb.outer_color);
+		printf("port = %d, mode = %s, 0x%02x, set all = %d, speed = 0x%02x, brightnes = 0x%02x\n", 0, rgb_modes[rgb_mode_i].name, rgb_modes[rgb_mode_i].mode, set_all, rgb_speed, rgb_brightnes);
 	}
 	if (rgb_mode_ring_type == 1) {
 		printf("inner\n");
 		int rj = 0;
-		for (int i = 0; i < ports[0].fan_count; i++) {
-			for (int j = 0; j < 8; j++) {
-				ports[0].rgb.inner_color[rj].r = color_buttons[i]->bg_color.r;
-				ports[0].rgb.inner_color[rj].g = color_buttons[i]->bg_color.g;
-				ports[0].rgb.inner_color[rj].b = color_buttons[i]->bg_color.b;
-				rj++;
+		if (rgb_modes[rgb_mode_i].flags & NOT_MOVING) {
+			for (int i = 0; i < rgb_modes[rgb_mode_i].colors; i++) {
+				for (int j = 0; j < 8; j++) {
+					ports[0].rgb.inner_color[rj].r = color_buttons[i]->bg_color.r;
+					ports[0].rgb.inner_color[rj].g = color_buttons[i]->bg_color.g;
+					ports[0].rgb.inner_color[rj].b = color_buttons[i]->bg_color.b;
+					rj++;
+				}
 			}
-		}
-		set_inner_rgb(&ports[0], &rgb_modes[rgb_mode_i], rgb_speed, 0, rgb_brightnes, ports[0].rgb.inner_color);
-		printf("port = %d, mode = %s, speed = 0x%02x, brightnes = 0x%02x\n", 0, rgb_modes[rgb_mode_i].name, rgb_speed, rgb_brightnes);
+		} else if (rgb_modes[rgb_mode_i].colors > 0) {
+			for (int j = 0; j < ports[0].fan_count; j++) {
+				for (int i = 0; i < rgb_modes[rgb_mode_i].colors; i++) {
+					ports[0].rgb.inner_color[j * ports[0].fan_count + i].r = color_buttons[i]->bg_color.r;
+					ports[0].rgb.inner_color[j * ports[0].fan_count + i].g = color_buttons[i]->bg_color.g;
+					ports[0].rgb.inner_color[j * ports[0].fan_count + i].b = color_buttons[i]->bg_color.b;
+				}
+			}
+		} else memset(&ports[0].rgb.inner_color, 0, sizeof(struct color) * 48);
+		set_inner_rgb(&ports[0], &rgb_modes[rgb_mode_i], rgb_speed, 0, rgb_brightnes, set_all, ports[0].rgb.inner_color);
+		printf("port = %d, mode = %s, 0x%02x, set all = %d, speed = 0x%02x, brightnes = 0x%02x\n", 0, rgb_modes[rgb_mode_i].name, rgb_modes[rgb_mode_i].mode, set_all, rgb_speed, rgb_brightnes);
 	}
 
 	if (rgb_mode_ring_type == 2) {
@@ -368,22 +502,20 @@ void apply(struct button *self, SDL_Event *e)
 					rrj++;
 				}
 			}
-		} else {
-			if (rgb_modes[rgb_mode_i].colors > 0) {
-				for (int j = 0; j < ports[0].fan_count; j++) {
-					for (int i = 0; i < rgb_modes[rgb_mode_i].colors; i++) {
-						ports[0].rgb.inner_color[j * ports[0].fan_count + i].r = color_buttons[i]->bg_color.r;
-						ports[0].rgb.inner_color[j * ports[0].fan_count + i].g = color_buttons[i]->bg_color.g;
-						ports[0].rgb.inner_color[j * ports[0].fan_count + i].b = color_buttons[i]->bg_color.b;
-					}
+		} else if (rgb_modes[rgb_mode_i].colors > 0){
+			for (int j = 0; j < ports[0].fan_count; j++) {
+				for (int i = 0; i < rgb_modes[rgb_mode_i].colors; i++) {
+					ports[0].rgb.outer_color[j * ports[0].fan_count + i].r = ports[0].rgb.inner_color[j * ports[0].fan_count + i].r = color_buttons[i]->bg_color.r;
+					ports[0].rgb.outer_color[j * ports[0].fan_count + i].g = ports[0].rgb.inner_color[j * ports[0].fan_count + i].g = color_buttons[i]->bg_color.g;
+					ports[0].rgb.outer_color[j * ports[0].fan_count + i].b = ports[0].rgb.inner_color[j * ports[0].fan_count + i].b = color_buttons[i]->bg_color.b;
 				}
-			} else {
-				memset(ports[0].rgb.inner_color, 0, sizeof(struct color) * 48);
-				memset(ports[0].rgb.outer_color, 0, sizeof(struct color) * 72);
-			}
+			} 
+		} else {
+			memset(ports[0].rgb.inner_color, 0, sizeof(struct color) * 48);
+			memset(ports[0].rgb.outer_color, 0, sizeof(struct color) * 72);
 		}
-		set_inner_and_outer_rgb(&ports[0], &rgb_modes[rgb_mode_i], rgb_speed, 0, rgb_brightnes, ports[0].rgb.outer_color, ports[0].rgb.inner_color);
-		printf("port = %d, mode = %s, speed = 0x%02x, brightnes = 0x%02x\n", 0, rgb_modes[rgb_mode_i].name, rgb_speed, rgb_brightnes);
+		set_inner_and_outer_rgb(&ports[0], &rgb_modes[rgb_mode_i], rgb_speed, 0, rgb_brightnes, set_all, ports[0].rgb.outer_color, ports[0].rgb.inner_color);
+		printf("port = %d, mode = %s, 0x%02x, set all = %d, speed = 0x%02x, brightnes = 0x%02x\n", 0, rgb_modes[rgb_mode_i].name, rgb_modes[rgb_mode_i].mode, set_all, rgb_speed, rgb_brightnes);
 	}
 }
 
