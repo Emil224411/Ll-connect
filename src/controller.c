@@ -30,10 +30,11 @@ int set_mb_sync(int state)
 	return 0;
 }
 
-int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int brightnes, int direction, int set_all, struct color *new_colors)
+int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_colors)
 {
+	printf("set_inner_rgb\n");
 	char path[MAX_STR_SIZE];
-	float bright = 0.0;
+	float bright;
 /*
  *	0%   = 08
  *	25%  = 03
@@ -60,8 +61,9 @@ int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 	}
 
 	strcpy(path, p->path);
-
-	write_inner_colors(path, new_colors, p->fan_count, bright, new_mode->flags);
+	int fan_c = p->fan_count;
+	if (set_all) for (int i = 0; i < 4; i++) fan_c = ports[i].fan_count > fan_c ? ports[i].fan_count : fan_c;
+	write_inner_colors(path, new_colors, fan_c, bright, new_mode->flags);
 
 	strcpy(path, p->path);
 	strcat(path, "/inner_rgb");
@@ -72,7 +74,6 @@ int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 		return -1;
 	}
 	fprintf(f, "%d %d %d %d %d %d", new_mode->mode, speed, direction, brightnes, new_mode->flags, set_all);
-	printf("%d %d %d %d %d\n", new_mode->mode, speed, direction, brightnes, set_all);
 	fclose(f);
 	if (set_all) {
 		for (int i = 0; i < 4; i++) {
@@ -95,6 +96,7 @@ int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 
 int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_colors)
 {
+	printf("set_outer_rgb:\n");
 	char path[MAX_STR_SIZE];
 	float bright;
 	switch (brightnes) {
@@ -116,7 +118,9 @@ int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 	}
 	strcpy(path, p->path);
 
-	write_outer_colors(path, new_colors, p->fan_count, bright, new_mode->flags);
+	int fan_c = p->fan_count;
+	if (set_all) for (int i = 0; i < 4; i++) fan_c = ports[i].fan_count > fan_c ? ports[i].fan_count : fan_c;
+	write_outer_colors(path, new_colors, fan_c, bright, new_mode->flags);
 
 	strcpy(path, p->path);
 	strcat(path, "/outer_rgb");
@@ -126,7 +130,6 @@ int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 		return -1;
 	}
 	fprintf(f, "%d %d %d %d %d %d", new_mode->mode, speed, direction, brightnes, new_mode->flags, set_all);
-	printf("%d %d %d %d %d\n", new_mode->mode, speed, direction, brightnes, set_all);
 	fclose(f);
 
 	if (set_all) {
@@ -150,6 +153,7 @@ int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 int set_inner_and_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_outer_colors, struct color *new_inner_colors)
 {
 
+	printf("set_inner_and_outer_rgb\n");
 	float bright;
 	switch (brightnes) {
 		case 0x01:
@@ -171,14 +175,15 @@ int set_inner_and_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int
 
 	char path[MAX_STR_SIZE];
 	strcpy(path, p->path);
-	write_outer_colors(path, new_outer_colors, p->fan_count, bright, new_mode->flags);
+	int fan_c = p->fan_count;
+	if (set_all) for (int i = 0; i < 4; i++) fan_c = ports[i].fan_count > fan_c ? ports[i].fan_count : fan_c;
+	write_outer_colors(path, new_outer_colors, fan_c, bright, new_mode->flags);
 
 	strcpy(path, p->path);
-	write_inner_colors(path, new_inner_colors, p->fan_count, bright, new_mode->flags);
+	write_inner_colors(path, new_inner_colors, fan_c, bright, new_mode->flags);
 
 	strcpy(path, p->path);
 	strcat(path, "/inner_and_outer_rgb");
-	printf("open file at path %s\n", path);
 	FILE *f = fopen(path, "w");
 	if (f == NULL) {
 		printf("set_inner_and_outer_color failed to open file at path %s\n", path);
@@ -215,7 +220,6 @@ int write_outer_colors(char *path, struct color *new_colors, int fan_count, floa
 	strcat(path, "/outer_colors");
 
 	FILE *f = fopen(path, "w");
-	printf("write_outer_colors open file at path %s\n", path);
 	if (f == NULL) {
 		printf("write_outer_colors failed to open file at path %s\n", path);
 		return -1;
@@ -233,7 +237,6 @@ int write_outer_colors(char *path, struct color *new_colors, int fan_count, floa
 			b *= bright;
 		}
 		sprintf(&outer_color_str[str_i], "%02x%02x%02x", r, b, g);
-		printf("%02x%02x%02x\n", r, b, g);
 		str_i += 6;
 	}
 	fputs(outer_color_str, f);
@@ -247,7 +250,6 @@ int write_inner_colors(char *path, struct color *new_colors, int fan_count, floa
 	strcat(path, "/inner_colors");
 
 	FILE *f = fopen(path, "w");
-	printf("write_inner_colors open file at path %s\n", path);
 	if (f == NULL) {
 		printf("write_inner_colors failed to open file at path %s\n", path);
 		return -1;
@@ -265,7 +267,6 @@ int write_inner_colors(char *path, struct color *new_colors, int fan_count, floa
 			b *= bright;
 		}
 		sprintf(&inner_color_str[str_i], "%02x%02x%02x", r, b, g);
-		printf("%02x%02x%02x\n", r, b, g);
 		str_i += 6;
 	}
 	fputs(inner_color_str, f);

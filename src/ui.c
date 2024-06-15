@@ -17,7 +17,7 @@ int ui_init()
 		printf("TTF_OpenFont failed error: %s\n", TTF_GetError());
 		return -1;
 	}
-	window = SDL_CreateWindow("lianlipoop", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_W, WINDOW_H, SDL_WINDOW_OPENGL);
+	window = SDL_CreateWindow("Ll-connect", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_W, WINDOW_H, SDL_WINDOW_OPENGL);
 	if (window == NULL) {
 		printf("SDL_CreateWindow failed err: %s\n", SDL_GetError());
 		return -1;
@@ -170,12 +170,12 @@ void mouse_wheel(SDL_MouseWheelEvent *event)
 		int dpy = selected_ddm->drop_pos.y, dph = selected_ddm->drop_pos.h;
 
 		selected_ddm->scroll_offset += wheely * 10;
+		selected_ddm->update_highlight = 1;
 		if (selected_ddm->scroll_offset > 0) 
 			selected_ddm->scroll_offset = 0;
 		else if (selected_ddm->scroll_offset < -(lty + lth - dpy - dph)) 
 			selected_ddm->scroll_offset = -(lty + lth - dpy - dph);
 
-		selected_ddm->update_highlight = 1;
 	}
 }
 
@@ -679,8 +679,8 @@ void update_ddm_highlight(int x, int y, struct drop_down_menu *ddm)
 {
 	ddm->highlight_pos.x = ddm->default_pos.x + 1;
 	for (int i = 0; i < ddm->items; i++) {
-		if (ddm->text[i]->show && ddm->text[i]->dst.y + ddm->scroll_offset < y && 
-				ddm->text[i]->dst.y + ddm->text[i]->dst.h + ddm->scroll_offset > y) {
+		if (ddm->text[i]->show && ddm->text[i]->dst.y + ddm->scroll_offset <= y && 
+				ddm->text[i]->dst.y + ddm->text[i]->dst.h + ddm->scroll_offset >= y) {
 			ddm->highlight_pos.y = ddm->text[i]->dst.y + ddm->text[i]->src.y + ddm->scroll_offset;
 			ddm->highlight_pos.h = ddm->text[i]->src.h;
 			break;

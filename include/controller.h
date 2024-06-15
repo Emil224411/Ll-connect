@@ -27,7 +27,7 @@
 
 #define INNER 		0b00000001
 #define OUTER 		0b00000010
-#define INNER_OR_OUTER 	0b00000100
+#define INNER_AND_OUTER 0b00000100
 #define MERGE 		0b00001000
 /* flag for modes where they should send inner and outer color fx. Static Color */
 #define NOT_MOVING 	0b00010000

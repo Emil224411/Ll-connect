@@ -41,7 +41,7 @@ static struct port_data ports[4];
 static int mb_sync_state;
 #define INNER           0b000001
 #define OUTER           0b000010
-#define INNER_OR_OUTER  0b000100
+#define INNER_AND_OUTER 0b000100
 #define MERGE           0b001000
 
 static void set_all(int flag, int mode, int speed, int brightness, int direction, struct rgb_data *outer_colors, struct rgb_data *inner_colors)
@@ -55,15 +55,15 @@ static void set_all(int flag, int mode, int speed, int brightness, int direction
 	        packets_needed = 20;
 	        not_moving = 1;
 	}*/
-	if (flag & OUTER && (flag & INNER) == 0) {
+	if (flag & OUTER) {
 		only_outer = 1;
 		only_inner = 0;
 		packets_needed = 24;
-	} else if (flag & INNER && (flag & OUTER) == 0) {
+	} else if (flag & INNER) {
 		only_outer = 0;
 		only_inner = 1;
 		packets_needed = 24;
-	} else if (flag & INNER && flag & OUTER) {
+	} else if (INNER_AND_OUTER) {
 		not_moving = 1;
 		packets_needed = 20;
 	}
@@ -78,8 +78,8 @@ static void set_all(int flag, int mode, int speed, int brightness, int direction
 	        buffer[i][3] = port + 1;
 	        buffer[i][4] = ports[port].fan_count;
 	        buffer[i + 1][0] = 0xe0;
-	        buffer[i + 1][1] = 0x30 + only_outer+ j;
-		if (only_outer) memcpy(&buffer[i + 1][2], outer_colors->colors, packet_size - 2);
+	        buffer[i + 1][1] = 0x30 + only_inner + only_outer + j;
+		if (only_outer || only_inner) memcpy(&buffer[i + 1][2], outer_colors->colors, packet_size - 2);
 		else memcpy(&buffer[i + 1][2], inner_colors->colors, packet_size - 2);
 		if (only_outer || only_inner) {
 			buffer[i + 2][0] = 0xe0;
@@ -88,9 +88,8 @@ static void set_all(int flag, int mode, int speed, int brightness, int direction
 			buffer[i + 2][3] = port + 1;
 			buffer[i + 2][4] = ports[port].fan_count;
 			buffer[i + 3][0] = 0xe0;
-			buffer[i + 3][1] = 0x31 - only_outer+ j;
-			if (only_outer) memcpy(&buffer[i + 3][2], inner_colors->colors, packet_size - 2);
-			else memcpy(&buffer[i + 1][2], outer_colors->colors, packet_size - 2);
+			buffer[i + 3][1] = 0x31 - (only_inner + only_outer) + j;
+			memcpy(&buffer[i + 3][2], inner_colors->colors, packet_size - 2);
 			i += 1;
 
 		} else if (not_moving) {
@@ -109,7 +108,7 @@ static void set_all(int flag, int mode, int speed, int brightness, int direction
 	for (int i = 0; i < 8; i += 2) {
 		buffer[packets_needed-8+i][0] = 0xe0;
 		buffer[packets_needed-8+i][1] = 0x11 + j;
-		if (flag & OUTER) {
+		if (flag & OUTER || flag & INNER_AND_OUTER) {
 		        buffer[packets_needed-8+i][2] = mode;
 		        buffer[packets_needed-8+i][3] = speed;
 		        buffer[packets_needed-8+i][4] = direction;
@@ -122,7 +121,7 @@ static void set_all(int flag, int mode, int speed, int brightness, int direction
 		}
 		buffer[packets_needed-7+i][0] = 0xe0;
 		buffer[packets_needed-7+i][1] = 0x10 + j;
-		if (flag & INNER) {
+		if (flag & INNER || flag & INNER_AND_OUTER) {
 		        buffer[packets_needed-7+i][2] = mode;
 		        buffer[packets_needed-7+i][3] = speed;
 		        buffer[packets_needed-7+i][4] = direction;
@@ -135,7 +134,6 @@ static void set_all(int flag, int mode, int speed, int brightness, int direction
 		}
 		j += 2;
 	}
-	printk("flag & OUTER == %d, flag & INNER == %d\nonly_inner = %d, only_outer = %d, packets_needed = %lu\n", flag & OUTER, flag & INNER, only_inner, only_outer, packets_needed);
 	for (int i = 0; i < packets_needed; i++) {
 		int ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0x0), 0x09, 0x21, 0x02e0, 0x01, &buffer[i], packet_size, 1000);
 		if (ret != packet_size) {
@@ -143,14 +141,14 @@ static void set_all(int flag, int mode, int speed, int brightness, int direction
 		}
 	}
 	for (int i = 0; i < 4; i++) {
-		if (flag & OUTER) {
+		if (flag & OUTER || flag & INNER_AND_OUTER) {
 			ports[i].outer_rgb.mode       = mode;
 			ports[i].outer_rgb.speed      = speed;
 			ports[i].outer_rgb.direction  = direction;
 			ports[i].outer_rgb.brightness = brightness;
 	        	memcpy(&ports[i].outer_rgb.colors, outer_colors->colors, packet_size-2);
 		}
-		if (flag & INNER) {
+		if (flag & INNER || flag & INNER_AND_OUTER) {
 			ports[i].inner_rgb.mode       = mode;
                 	ports[i].inner_rgb.speed      = speed;
 			ports[i].inner_rgb.direction  = direction;
@@ -412,11 +410,11 @@ static ssize_t write_rgb(struct file *f, const char *ubuf, size_t count, loff_t 
 
 	to_copy = min(count, 32);
 	not_copied = copy_from_user(text, ubuf, to_copy);
-	int flags;
+	int flags = 0, rgb_mode_flags = 0;
 	void (*funtion_to_exec)(int p, int m, int s, int b, int d);
-	sscanf(text, "%d %d %d %d %d %d", &mode, &speed, &direction, &brightness, &flags, &apply_to_all);
+	sscanf(text, "%d %d %d %d %d %d", &mode, &speed, &direction, &brightness, &rgb_mode_flags, &apply_to_all);
 	if (strcmp(name, "inner_and_outer_rgb") == 0) { 
-		flags = (INNER | OUTER);
+		flags = INNER_AND_OUTER;
 		funtion_to_exec = set_inner_and_outer_rgb; 
 	} else if (strcmp(name, "inner_rgb") == 0) { 
 		flags = INNER;
@@ -425,7 +423,6 @@ static ssize_t write_rgb(struct file *f, const char *ubuf, size_t count, loff_t 
 		flags = OUTER;
 		funtion_to_exec = set_outer_rgb; 
 	}
-	printk("Lian li hub: flags = %d, apply_to_all = %d\n", flags, apply_to_all);
 	if (apply_to_all) {
 		set_all(flags, mode, speed, brightness, direction, &ports[port].outer_rgb, &ports[port].inner_rgb);
 	} else {
