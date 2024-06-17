@@ -72,20 +72,20 @@ void ui_shutdown()
 		TTF_CloseFont(font);
 		font = NULL;
 	}
-	for (int i = 0; i < text_arr_used_len; i++) {
-		destroy_text(text_arr[i]);
+	while (input_box_arr_used_len > 0) {
+		destroy_input_box(input_box_arr[input_box_arr_used_len - 1]);
 	}
-	for (int i = 0; i < input_box_arr_used_len; i++) {
-		destroy_input_box(input_box_arr[i]);
+	while (button_arr_used_len > 0) {
+		destroy_button(button_arr[button_arr_used_len - 1]);
 	}
-	for (int i = 0; i < button_arr_used_len; i++) {
-		destroy_button(button_arr[i]);
+	while (ddm_arr_used_len > 0) {
+		destroy_ddm(ddm_arr[ddm_arr_used_len - 1]);
 	}
-	for (int i = 0; i < ddm_arr_used_len; i++) {
-		destroy_ddm(ddm_arr[i]);
+	while (slider_arr_used_len > 0) {
+		destroy_slider(slider_arr[slider_arr_used_len - 1]);
 	}
-	for (int i = 0; i < slider_arr_used_len; i++) {
-		destroy_slider(slider_arr[i]);
+	while (text_arr_used_len > 0) {
+		destroy_text(text_arr[text_arr_used_len - 1]);
 	}
 	free(text_arr);
 	free(input_box_arr);
@@ -278,7 +278,7 @@ SDL_Texture *create_texture_from_surface(SDL_Surface *sur)
 	return textest;
 }
 
-struct text *create_text(char *string, int x, int y, int w, int h, int wrap_length, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f)
+struct text *create_text(char *string, int x, int y, int w, int h, int font_size, int wrap_length, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f)
 {
 	char full_str[MAX_TEXT_SIZE];
 
@@ -299,10 +299,11 @@ struct text *create_text(char *string, int x, int y, int w, int h, int wrap_leng
 		new_text.static_h = 1;
 		new_text.dst.h = h;
 	}
+	new_text.font_size = font_size == 0 ? default_font_size : font_size;
 #ifdef INFO
 	printf("create_text\nstring = %s\n", string);
 	printf("string len = %ld\n", strlen(string));
-	printf("wrap_length = %d\n\n", wrap_length);
+	printf("wrap_length = %d, new_text.font_size = %d, font_size = %d\n\n", wrap_length, new_text.font_size, font_size);
 #endif
 	if (render_text_texture(&new_text, new_text.fg_color, new_text.bg_color, f) != 0) {
 		printf("ui.c render_text_texture failed from create_text\n");
@@ -316,6 +317,7 @@ struct text *create_text(char *string, int x, int y, int w, int h, int wrap_leng
 
 void destroy_text(struct text *text)
 {
+	if (text == NULL) return;
 	destroy_text_texture(text);
 	for (int i = text->index; i < text_arr_used_len-1; i++) {
 		text_arr[i] = text_arr[i+1];
@@ -324,6 +326,8 @@ void destroy_text(struct text *text)
 	text_arr[text_arr_used_len] = NULL;
 	text_arr_used_len -= 1;
 	free(text);
+
+	printf("text_arr_used_len = %d\n", text_arr_used_len);
 }
 
 void destroy_text_texture(struct text *text)
@@ -331,8 +335,14 @@ void destroy_text_texture(struct text *text)
 	SDL_DestroyTexture(text->texture);
 }
 
+int prev_font_size = 20;
 int render_text_texture(struct text *t, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f)
 {
+
+	if (prev_font_size != t->font_size) {
+		TTF_SetFontSize(f, t->font_size);
+		prev_font_size = t->font_size;
+	}
 	SDL_Surface *surface = TTF_RenderUTF8_Shaded_Wrapped(f, t->str, fg_color, bg_color, t->wrap_length);
 	if (surface == NULL) {
 		printf("ui.c render_text_texture failed surface error: %s\n", SDL_GetError());
@@ -342,7 +352,6 @@ int render_text_texture(struct text *t, SDL_Color fg_color, SDL_Color bg_color, 
 	t->texture = SDL_CreateTextureFromSurface(renderer, surface);
 	if (t->static_w == 0) {
 		t->dst.w = surface->w;
-
 	}
 	if (t->static_h == 0) {
 		t->dst.h = surface->h;
@@ -367,7 +376,7 @@ void render_text(struct text *t, SDL_Rect *src)
 		SDL_RenderCopy(renderer, t->texture, src, &t->dst);
 }
 
-struct button *create_button(char *string, int movable, int clickable, int show, int x, int y, int w, int h, TTF_Font *f, void (*on_click)(), void (*on_move)(), SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color)
+struct button *create_button(char *string, int movable, int clickable, int show, int x, int y, int w, int h, int font_size, TTF_Font *f, void (*on_click)(), void (*on_move)(), SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color)
 {
 	struct button *return_button = malloc(sizeof(struct button));
 	struct button new_button = { NULL, NULL, on_click, on_move, clickable, movable, show, button_arr_used_len, { x, y, }, outer_color, bg_color };
@@ -377,7 +386,9 @@ struct button *create_button(char *string, int movable, int clickable, int show,
 		button_arr_total_len += 5;
 	}
 	if (string != NULL) {
-		new_button.text = create_text(string, x + 5, y + 5, 0, 0, 0, text_color, bg_color, f);
+		int tmp_w = 0, tmp_h = 0;
+		if (h != 0 && w != 0) tmp_h = h - 10, tmp_w = w - 10;
+		new_button.text = create_text(string, x + 5, y + 5, tmp_w, tmp_h, font_size, 0, text_color, bg_color, f);
 		new_button.texture = &new_button.text->texture;
 	} 
 	new_button.outer_box.w = w == 0 ? new_button.text->dst.w + 10 : w;
@@ -391,16 +402,24 @@ struct button *create_button(char *string, int movable, int clickable, int show,
 
 void destroy_button(struct button *button)
 {
-	// change destroy_text
-	/*if (button->text != NULL) {
-		destroy_text_texture(button->text);
-	}*/
-	button_arr[button->index] = NULL;
+	if (button->text != NULL) destroy_text(button->text);
+	for (int i = button->index; i < button_arr_used_len-1; i++) {
+		button_arr[i] = button_arr[i+1];
+		button_arr[i]->index = i;
+	}
+	button_arr[button_arr_used_len] = NULL;
+	button_arr_used_len -= 1;
 	free(button);
+
+	printf("button_arr_used_len = %d\n", button_arr_used_len);
 }
 void render_button(struct button *button)
 {
-	if (button->show == 0) return;
+	if (button->show == 0 ) return;
+	else if (button == NULL) {
+		printf("error passed a NULL pointer to render_button\n");
+		return;
+	}
 	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(button->bg_color));
 	SDL_RenderFillRect(renderer, &button->outer_box);
 	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(button->outer_box_color));
@@ -424,7 +443,7 @@ struct input *create_input(char *string, int resize_box, int max_len, int x, int
 	}
 
 	if (string != NULL) {
-		new_input.text = create_text(string, x+5, y+5, 0, 0, 0, text_color, bg_color, f);
+		new_input.text = create_text(string, x+5, y+5, 0, 0, 0, 0, text_color, bg_color, f);
 	}
 
 	if (w == 0) {
@@ -501,6 +520,10 @@ void change_input_box_text(struct input *input_box, char *str)
 
 void render_input_box(struct input *input_box)
 {
+	if (input_box == NULL) {
+		printf("error: passed a NULL pointer to render_input_box");
+		return;
+	}
 	if (input_box->resize_box || input_box->selected) {
 		input_box->text->src.x = 0; 
 		input_box->text->src.y = 0;
@@ -524,9 +547,16 @@ void render_input_box(struct input *input_box)
 
 void destroy_input_box(struct input *input_box)
 {
-	destroy_text_texture(input_box->text);
-	input_box_arr[input_box->index] = NULL;
+	destroy_text(input_box->text);
+	for (int i = input_box->index; i < input_box_arr_used_len-1; i++) {
+		input_box_arr[i] = input_box_arr[i+1];
+		input_box_arr[i]->index = i;
+	}
+	input_box_arr[input_box_arr_used_len] = NULL;
+	input_box_arr_used_len -= 1;
 	free(input_box);
+
+	printf("input_box_arr_used_len = %d\n", input_box_arr_used_len);
 }
 
 struct drop_down_menu *create_drop_down_menu(int items, char item_str[][MAX_TEXT_SIZE], int x, int y, int w, int h, int dw, int dh, void (*function)(struct drop_down_menu *self, SDL_Event *event), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color tc)
@@ -551,7 +581,7 @@ struct drop_down_menu *create_drop_down_menu(int items, char item_str[][MAX_TEXT
 	int prev_height = 0;
 	int bigest_w = ddm.default_pos.w, bigest_h = ddm.default_pos.h;
 	for (int i = 0; i < items; i++) {
-		ddm.text[i] = create_text(item_str[i], 0, 0, 0, 0, w, tc, bg_color, f);
+		ddm.text[i] = create_text(item_str[i], 0, 0, 0, 0, 0, w, tc, bg_color, f);
 		if (!ddm.static_w && bigest_w < ddm.text[i]->dst.w) bigest_w = ddm.text[i]->dst.w;
 		if (!ddm.static_h && bigest_h < ddm.text[i]->dst.h) bigest_h = ddm.text[i]->dst.h;
 		ddm.text[i]->dst.y = ddm.default_pos.y + prev_height + 2;
@@ -578,7 +608,7 @@ struct drop_down_menu *create_drop_down_menu(int items, char item_str[][MAX_TEXT
 void change_ddm_text_arr(struct drop_down_menu *ddm, int items, char newstr[][MAX_TEXT_SIZE], TTF_Font *f)
 {
 	for (int i = 0; i < ddm->items; i++) {
-		destroy_text_texture(ddm->text[i]);
+		destroy_text(ddm->text[i]);
 	}
 	ddm->text = realloc(ddm->text, sizeof(struct text *) * items);
 
@@ -586,7 +616,7 @@ void change_ddm_text_arr(struct drop_down_menu *ddm, int items, char newstr[][MA
 	int prev_height = 0;
 	int bigest_w = ddm->default_pos.w, bigest_h = ddm->default_pos.h;
 	for (int i = 0; i < items; i++) {
-		ddm->text[i] = create_text(newstr[i], 0, 0, 0, 0, ddm->default_pos.w, tc, ddm->bg_color, f);
+		ddm->text[i] = create_text(newstr[i], 0, 0, 0, 0, 0, ddm->default_pos.w, tc, ddm->bg_color, f);
 		printf("str = %s\n", newstr[i]);
 		if (!ddm->static_w && bigest_w < ddm->text[i]->dst.w) bigest_w = ddm->text[i]->dst.w;
 		if (!ddm->static_h && bigest_h < ddm->text[i]->dst.h) bigest_h = ddm->text[i]->dst.h;
@@ -608,14 +638,26 @@ void change_ddm_text_arr(struct drop_down_menu *ddm, int items, char newstr[][MA
 void destroy_ddm(struct drop_down_menu *ddm) 
 {
 	for (int i = 0; i < ddm->items; i++) {
-		destroy_text_texture(ddm->text[i]);
+		destroy_text(ddm->text[i]);
 	}
+	for (int i = ddm->index; i < ddm_arr_used_len-1; i++) {
+		ddm_arr[i] = ddm_arr[i+1];
+		ddm_arr[i]->index = i;
+	}
+	ddm_arr[ddm_arr_used_len] = NULL;
+	ddm_arr_used_len -= 1;
 	free(ddm);
+
+	printf("ddm_arr_used_len = %d\n", ddm_arr_used_len);
 }
 
 /* 	mabey split up in to a few functions but idk 	*/
 void render_ddm(struct drop_down_menu *ddm)
 {
+	if (ddm == NULL) {
+		printf("error passed a NULL pointer to render_ddm\n");
+		return;
+	}
 	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(ddm->bg_color));
 	if (ddm->selected == 0) {
 		ddm->used_pos = ddm->default_pos;
@@ -693,7 +735,7 @@ void update_ddm_highlight(int x, int y, struct drop_down_menu *ddm)
 struct slider *create_slider(int show, int bar_x, int bar_y, int bar_w, int bar_h, int button_size, void (*on_relase)(), void (*on_move)(), SDL_Color button_fg_color, SDL_Color button_bg_color, SDL_Color bar_color)
 {
 	struct slider *return_slider = malloc(sizeof(struct slider));
-	struct button *b = create_button(NULL, 1, 0, show, bar_x - button_size/2, bar_y + bar_h/2- button_size/2, button_size, button_size, font, on_relase, update_slider, button_fg_color, button_bg_color, button_fg_color);
+	struct button *b = create_button(NULL, 1, 0, show, bar_x - button_size/2, bar_y + bar_h/2- button_size/2, button_size, button_size, 0, font, on_relase, update_slider, button_fg_color, button_bg_color, button_fg_color);
 	struct slider new_slider = { b, { bar_x, bar_y, bar_w, bar_h }, 0, show, slider_arr_used_len, bar_color, on_move };
 
 	if (slider_arr_used_len + 1 > slider_arr_total_len) {
@@ -730,6 +772,10 @@ void destroy_slider(struct slider *slider)
 
 void render_slider(struct slider *slider)
 {
+	if (slider == NULL) {
+		printf("error passed a NULL pointer to render_slider\n");
+		return;
+	}
 	if (!slider->show) return;
 	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(slider->bar_color));
 	SDL_RenderFillRect(renderer, &slider->pos);

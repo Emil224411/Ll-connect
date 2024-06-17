@@ -93,6 +93,8 @@ set merge rgb mode:
 	e0 10 60 3 XX
 	e0 10 60 4 XX
 
+	e0 30 XX XX XX
+
 	e0 10 XX(mode) XX(speed) 0X(1|0direction) 0X(brightnes)
 
 

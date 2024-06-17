@@ -30,7 +30,7 @@ int set_mb_sync(int state)
 	return 0;
 }
 
-int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_colors)
+int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_colors, int do_check)
 {
 	printf("set_inner_rgb\n");
 	char path[MAX_STR_SIZE];
@@ -64,7 +64,17 @@ int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 	int fan_c = p->fan_count;
 	if (set_all) for (int i = 0; i < 4; i++) fan_c = ports[i].fan_count > fan_c ? ports[i].fan_count : fan_c;
 	write_inner_colors(path, new_colors, fan_c, bright, new_mode->flags);
-
+	if (do_check && p->rgb.inner_mode == p->rgb.outer_mode && p->rgb.outer_mode->flags & INNER_AND_OUTER && (p->rgb.outer_mode->flags & (INNER | OUTER)) == 0) {
+		if (prev_outer_set_all[p->number]) {
+			set_outer_rgb(p, prev_rgb_data[p->number].outer_mode, prev_rgb_data[p->number].outer_speed, 
+				prev_rgb_data[p->number].outer_direction, prev_rgb_data[p->number].outer_brightnes, 1, prev_rgb_data[p->number].outer_color, 0);
+		} else {
+			for (int i = 0; i < 4; i++) {
+				set_outer_rgb(&ports[i], prev_rgb_data[i].outer_mode, prev_rgb_data[i].outer_speed, 
+					prev_rgb_data[i].outer_direction, prev_rgb_data[i].outer_brightnes, 0, prev_rgb_data[i].outer_color, 0);
+			}
+		}
+	}
 	strcpy(path, p->path);
 	strcat(path, "/inner_rgb");
 
@@ -77,24 +87,28 @@ int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 	fclose(f);
 	if (set_all) {
 		for (int i = 0; i < 4; i++) {
-			ports[i].rgb.inner_brightnes = brightnes;
-			ports[i].rgb.inner_speed = speed;
-			ports[i].rgb.inner_direction = direction;
-			ports[i].rgb.inner_mode = new_mode;
+			prev_inner_set_all[i] = set_all;
+			prev_rgb_data[i].inner_brightnes = ports[i].rgb.inner_brightnes = brightnes;
+			prev_rgb_data[i].inner_direction = ports[i].rgb.inner_direction = direction;
+			prev_rgb_data[i].inner_speed     = ports[i].rgb.inner_speed     = speed;
+			prev_rgb_data[i].inner_mode      = ports[i].rgb.inner_mode      = new_mode;
 			memcpy(ports[i].rgb.inner_color, new_colors, sizeof(struct color) * 32);
+			memcpy(prev_rgb_data[i].inner_color, new_colors, sizeof(struct color) * 32);
 		}
 	} else {
-		p->rgb.inner_brightnes = brightnes;
-		p->rgb.inner_direction = direction;
-		p->rgb.inner_speed     = speed;
-		p->rgb.inner_mode      = new_mode;
+		prev_inner_set_all[p->number] = set_all;
+		prev_rgb_data[p->number].inner_brightnes = p->rgb.inner_brightnes = brightnes;
+		prev_rgb_data[p->number].inner_direction = p->rgb.inner_direction = direction;
+		prev_rgb_data[p->number].inner_speed     = p->rgb.inner_speed     = speed;
+		prev_rgb_data[p->number].inner_mode      = p->rgb.inner_mode      = new_mode;
 		memcpy(p->rgb.inner_color, new_colors, sizeof(struct color) * 32);
+		memcpy(prev_rgb_data[p->number].inner_color, new_colors, sizeof(struct color) * 32);
 	}
-
 	return 0;
 }
 
-int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_colors)
+/* TODO better remove do_check since its just a tmp fix */
+int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_colors, int do_check)
 {
 	printf("set_outer_rgb:\n");
 	char path[MAX_STR_SIZE];
@@ -119,7 +133,23 @@ int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 	strcpy(path, p->path);
 
 	int fan_c = p->fan_count;
-	if (set_all) for (int i = 0; i < 4; i++) fan_c = ports[i].fan_count > fan_c ? ports[i].fan_count : fan_c;
+	if (set_all) {
+		for (int i = 0; i < 4; i++) {
+			fan_c = ports[i].fan_count > fan_c ? ports[i].fan_count : fan_c;
+		}
+	}
+
+	if (do_check && p->rgb.inner_mode == p->rgb.outer_mode && p->rgb.inner_mode->flags & INNER_AND_OUTER && (p->rgb.inner_mode->flags & (INNER | OUTER)) == 0) {
+		if (prev_inner_set_all[p->number]) {
+			set_inner_rgb(p, prev_rgb_data[p->number].inner_mode, prev_rgb_data[p->number].inner_speed, 
+				prev_rgb_data[p->number].inner_direction, prev_rgb_data[p->number].inner_brightnes, 1, prev_rgb_data[p->number].inner_color, 0);
+		} else {
+			for (int i = 0; i < 4; i++) {
+				set_inner_rgb(&ports[i], prev_rgb_data[i].inner_mode, prev_rgb_data[i].inner_speed, 
+					prev_rgb_data[i].inner_direction, prev_rgb_data[i].inner_brightnes, 0, prev_rgb_data[i].inner_color, 0);
+			}
+		}
+	}
 	write_outer_colors(path, new_colors, fan_c, bright, new_mode->flags);
 
 	strcpy(path, p->path);
@@ -134,18 +164,22 @@ int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 
 	if (set_all) {
 		for (int i = 0; i < 4; i++) {
-			ports[i].rgb.outer_brightnes = brightnes;
-			ports[i].rgb.outer_speed = speed;
-			ports[i].rgb.outer_direction = direction;
-			ports[i].rgb.outer_mode = new_mode;
-			memcpy(ports[i].rgb.outer_color, new_colors, sizeof(struct color) * 32);
+			prev_outer_set_all[i] = set_all;
+			prev_rgb_data[i].outer_brightnes = ports[i].rgb.outer_brightnes = brightnes;
+			prev_rgb_data[i].outer_direction = ports[i].rgb.outer_direction = direction;
+			prev_rgb_data[i].outer_speed     = ports[i].rgb.outer_speed     = speed;
+			prev_rgb_data[i].outer_mode      = ports[i].rgb.outer_mode      = new_mode;
+			memcpy(ports[i].rgb.outer_color, new_colors, sizeof(struct color) * 48);
+			memcpy(prev_rgb_data[i].outer_color, new_colors, sizeof(struct color) * 48);
 		}
 	} else {
-		p->rgb.outer_brightnes = brightnes;
-		p->rgb.outer_direction = direction;
-		p->rgb.outer_speed     = speed;
-		p->rgb.outer_mode      = new_mode;
+		prev_outer_set_all[p->number] = set_all;
+		prev_rgb_data[p->number].outer_brightnes = p->rgb.outer_brightnes = brightnes;
+		prev_rgb_data[p->number].outer_direction = p->rgb.outer_direction = direction;
+		prev_rgb_data[p->number].outer_speed     = p->rgb.outer_speed     = speed;
+		prev_rgb_data[p->number].outer_mode      = p->rgb.outer_mode      = new_mode;
 		memcpy(p->rgb.outer_color, new_colors, sizeof(struct color) * 48);
+		memcpy(prev_rgb_data[p->number].outer_color, new_colors, sizeof(struct color) * 48);
 	}
 	return 0;
 }
@@ -176,11 +210,12 @@ int set_inner_and_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int
 	char path[MAX_STR_SIZE];
 	strcpy(path, p->path);
 	int fan_c = p->fan_count;
+	int flag = new_mode->flags - (new_mode->flags & MERGE);
 	if (set_all) for (int i = 0; i < 4; i++) fan_c = ports[i].fan_count > fan_c ? ports[i].fan_count : fan_c;
-	write_outer_colors(path, new_outer_colors, fan_c, bright, new_mode->flags);
+	write_outer_colors(path, new_outer_colors, fan_c, bright, flag);
 
 	strcpy(path, p->path);
-	write_inner_colors(path, new_inner_colors, fan_c, bright, new_mode->flags);
+	write_inner_colors(path, new_inner_colors, fan_c, bright, flag);
 
 	strcpy(path, p->path);
 	strcat(path, "/inner_and_outer_rgb");
@@ -190,7 +225,7 @@ int set_inner_and_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int
 		return -1;
 	}
 
-	fprintf(f, "%d %d %d %d %d %d", new_mode->mode, speed, direction, brightnes, new_mode->flags, set_all);
+	fprintf(f, "%d %d %d %d %d %d", new_mode->mode, speed, direction, brightnes, flag, set_all);
 	fclose(f);
 
 	if (set_all) {
@@ -211,6 +246,51 @@ int set_inner_and_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int
 		memcpy(p->rgb.outer_color, new_outer_colors, sizeof(struct color) * 48);
 	}
 
+	return 0;
+}
+
+int set_merge(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, struct color *new_colors)
+{
+	
+	float bright;
+	switch (brightnes) {
+		case 0x01:
+			bright = 0.75;
+			break;
+		case 0x02:
+			bright = 0.50;
+			break;
+		case 0x03:
+			bright = 0.25;
+			break;
+		case 0x08:
+			bright = 0.0;
+			break;
+		default:
+			bright = 1.0;
+			break;
+	}
+
+	char path[MAX_STR_SIZE];
+	strcpy(path, p->path);
+	write_inner_colors(path, new_colors, p->fan_count, bright, new_mode->flags);
+
+	strcpy(path, p->path);
+	strcat(path, "/inner_and_outer_rgb");
+	FILE *f = fopen(path, "w");
+	if (f == NULL) {
+		printf("set_merge failed to open file at path %s\n", path);
+		return -1;
+	}
+	fprintf(f, "%d %d %d %d %d %d", new_mode->merge_mode, speed, direction, brightnes, new_mode->flags, 1); 
+	fclose(f);
+	for (int i = 0; i < 4; i++) {
+		ports[i].rgb.inner_brightnes = ports[i].rgb.outer_brightnes = brightnes;
+		ports[i].rgb.inner_direction = ports[i].rgb.outer_direction = direction;
+		ports[i].rgb.inner_speed     = ports[i].rgb.outer_speed     = speed;
+		ports[i].rgb.inner_mode      = ports[i].rgb.outer_mode      = new_mode;
+		memcpy(ports[i].rgb.inner_color, new_colors, sizeof(struct color) * 32);
+	}
 	return 0;
 }
 
@@ -267,6 +347,8 @@ int write_inner_colors(char *path, struct color *new_colors, int fan_count, floa
 			b *= bright;
 		}
 		sprintf(&inner_color_str[str_i], "%02x%02x%02x", r, b, g);
+		printf("%02x%02x%02x\n", r, g, b);
+		
 		str_i += 6;
 	}
 	fputs(inner_color_str, f);

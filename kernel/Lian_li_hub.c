@@ -39,10 +39,49 @@ struct port_data {
 static struct port_data ports[4];
 
 static int mb_sync_state;
-#define INNER           0b000001
-#define OUTER           0b000010
-#define INNER_AND_OUTER 0b000100
-#define MERGE           0b001000
+#define INNER 		0b00000001
+#define OUTER           0b00000010
+#define INNER_AND_OUTER 0b00000100
+#define MERGE           0b00001000
+/* flag for modes where they should send inner and outer color fx. Static Color */
+#define NOT_MOVING      0b00010000
+
+#define BRIGHTNESS      0b00100000
+#define SPEED           0b01000000
+#define DIRECTION       0b10000000
+static void set_merge(int mode, int speed, int brightness, int direction, struct rgb_data *colors)
+{
+	const size_t packet_size = 353;
+	unsigned char (*buffer)[353] = kcalloc(packet_size * 6, sizeof(unsigned char), GFP_KERNEL);
+	buffer[0][0] =       buffer[1][0] =       buffer[2][0] =       buffer[3][0] = 0xe0;
+	buffer[0][1] =       buffer[1][1] =       buffer[2][1] =       buffer[3][1] = 0x10;
+	buffer[0][2] =       buffer[1][2] =       buffer[2][2] =       buffer[3][2] = 0x60;
+	buffer[0][3] = 0x01, buffer[1][3] = 0x02, buffer[2][3] = 0x03, buffer[3][3] = 0x04;
+	buffer[0][4] = 0x04, buffer[1][4] = 0x03, buffer[2][4] = 0x03, buffer[3][4] = 0x01;
+	buffer[4][0] = 0xe0, buffer[4][1] = 0x30; 
+	memcpy(&buffer[4][2], colors->colors, packet_size-2);
+	buffer[5][0] = 0xe0, buffer[5][1] = 0x10, buffer[5][2] = mode, buffer[5][3] = speed, buffer[5][4] = direction, buffer[5][5] = brightness;
+	for (int i = 0; i < 6; i++) {
+		int ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0x0), 0x09, 0x21, 0x02e0, 0x01, &buffer[i], packet_size, 1000);
+		if (ret != packet_size) {
+			printk(KERN_ERR "Lian Li Hub: set_rgb failed sending packet %d error %d", i, ret);
+		}
+	}
+	for (int i = 0; i < 4; i++) {
+			ports[i].outer_rgb.mode       = mode;
+			ports[i].outer_rgb.speed      = speed;
+			ports[i].outer_rgb.direction  = direction;
+			ports[i].outer_rgb.brightness = brightness;
+	        	memcpy(&ports[i].outer_rgb.colors, colors, packet_size-2);
+			ports[i].inner_rgb.mode       = mode;
+                	ports[i].inner_rgb.speed      = speed;
+			ports[i].inner_rgb.direction  = direction;
+			ports[i].inner_rgb.brightness = brightness;
+			memcpy(&ports[i].inner_rgb.colors, colors, packet_size-2);
+
+	}
+	kfree(buffer);
+}
 
 static void set_all(int flag, int mode, int speed, int brightness, int direction, struct rgb_data *outer_colors, struct rgb_data *inner_colors)
 {
@@ -63,7 +102,7 @@ static void set_all(int flag, int mode, int speed, int brightness, int direction
 		only_outer = 0;
 		only_inner = 1;
 		packets_needed = 24;
-	} else if (INNER_AND_OUTER) {
+	} else if (flag & INNER_AND_OUTER) {
 		not_moving = 1;
 		packets_needed = 20;
 	}
@@ -99,10 +138,6 @@ static void set_all(int flag, int mode, int speed, int brightness, int direction
 		}
 		j += 2;
 		port = port + 1;
-		//printf("buffer[%d]\t= { %02x %02x %02x %02x %02x }\nbuffer[%d]\t= { %02x %02x }\n", i, buffer[i][0], buffer[i][1], buffer[i][2], buffer[i][3], buffer[i][4],
-		//							i + 1, buffer[i + 1][0], buffer[i + 1][1]);
-		//if (not_moving) printf("buffer[%d]\t= { %02x %02x %02x %02x %02x }\n", i + 2, buffer[i + 2][0], buffer[i + 2][1], buffer[i + 2][2], buffer[i + 2][3], buffer[i + 2][4]);
-		//if (only_inner || only_outer) printf("buffer[%d]\t= { %02x %02x }\n", i + 3, buffer[i + 3][0], buffer[i + 3][1]);
         }
 	j = 0;
 	for (int i = 0; i < 8; i += 2) {
@@ -344,7 +379,9 @@ static ssize_t write_colors(struct file *f, const char *ubuf, size_t count, loff
 
 	int text_i = 0;
 	for (int i = 0; i < text_size; i++) {
-		sscanf(&text[text_i], "%02hhx", &colors[i]); 
+		unsigned int tmpc;
+		sscanf(&text[text_i], "%02x", &tmpc); 
+		colors[i] = tmpc;
 		text_i += 2;
 	}
 
@@ -408,7 +445,7 @@ static ssize_t write_rgb(struct file *f, const char *ubuf, size_t count, loff_t 
 		port = 3;
 	}
 
-	to_copy = min(count, 32);
+	to_copy = min(count, 64);
 	not_copied = copy_from_user(text, ubuf, to_copy);
 	int flags = 0, rgb_mode_flags = 0;
 	void (*funtion_to_exec)(int p, int m, int s, int b, int d);
@@ -423,7 +460,9 @@ static ssize_t write_rgb(struct file *f, const char *ubuf, size_t count, loff_t 
 		flags = OUTER;
 		funtion_to_exec = set_outer_rgb; 
 	}
-	if (apply_to_all) {
+	if (rgb_mode_flags & MERGE) {
+		set_merge(mode, speed, brightness, direction, &ports[port].inner_rgb);
+	} else if (apply_to_all) {
 		set_all(flags, mode, speed, brightness, direction, &ports[port].outer_rgb, &ports[port].inner_rgb);
 	} else {
 		printk("Lian_li_hub: else now\n");
@@ -757,25 +796,11 @@ static int dev_probe(struct usb_interface *intf, const struct usb_device_id *id)
 
 	get_speed_in_rpm();
 
-	for (int j = 0; j < 4; j++) {
-		for (int i = 0; i < 96; i += 3) {
-			ports[j].inner_rgb.colors[i]     = 0xff;
-			ports[j].inner_rgb.colors[i + 1] = 0x00;
-			ports[j].inner_rgb.colors[i + 2] = 0x00;
-		}
-		for (int i = 0; i < 144; i += 3) {
-			ports[j].outer_rgb.colors[i]     = 0xff;
-			ports[j].outer_rgb.colors[i + 1] = 0x00;
-			ports[j].outer_rgb.colors[i + 2] = 0x00;
-		}
-	}
 
 	ports[0].fan_count = 4;
 	ports[1].fan_count = 3;
 	ports[2].fan_count = 3;
 	ports[3].fan_count = 1;
-	
-	set_inner_and_outer_rgb(1, 1, 2, 0, 0);
 
 	printk(KERN_INFO"Lian Li Hub: driver probed\n");
 	return 0;

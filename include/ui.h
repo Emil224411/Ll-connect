@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
-#include <SDL2/SDL_image.h>
 
 
 #define WINDOW_W 800
@@ -33,7 +32,7 @@ static int mouse_x, mouse_y;
 
 struct text {
 	char str[MAX_TEXT_SIZE];
-	int show, static_w, static_h, wrap_length;
+	int show, static_w, static_h, font_size, wrap_length;
 	SDL_Color fg_color, bg_color;
 	SDL_Rect src, dst;
 	SDL_Texture *texture;
@@ -41,6 +40,7 @@ struct text {
 };
 static int text_arr_total_len;
 static int text_arr_used_len;
+static int default_font_size = 20;
 static struct text **text_arr;
 
 struct button {
@@ -112,14 +112,14 @@ void clear_screen(SDL_Color color);
 
 SDL_Texture *create_texture_from_surface(SDL_Surface *sur);
 
-struct text *create_text(char *string, int x, int y, int w, int h, int wrap_length, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f);
+struct text *create_text(char *string, int x, int y, int w, int h, int font_size, int wrap_length, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f);
 void destroy_text_texture(struct text *text);
 void destroy_text(struct text *text);
 void render_text(struct text *t, SDL_Rect *src);
 int render_text_texture(struct text *t, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f);
 void change_text_and_render_texture(struct text *text, char *new_text, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f);
 
-struct button *create_button(char *string, int movable, int clickable, int show, int x, int y, int w, int h, TTF_Font *f, void (*on_click)(), void (*on_move)(), SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color);
+struct button *create_button(char *string, int movable, int clickable, int show, int x, int y, int w, int h, int font_size, TTF_Font *f, void (*on_click)(), void (*on_move)(), SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color);
 void destroy_button(struct button *button);
 void render_button(struct button *button);
 
