@@ -59,7 +59,11 @@ struct port ports[4] = {
 
 int prev_inner_set_all[4];
 int prev_outer_set_all[4];
-struct rgb_data prev_rgb_data[4];
+struct rgb_data prev_rgb_data[4] = { { &rgb_modes[0], 0x02, 0, 0, { 0 }, &rgb_modes[0], 0x02, 0, 0, { 0 } },
+                                     { &rgb_modes[0], 0x02, 0, 0, { 0 }, &rgb_modes[0], 0x02, 0, 0, { 0 } },
+                                     { &rgb_modes[0], 0x02, 0, 0, { 0 }, &rgb_modes[0], 0x02, 0, 0, { 0 } },
+                                     { &rgb_modes[0], 0x02, 0, 0, { 0 }, &rgb_modes[0], 0x02, 0, 0, { 0 } } };
+
 
 int set_fan_speed(struct port *p, int speed);
 int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_colors, int do_check);

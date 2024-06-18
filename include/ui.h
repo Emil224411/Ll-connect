@@ -6,7 +6,6 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
-
 #define WINDOW_W 800
 #define WINDOW_H 500
 
@@ -14,6 +13,7 @@
 
 #define SDL_COLOR_ARG(C) C.r, C.g, C.b, C.a
 #define CHECK_RECT(r1, r2) r1.x < r2.x + r2.w && r1.x > r2.x && r1.y < r2.y + r2.h && r1.y > r2.y
+
 
 SDL_Color BLACK   = {   0,   0,   0, SDL_ALPHA_OPAQUE };
 SDL_Color WHITE   = { 255, 255, 255, SDL_ALPHA_OPAQUE };
@@ -29,6 +29,10 @@ SDL_Window   *window;
 SDL_Renderer *renderer;
 SDL_Event event;
 static int mouse_x, mouse_y;
+
+struct point {
+	int x, y;
+};
 
 struct text {
 	char str[MAX_TEXT_SIZE];
@@ -99,6 +103,23 @@ static struct drop_down_menu *selected_ddm;
 static int ddm_arr_total_len;
 static int ddm_arr_used_len;
 
+struct graph {
+	SDL_Rect real_pos, scaled_pos;
+	SDL_Rect points_size, points_selected_size;
+	int scale_w, scale_h;
+	int selected, selected_point_index;
+	struct point *selected_point;
+	int index, rerender;
+	int point_amount;
+	struct point *points;
+	void (*on_move)(struct graph *self, SDL_Event *e);
+	SDL_Color outer_color, bg_color, fg_color, point_colors, selected_point_color;
+};
+static struct graph **graph_arr;
+static struct graph *selected_graph;
+static int graph_arr_total_len;
+static int graph_arr_used_len;
+
 
 int ui_init();
 void ui_shutdown();
@@ -139,5 +160,10 @@ void destroy_ddm(struct drop_down_menu *ddm);
 void render_ddm(struct drop_down_menu *ddm);
 void change_ddm_text_arr(struct drop_down_menu *ddm, int items, char newstr[][MAX_TEXT_SIZE], TTF_Font *f);
 void update_ddm_highlight(int x, int y, struct drop_down_menu *ddm);
+
+struct graph *create_graph(int x, int y, int w, int h, int scale_w, int scale_h, int p_w, int p_h, int sp_w, int sp_h, int pamount, void (*on_move)(struct graph *self, SDL_Event *e), SDL_Color oc, SDL_Color bgc, SDL_Color fgc, SDL_Color point_c, SDL_Color spoint_c);
+void destroy_graph(struct graph *graph);
+void render_graph(struct graph *graph);
+void change_graph_point(struct graph *graph);
 
 #endif

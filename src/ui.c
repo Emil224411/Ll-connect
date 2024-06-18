@@ -48,6 +48,11 @@ int ui_init()
 	ddm_arr_used_len = 0;
 	selected_ddm = NULL;
 
+	graph_arr = malloc(sizeof(struct graph*) * 10);
+	graph_arr_total_len = 10;
+	graph_arr_used_len = 0;
+	selected_graph = NULL;
+
 	slider_arr = malloc(sizeof(struct slider*) * 10);
 	slider_arr_total_len = 10;
 	slider_arr_used_len = 0;
@@ -86,6 +91,9 @@ void ui_shutdown()
 	}
 	while (text_arr_used_len > 0) {
 		destroy_text(text_arr[text_arr_used_len - 1]);
+	}
+	while (graph_arr_used_len > 0) {
+		destroy_graph(graph_arr[graph_arr_used_len - 1]);
 	}
 	free(text_arr);
 	free(input_box_arr);
@@ -194,6 +202,21 @@ void mouse_move(SDL_Event *event)
 		if (selected_slider->on_move) 
 			selected_slider->on_move();
 	}
+	if (selected_graph != NULL) {
+		if (selected_graph->selected_point != NULL) {
+			if (event->motion.x <= selected_graph->scaled_pos.x + selected_graph->scaled_pos.w 
+					&& event->motion.x >= selected_graph->scaled_pos.x) {
+				selected_graph->selected_point->x = (event->motion.x - selected_graph->scaled_pos.x)/selected_graph->scale_w;
+			}
+
+			if (event->motion.y <= selected_graph->scaled_pos.y + selected_graph->scaled_pos.h 
+					&& event->motion.y >= selected_graph->scaled_pos.y) {
+				selected_graph->selected_point->y = (event->motion.y - selected_graph->scaled_pos.y)/selected_graph->scale_h;
+			}
+			printf("selected_point.x = %d, selected_point.y = %d\n", selected_graph->selected_point->x, selected_graph->selected_point->y);
+		}
+		if (selected_graph->on_move != NULL) selected_graph->on_move(selected_graph, event);
+	}
 }
 /* LATER: only check if button or input_box is visible mabey create array with all showen things idk */
 void lmouse_button_up(SDL_Event *event)
@@ -207,6 +230,10 @@ void lmouse_button_up(SDL_Event *event)
 		if (selected_slider->button->on_click != NULL) selected_slider->button->on_click(selected_slider->button, event);
 		selected_slider = NULL;
 
+	}
+	if (selected_graph != NULL) {
+		if (selected_graph->selected_point != NULL) selected_graph->selected_point = NULL;
+		selected_graph = NULL;
 	}
 	int hit = 0;
 	for (int i = 0; i < input_box_arr_used_len; i++) {
@@ -263,6 +290,26 @@ void lmouse_button_down(SDL_Event *event)
 	for (int i = 0; i < slider_arr_used_len; i++) {
 		if (CHECK_RECT(mouse_data, slider_arr[i]->button->outer_box)) {
 			selected_slider = slider_arr[i];
+		}
+	}
+	printf("lmouse_button_down\n");
+	if (selected_graph == NULL) {
+		for (int i = 0; i < graph_arr_used_len; i++) {
+			if (CHECK_RECT(mouse_data, graph_arr[i]->scaled_pos)) {
+				selected_graph = graph_arr[i];
+				int offx = mouse_data.x - selected_graph->scaled_pos.x;
+				int offy = mouse_data.y - selected_graph->scaled_pos.y;
+				printf("selected_graph true\n");
+				for (int j = 0; j < selected_graph->point_amount; j++) {
+					if (offx < selected_graph->points[j].x * selected_graph->scale_w + selected_graph->points_size.w && offx > selected_graph->points[j].x * selected_graph->scale_h
+							&& offy < selected_graph->points[j].y * selected_graph->scale_h + selected_graph->points_size.h && offy > selected_graph->points[j].y * selected_graph->scale_h) {
+						printf("selected_point true\n");
+						selected_graph->selected_point = &selected_graph->points[j];
+						selected_graph->selected_point_index = j;
+						selected_graph->selected = 1;
+					}
+				}
+			}
 		}
 	}
 }
@@ -791,6 +838,96 @@ void update_slider(struct slider *slider, int x)
 }
 
 
+struct graph *create_graph(int x, int y, int w, int h, int scale_w, int scale_h, int point_w, int point_h, int s_point_w, int s_point_h, int p_amount, void (*on_move)(), SDL_Color oc, SDL_Color bgc, SDL_Color fgc, SDL_Color point_c, SDL_Color spoint_c)
+{
+	printf("create_graph\n");
+	struct graph *return_graph = malloc(sizeof(struct graph));
+	struct graph tmp_graph = { { x, y, w, h }, {x, y, w * scale_w, h * scale_h}, { 0, 0, point_w, point_h }, { 0, 0, s_point_w, s_point_h }, 
+				   scale_w, scale_h, 0, 0, NULL, graph_arr_used_len, 0, p_amount, NULL, on_move, oc, bgc, fgc, point_c, spoint_c };
+	if (graph_arr_used_len + 1 > graph_arr_total_len) {
+		graph_arr = (struct graph**)realloc(graph_arr, sizeof(struct graph*) * (graph_arr_total_len + 5));
+		graph_arr_total_len += 5;
+	}
+	struct point *p = malloc(sizeof(struct point) * p_amount);
+	tmp_graph.points = p;
+	memcpy(return_graph, &tmp_graph, sizeof(struct graph));
+	graph_arr[graph_arr_used_len] = return_graph;
+	graph_arr_used_len += 1;
+
+	return graph_arr[graph_arr_used_len - 1];
+}
+
+void destroy_graph(struct graph *graph)
+{
+	for (int i = graph->index; i < graph_arr_used_len-1; i++) {
+		graph_arr[i] = graph_arr[i+1];
+		graph_arr[i]->index = i;
+	}
+	graph_arr[graph_arr_used_len] = NULL;
+	graph_arr_used_len -= 1;
+	free(graph->points);
+	free(graph);
+}
+
+void render_graph(struct graph *graph)
+{
+	if (graph == NULL) {
+		printf("error passed a NULL pointer to render_graph\n");
+		return;
+	}
+	if (!graph->rerender) return;
+	int x1 = graph->points[0].x * graph->scale_w + graph->real_pos.x + graph->points_size.w/2;
+	int y1 = graph->points[0].y * graph->scale_h + graph->real_pos.y + graph->points_size.h/2;
+	int x2 = graph->points[graph->point_amount - 1].x * graph->scale_w + graph->real_pos.x + graph->points_size.w/2;
+	int y2 = graph->points[graph->point_amount - 1].y * graph->scale_h + graph->real_pos.y + graph->points_size.h/2;
+
+	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(graph->bg_color));
+	SDL_RenderFillRect(renderer, &graph->scaled_pos);
+
+	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(graph->fg_color));
+	SDL_RenderDrawLine(renderer, x2, y2, graph->scaled_pos.x + graph->scaled_pos.w, y2);
+	SDL_RenderDrawLine(renderer, graph->scaled_pos.x, y1, x1, y1);
+	for (int i = 0; i < graph->point_amount; i++) {
+		if (i < graph->point_amount - 1) {
+			SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(graph->fg_color));
+
+			x1 = graph->points[i].x * graph->scale_w + graph->real_pos.x + (graph->points_size.w/2);
+			y1 = graph->points[i].y * graph->scale_h + graph->real_pos.y + graph->points_size.h/2;
+			x2 = graph->points[i + 1].x * graph->scale_w + graph->real_pos.x + graph->points_size.w/2; 
+			y2 = graph->points[i + 1].y * graph->scale_h + graph->real_pos.y + graph->points_size.h/2;
+
+			if (x1 >= graph->scaled_pos.x + graph->scaled_pos.w) x1 = graph->scaled_pos.x + graph->scaled_pos.w;
+			if (y1 >= graph->scaled_pos.y + graph->scaled_pos.h) y1 = graph->scaled_pos.y + graph->scaled_pos.h;
+			if (x2 >= graph->scaled_pos.x + graph->scaled_pos.w) x2 = graph->scaled_pos.x + graph->scaled_pos.w;
+			if (y2 >= graph->scaled_pos.y + graph->scaled_pos.h) y2 = graph->scaled_pos.y + graph->scaled_pos.h;
+
+			SDL_RenderDrawLine(renderer, x1, y1, x2, y2);
+		}
+		SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(graph->point_colors));
+		SDL_Rect tmp_rect = { graph->points[i].x * graph->scale_w + graph->real_pos.x, graph->points[i].y * graph->scale_h + graph->real_pos.y, graph->points_size.w, graph->points_size.h };
+
+		if (tmp_rect.x + tmp_rect.w >= graph->scaled_pos.x + graph->scaled_pos.w) tmp_rect.x = graph->scaled_pos.x + graph->scaled_pos.w - graph->points_size.w - 1;
+		if (tmp_rect.y + tmp_rect.h >= graph->scaled_pos.y + graph->scaled_pos.h) tmp_rect.y = graph->scaled_pos.y + graph->scaled_pos.h - graph->points_size.h - 1;
+
+		SDL_RenderFillRect(renderer, &tmp_rect);
+	}
+
+	if (selected_graph != NULL) {
+		if (selected_graph->selected_point != NULL) {
+			SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(graph->selected_point_color));
+			SDL_Rect tmp_rect = { graph->selected_point->x * graph->scale_w + graph->scaled_pos.x, graph->selected_point->y * graph->scale_h + graph->scaled_pos.y, 
+						graph->points_selected_size.w, graph->points_selected_size.h };
+
+			if (tmp_rect.x + tmp_rect.w >= graph->scaled_pos.x + graph->scaled_pos.w) tmp_rect.x = graph->scaled_pos.x + graph->scaled_pos.w - graph->points_size.w - 1;
+			if (tmp_rect.y + tmp_rect.h >= graph->scaled_pos.y + graph->scaled_pos.h) tmp_rect.y = graph->scaled_pos.y + graph->scaled_pos.h - graph->points_size.h - 1;
+
+			SDL_RenderFillRect(renderer, &tmp_rect);
+		}
+	}
+	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(graph->outer_color));
+	SDL_RenderDrawRect(renderer, &graph->scaled_pos);
+
+}
 
 
 

@@ -6,21 +6,22 @@
  |														|
  |						TODO list							|
  |														|
- | 		1.  got a segfault when going from merge to inner static color 					|
- |		1.  implement some thing for creating graphs 							|
+ |		1.  graph stuff.										|
+ |		2.  implement some sortof page system so that we can have a rgb page a fan speed page etc. 	|
  | 														|
  |--------------------------------------------------------------------------------------------------------------|
  |														|
  |				    not very important but do at some point					|
  |														|
- | 		1.  when a rgb_mode with only INNER_AND_OUTER flag set is applied you try to change 		|
+ | 		1.  got a segfault when going from merge to inner static color 					|
+ | 		2.  when a rgb_mode with only INNER_AND_OUTER flag set is applied you try to change 		|
  |		 	inner or outer mode it glithes is basicly fixed but the fix is not perfect so 		|
  |			refactor that since i dont feel like it rn and it works so yk 				|
- |		1. implement saving colors and modes etc. 							|
- |		2. refactor or rewrite the input_box code. 			 				|
- | 		3. test which rgb modes require NOT_MOVING flag(and find a new name for the flag 		|
+ |		3. implement saving colors and modes etc. 							|
+ |		4. refactor or rewrite the input_box code. 			 				|
+ | 		5. test which rgb modes require NOT_MOVING flag(and find a new name for the flag 		|
  |			since Breathing needs the flag) 							|
- |		4. mabey write functions for setting colors and setting the mode in the driver 			|
+ |		6. mabey write functions for setting colors and setting the mode in the driver 			|
  | 			look at usbNotes.txt:41.								|
  |														|
  \**************************************************************************************************************/
@@ -58,6 +59,10 @@ SDL_Rect other_picker_pos;
 SDL_Surface *color_picker_surface;
 SDL_Rect color_picker_pos;
 
+struct text *graph_fan_speed_text;
+struct text *graph_cpu_temp_text;
+struct graph *test_graph;
+void moving_graph(struct graph *self, SDL_Event *e);
 
 inline SDL_Surface *create_rgb_color_picker_surface();
 inline SDL_Surface *create_white_black_picker(Uint8 red, Uint8 green, Uint8 blue);
@@ -147,12 +152,14 @@ int main()
 			clear_screen(edarkgrey);
 
 
+			
 			if (change == 1) {
 				change_white_black_picker(other_picker_surface, color_selector->bg_color.r, color_selector->bg_color.g, color_selector->bg_color.b);
 				SDL_DestroyTexture(other_picker_texture);
 				other_picker_texture = create_texture_from_surface(other_picker_surface);
 				change = 0;
 			}
+		
 			SDL_RenderCopy(renderer, color_picker_texture, NULL, &color_picker_pos);
 			SDL_RenderCopy(renderer, other_picker_texture, NULL, &other_picker_pos);
 			
@@ -178,6 +185,10 @@ int main()
 			render_text(rgb_speed_text, NULL);
 			render_text(rgb_brightnes_text, NULL);
 			
+			render_graph(test_graph);
+			render_text(graph_cpu_temp_text, NULL);
+			render_text(graph_fan_speed_text, NULL);
+			
 			show_screen();
 		}
 		/*if (delta2 > 1000/1.0) {
@@ -188,10 +199,12 @@ int main()
 		SDL_Delay(1);
 	}
 
+
 	SDL_DestroyTexture(color_picker_texture);
 	SDL_DestroyTexture(other_picker_texture);
 	SDL_FreeSurface(color_picker_surface);
 	SDL_FreeSurface(other_picker_surface);
+
 	ui_shutdown();
 
 	return 0;
@@ -225,7 +238,7 @@ int init()
 		printf("ui_init failed\n");
 		return -1;
 	}
-
+	
 	if (update_speed_str() != 0) {
 		printf("update_speed_str failed");
 		return -1;
@@ -296,8 +309,28 @@ int init()
 	rgb_brightnes_text = create_text("0%", rgb_brightnes_slider->pos.x + 210, rgb_brightnes_slider->button->outer_box.y - 2, 0, 0, 0 , 0, WHITE, edarkgrey, font);
 
 	toggle_merge = create_button("Merge", 0, 1, 1, select_port_buttons[1]->outer_box.x + 100, select_port_buttons[1]->outer_box.y, 0, 0, 20, font, toggle_merge_button, NULL, WHITE, edarkgrey, WHITE);
+	
+	test_graph = create_graph(100, 100, 100, 100, 4, 2, 10, 10, 10, 10, 5, moving_graph, WHITE, BLACK, BLUE, grey, BLUE);
+	test_graph->rerender = 1;
+	for (int i = 0; i < 5; i++) {
+		test_graph->points[i].x = i * 20;
+		test_graph->points[i].y = 20 + i * 5;
+	}
+	graph_cpu_temp_text = create_text("cputemp: %", 100, 300, 0, 0, 30, 0, WHITE, edarkgrey, font);
+	graph_fan_speed_text = create_text("fanspeed: %", 350, 300, 0, 0, 30, 0, WHITE, edarkgrey, font);
 
 	return 0;
+}
+
+void moving_graph(struct graph *self, SDL_Event *e)
+{
+	if (self->selected_point != NULL) {
+		char tmp_str[16];
+		sprintf(tmp_str, "fanspeed: %d%%", 100-self->selected_point->y );
+		change_text_and_render_texture(graph_fan_speed_text, tmp_str, WHITE, edarkgrey, font);
+		sprintf(tmp_str, "cputemp: %d°", self->selected_point->x); 
+		change_text_and_render_texture(graph_cpu_temp_text, tmp_str, WHITE, edarkgrey, font);
+	}
 }
 
 void toggle_merge_button(struct button *self, SDL_Event *event)
