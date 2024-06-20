@@ -1,4 +1,4 @@
-const int rgb_modes_amount = 48;
+const int rgb_modes_amount = 46;
 const struct rgb_mode rgb_modes[] = 
 		     {  { "Static Color",      0x01, 0x0,  6, INNER | OUTER | INNER_AND_OUTER | NOT_MOVING | BRIGHTNESS }, 
 			{ "Breathing",         0x02, 0x0,  6, INNER | OUTER | INNER_AND_OUTER | NOT_MOVING | BRIGHTNESS | SPEED },

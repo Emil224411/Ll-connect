@@ -53,18 +53,9 @@ SDL_Color grey = { 209, 209, 209, SDL_ALPHA_OPAQUE };
 SDL_Color darkgrey = { 84, 84, 84, SDL_ALPHA_OPAQUE };
 SDL_Color edarkgrey = { 23, 23, 23, 255 };
 
-SDL_Surface *other_picker_surface;
-SDL_Rect other_picker_pos;
-
-SDL_Surface *color_picker_surface;
-SDL_Rect color_picker_pos;
-
-struct text *graph_fan_speed_text;
-struct text *graph_cpu_temp_text;
-struct graph *test_graph;
 void moving_graph(struct graph *self, SDL_Event *e);
 
-inline SDL_Surface *create_rgb_color_picker_surface();
+inline void create_rgb_color_picker_surface();
 inline SDL_Surface *create_white_black_picker(Uint8 red, Uint8 green, Uint8 blue);
 void rgb_speed_slider_move(struct slider *self, SDL_Event *event);
 void rgb_brightnes_slider_move(struct slider *self, SDL_Event *event);
@@ -86,20 +77,37 @@ int update_speed_str();
 int init();
 static void set_all(int mode, int speed, int direction, int brightnes, int flag);
 
+
+struct page *test_page;
+struct page *test_page2;
+
+struct image *saturation_img;
+struct image *color_img;
+
+//SDL_Surface *other_picker_surface;
+SDL_Rect other_picker_pos;
+
+//SDL_Surface *color_picker_surface;
+SDL_Rect color_picker_pos;
+
+//SDL_Texture *other_picker_texture;
+//SDL_Texture *color_picker_texture;
+
+struct text *graph_fan_speed_text;
+struct text *graph_cpu_temp_text;
+struct graph *test_graph;
 char speeds_str[MAX_TEXT_SIZE];
 struct text *speeds;
 int speeds_pro[4] = { 0 };
 int speeds_rpm[4] = { 0 };
-
-SDL_Texture *other_picker_texture;
-SDL_Texture *color_picker_texture;
 struct button *color_selector;
 struct button *black_white_selector;
 int change;
-struct input *color_input_r;
-struct input *color_input_g;
-struct input *color_input_b;
+//struct input *color_input_r;
+//struct input *color_input_g;
+//struct input *color_input_b;
 struct text *color_text;
+
 
 struct slider *rgb_speed_slider;
 struct text *rgb_speed_text;
@@ -154,56 +162,23 @@ int main()
 
 			
 			if (change == 1) {
-				change_white_black_picker(other_picker_surface, color_selector->bg_color.r, color_selector->bg_color.g, color_selector->bg_color.b);
-				SDL_DestroyTexture(other_picker_texture);
-				other_picker_texture = create_texture_from_surface(other_picker_surface);
+				change_white_black_picker(saturation_img->surface, color_selector->bg_color.r, color_selector->bg_color.g, color_selector->bg_color.b);
+				SDL_DestroyTexture(saturation_img->texture);
+				saturation_img->texture = create_texture_from_surface(saturation_img->surface);
 				change = 0;
 			}
 		
-			SDL_RenderCopy(renderer, color_picker_texture, NULL, &color_picker_pos);
-			SDL_RenderCopy(renderer, other_picker_texture, NULL, &other_picker_pos);
-			
-			render_button(color_selector);
-			render_button(apply_rgb);
-			render_button(apply_to_all_rgb);
-			render_button(black_white_selector);
-			render_button(direction_buttons[0]);
-			render_button(direction_buttons[1]);
-			render_button(black_white_selector);
-			render_button(toggle_merge);
-			for (int i = 0; i < 6; i++) render_button(color_buttons[i]);
-			for (int i = 0; i < 4; i++) render_button(select_port_buttons[i]);
-			render_text(speeds, NULL);
-			//render_input_box(color_input_r);
-			//render_input_box(color_input_g);
-			//render_input_box(color_input_b);
-			
-			render_slider(rgb_speed_slider);
-			render_slider(rgb_brightnes_slider);
-			render_ddm(fan_ring_ddm);
-			render_ddm(rgb_mode_ddm);
-			render_text(rgb_speed_text, NULL);
-			render_text(rgb_brightnes_text, NULL);
-			
-			render_graph(test_graph);
-			render_text(graph_cpu_temp_text, NULL);
-			render_text(graph_fan_speed_text, NULL);
+			render_showen_page();
 			
 			show_screen();
 		}
-		/*if (delta2 > 1000/1.0) {
+		if (delta2 > 1000/1.0) {
 			b2 = a;
 			update_speed_str();		
 			change_text_and_render_texture(speeds, speeds_str, speeds->fg_color, speeds->bg_color, font);
-		}*/
+		}
 		SDL_Delay(1);
 	}
-
-
-	SDL_DestroyTexture(color_picker_texture);
-	SDL_DestroyTexture(other_picker_texture);
-	SDL_FreeSurface(color_picker_surface);
-	SDL_FreeSurface(other_picker_surface);
 
 	ui_shutdown();
 
@@ -244,7 +219,9 @@ int init()
 		return -1;
 	}
 
-	speeds = create_text(speeds_str, 10, 10, 0, 0, 0, 0, WHITE, edarkgrey, font);
+	test_page = create_page();
+	test_page2 = create_page();
+	speeds = create_text(speeds_str, 10, 10, 0, 0, 0, 0, WHITE, edarkgrey, font, test_page);
 
 	ports[0].fan_count = 4;
 	ports[1].fan_count = 3;
@@ -256,19 +233,22 @@ int init()
 	color_picker_pos.w = 300;
 	color_picker_pos.h = 20;
 
-	color_picker_surface = create_rgb_color_picker_surface();
-	color_picker_texture = create_texture_from_surface(color_picker_surface);
-
-
 	other_picker_pos.x = color_picker_pos.x;
 	other_picker_pos.y = color_picker_pos.y - 215;
 	other_picker_pos.w = 300;
 	other_picker_pos.h = 200;
-	other_picker_surface = create_white_black_picker(255, 0, 0);
-	other_picker_texture = create_texture_from_surface(other_picker_surface);
 
-	color_selector = create_button(NULL, 1, 1, 1, color_picker_pos.x, color_picker_pos.y, 20, 20, 0, font, select_button2, select_button2, WHITE, BLACK, WHITE);
-	black_white_selector = create_button(NULL, 1, 1, 1, other_picker_pos.x, other_picker_pos.y, 25, 25, 0, font, select_button, select_button, WHITE, BLACK, WHITE);
+	color_img = create_image(WINDOW_W-400, WINDOW_H-150, 300, 20, 1530, 1, 32, test_page);
+	create_rgb_color_picker_surface();
+	color_img->texture = create_texture_from_surface(color_img->surface);
+
+	color_selector = create_button(NULL, 1, 1, color_picker_pos.x, color_picker_pos.y, 20, 20, 0, font, select_button2, select_button2, WHITE, BLACK, WHITE, test_page);
+
+	saturation_img = create_image(color_img->pos.x, color_img->pos.y - 215, 300, 200, 510, 510, 32, test_page);
+	saturation_img->surface = create_white_black_picker(255, 0, 0);
+	saturation_img->texture = create_texture_from_surface(saturation_img->surface);
+
+	black_white_selector = create_button(NULL, 1, 1, other_picker_pos.x, other_picker_pos.y, 25, 25, 0, font, select_button, select_button, WHITE, BLACK, WHITE, test_page);
 	
 	create_color_buttons();
 	char tmp_str[rgb_modes_amount][MAX_TEXT_SIZE];
@@ -276,9 +256,9 @@ int init()
 		strncpy(tmp_str[i], rgb_modes[i].name, MAX_TEXT_SIZE);
 	}
 	
-	rgb_mode_ddm = create_drop_down_menu(rgb_modes_amount, tmp_str, 45, 100, 150, 0, 150, 300, rgb_mode_ddm_select, font, WHITE, edarkgrey, WHITE);
+	rgb_mode_ddm = create_drop_down_menu(rgb_modes_amount, tmp_str, 45, 100, 150, 0, 150, 300, rgb_mode_ddm_select, font, WHITE, edarkgrey, WHITE, test_page);
 	char str[][MAX_TEXT_SIZE] = { "O", "I", "OI" };
-	fan_ring_ddm = create_drop_down_menu(3, str, 10, 100, 0, 0, 0, 70, fan_ring_select, font, WHITE, edarkgrey, WHITE);
+	fan_ring_ddm = create_drop_down_menu(3, str, 10, 100, 0, 0, 0, 70, fan_ring_select, font, WHITE, edarkgrey, WHITE, test_page);
 
 	//color_input_r = create_input("255", 0, 3, color_picker_pos.x, color_buttons[0]->outer_box.y + color_buttons[0]->outer_box.h + 10, 0, 0, NULL, font, WHITE, edarkgrey, WHITE);
 	//color_input_g = create_input("255", 0, 3, color_picker_pos.x + color_input_r->outer_box.w + 10, color_input_r->outer_box.y, 0, 0, NULL, font, WHITE, edarkgrey, WHITE);
@@ -288,7 +268,7 @@ int init()
 	for (int i = 0; i < 4; i++) {
 		char portstr[7];
 		sprintf(portstr, "Port %d", i+1); 
-		select_port_buttons[i] = create_button(portstr, 0, 1, 1, 40 + prev_w, 270 + prev_h, 0, 0, 0, font, port_select_func, NULL, WHITE, edarkgrey, WHITE);
+		select_port_buttons[i] = create_button(portstr, 0, 1, 40 + prev_w, 270 + prev_h, 0, 0, 0, font, port_select_func, NULL, WHITE, edarkgrey, WHITE, test_page);
 		if ((i + 1) % 2 == 0) {
 			prev_h = select_port_buttons[i]->outer_box.h;
 			prev_w = 0;
@@ -296,28 +276,30 @@ int init()
 			prev_w = select_port_buttons[i]->outer_box.w;
 		}
 	}
-	direction_buttons[0] = create_button("<<<", 0, 1, 1, 40, 350, 0, 0, 40, font, direction_select, NULL, edarkgrey, edarkgrey, WHITE);
-	direction_buttons[1] = create_button(">>>", 0, 1, 1, 40 + direction_buttons[0]->outer_box.w, 350, 0, 0, 40, font, direction_select, NULL, edarkgrey, edarkgrey, WHITE);
+	direction_buttons[0] = create_button("<<<", 0, 1, 40, 350, 0, 0, 40, font, direction_select, NULL, edarkgrey, edarkgrey, WHITE, test_page);
+	direction_buttons[1] = create_button(">>>", 0, 1, 40 + direction_buttons[0]->outer_box.w, 350, 0, 0, 40, font, direction_select, NULL, edarkgrey, edarkgrey, WHITE, test_page);
 
-	apply_rgb = create_button("Apply", 0, 1, 1, color_picker_pos.x, color_buttons[0]->outer_box.y + color_buttons[0]->outer_box.h + 10, 0, 0, 0, font, apply, NULL, WHITE, edarkgrey, WHITE);
-	apply_to_all_rgb = create_button("Apply all", 0, 1, 1, apply_rgb->outer_box.x + apply_rgb->outer_box.w + 10, apply_rgb->outer_box.y, 0, 0, 0, font, apply, NULL, WHITE, edarkgrey, WHITE);
+	apply_rgb = create_button("Apply", 0, 1, color_picker_pos.x, color_buttons[0]->outer_box.y + color_buttons[0]->outer_box.h + 10, 0, 0, 0, font, apply, NULL, WHITE, edarkgrey, WHITE, test_page);
+	apply_to_all_rgb = create_button("Apply all", 0, 1, apply_rgb->outer_box.x + apply_rgb->outer_box.w + 10, apply_rgb->outer_box.y, 0, 0, 0, font, apply, NULL, WHITE, edarkgrey, WHITE, test_page);
 
-	rgb_speed_slider = create_slider(1, 40, 200, 200, 10, 20, slider_on_release, rgb_speed_slider_move, WHITE, WHITE, darkgrey);
-	rgb_brightnes_slider = create_slider(1, 40, 240, 200, 10, 20, slider_on_release, rgb_brightnes_slider_move, WHITE, WHITE, darkgrey);
+	rgb_speed_slider = create_slider(1, 40, 200, 200, 10, 20, slider_on_release, rgb_speed_slider_move, WHITE, WHITE, darkgrey, test_page);
+	rgb_brightnes_slider = create_slider(1, 40, 240, 200, 10, 20, slider_on_release, rgb_brightnes_slider_move, WHITE, WHITE, darkgrey, test_page);
 
-	rgb_speed_text = create_text("0%", rgb_speed_slider->pos.x + 210, rgb_speed_slider->button->outer_box.y - 2, 0, 0, 0, 0, WHITE, edarkgrey, font);
-	rgb_brightnes_text = create_text("0%", rgb_brightnes_slider->pos.x + 210, rgb_brightnes_slider->button->outer_box.y - 2, 0, 0, 0 , 0, WHITE, edarkgrey, font);
+	rgb_speed_text = create_text("0%", rgb_speed_slider->pos.x + 210, rgb_speed_slider->button->outer_box.y - 2, 0, 0, 0, 0, WHITE, edarkgrey, font, test_page);
+	rgb_brightnes_text = create_text("0%", rgb_brightnes_slider->pos.x + 210, rgb_brightnes_slider->button->outer_box.y - 2, 0, 0, 0 , 0, WHITE, edarkgrey, font, test_page);
 
-	toggle_merge = create_button("Merge", 0, 1, 1, select_port_buttons[1]->outer_box.x + 100, select_port_buttons[1]->outer_box.y, 0, 0, 20, font, toggle_merge_button, NULL, WHITE, edarkgrey, WHITE);
+	toggle_merge = create_button("Merge", 0, 1, select_port_buttons[1]->outer_box.x + 100, select_port_buttons[1]->outer_box.y, 0, 0, 20, font, toggle_merge_button, NULL, WHITE, edarkgrey, WHITE, test_page);
+	toggle_merge = create_button("Merge", 0, 1, select_port_buttons[1]->outer_box.x + 100, select_port_buttons[1]->outer_box.y + 100, 0, 0, 20, font, toggle_merge_button, NULL, WHITE, edarkgrey, WHITE, test_page2);
 	
-	test_graph = create_graph(100, 100, 100, 100, 4, 2, 10, 10, 10, 10, 5, moving_graph, WHITE, BLACK, BLUE, grey, BLUE);
+	test_graph = create_graph(100, 100, 100, 100, 4, 2, 10, 10, 10, 10, 5, moving_graph, WHITE, BLACK, BLUE, grey, BLUE, test_page2);
 	test_graph->rerender = 1;
 	for (int i = 0; i < 5; i++) {
 		test_graph->points[i].x = i * 20;
 		test_graph->points[i].y = 20 + i * 5;
 	}
-	graph_cpu_temp_text = create_text("cputemp: %", 100, 300, 0, 0, 30, 0, WHITE, edarkgrey, font);
-	graph_fan_speed_text = create_text("fanspeed: %", 350, 300, 0, 0, 30, 0, WHITE, edarkgrey, font);
+	graph_cpu_temp_text = create_text("cputemp: %", 100, 300, 0, 0, 30, 0, WHITE, edarkgrey, font, test_page2);
+	graph_fan_speed_text = create_text("fanspeed: %", 350, 300, 0, 0, 30, 0, WHITE, edarkgrey, font, test_page2);
+	show_page(test_page);
 
 	return 0;
 }
@@ -335,6 +317,8 @@ void moving_graph(struct graph *self, SDL_Event *e)
 
 void toggle_merge_button(struct button *self, SDL_Event *event)
 {
+	if (test_page->show != 0) show_page(test_page2);
+	else if (test_page2->show != 0) show_page(test_page);
 	rgb_merge = (rgb_merge + 1) % 2;
 	self->bg_color = rgb_merge ? WHITE : edarkgrey;
 }
@@ -501,8 +485,8 @@ void color_buttons_click(struct button *self, SDL_Event *e)
 void create_color_buttons()
 {
 	for (int i = 0; i < 6; i++) {
-		color_buttons[i] = create_button(NULL, 0, 1, 1, other_picker_pos.x + 51 * i, color_picker_pos.y + color_picker_pos.h + 10, 
-						45, 40, 0, font, color_buttons_click, NULL, WHITE, RED, WHITE);
+		color_buttons[i] = create_button(NULL, 0, 1, other_picker_pos.x + 51 * i, color_picker_pos.y + color_picker_pos.h + 10, 
+						45, 40, 0, font, color_buttons_click, NULL, WHITE, RED, WHITE, test_page);
 		if (i > rgb_modes[rgb_mode_i].colors) color_buttons[i]->show = 0;
 	}
 }
@@ -605,10 +589,9 @@ int update_speed_str()
  | 	do at some point: come up with a better way for this 	|
  | 								|
  \**************************************************************/
-SDL_Surface *create_rgb_color_picker_surface()
+void create_rgb_color_picker_surface()
 {
-	SDL_Surface *return_surface = SDL_CreateRGBSurface(0, 1530, 1, 32, 0, 0, 0, 0);
-	Uint32 *rgb = (Uint32 *)return_surface->pixels;
+	Uint32 *rgb = (Uint32 *)color_img->surface->pixels;
 	int colorthing = 1530/6;
 	Uint8 red = 0xff, green = 0, blue = 0;
 	/*
@@ -666,8 +649,6 @@ SDL_Surface *create_rgb_color_picker_surface()
 	}
 
 	Uint8 red_index = 0, green_index = 0, blue_index = 0, redtwo_index = 0;
-
-	return return_surface;
 }
 
 void change_white_black_picker(SDL_Surface *surface, Uint8 red, Uint8 green, Uint8 blue)
@@ -740,25 +721,24 @@ SDL_Surface *create_white_black_picker(Uint8 red, Uint8 green, Uint8 blue)
 	return return_surface;
 }
 
-//reminder uncomment all the comments if you want the box to move x and y
 void select_button2(struct button *self, SDL_Event *event)
 {
 	SDL_MouseMotionEvent mouse_data = event->motion;
 
 	self->outer_box.x = mouse_data.x; 
 
-	if (self->outer_box.x > color_picker_pos.x + color_picker_pos.w-1) {
-		self->outer_box.x = color_picker_pos.x + color_picker_pos.w - 1;
+	if (self->outer_box.x > color_img->pos.x + color_img->pos.w-1) {
+		self->outer_box.x = color_img->pos.x + color_img->pos.w - 1;
 	} 
-	else if (self->outer_box.x < color_picker_pos.x) {
-		self->outer_box.x = color_picker_pos.x;
+	else if (self->outer_box.x < color_img->pos.x) {
+		self->outer_box.x = color_img->pos.x;
 	} 
-	Uint32 *pixels = (Uint32*)color_picker_surface->pixels;
+	Uint32 *pixels = (Uint32*)color_img->surface->pixels;
 
-	Uint32 pixel = pixels[((self->outer_box.y - color_picker_pos.y)*color_picker_surface->h/color_picker_pos.h) * 
-					color_picker_surface->w + ((self->outer_box.x - color_picker_pos.x) * color_picker_surface->w/color_picker_pos.w)];
-	int mouseindex = ((self->outer_box.y - color_picker_pos.y)*color_picker_surface->h/color_picker_pos.h) * 
-                           	color_picker_surface->w + ((self->outer_box.x - color_picker_pos.x) * color_picker_surface->w/color_picker_pos.w);
+	Uint32 pixel = pixels[((self->outer_box.y - color_img->pos.y)*color_img->surface->h/color_img->pos.h) * 
+					color_img->surface->w + ((self->outer_box.x - color_img->pos.x) * color_img->surface->w/color_img->pos.w)];
+	int mouseindex = ((self->outer_box.y - color_img->pos.y)*color_img->surface->h/color_img->pos.h) * 
+                           	color_img->surface->w + ((self->outer_box.x - color_img->pos.x) * color_img->surface->w/color_img->pos.w);
 
 	self->bg_color.r = pixel >> 16;
 	self->bg_color.g = pixel >> 8;
@@ -775,23 +755,23 @@ void select_button(struct button *self, SDL_Event *event)
 	self->outer_box.x = mouse_data.x; 
 	self->outer_box.y = mouse_data.y; 
 
-	if (self->outer_box.x > other_picker_pos.x + other_picker_pos.w) {
-		self->outer_box.x = other_picker_pos.x + other_picker_pos.w;
+	if (self->outer_box.x > saturation_img->pos.x + saturation_img->pos.w) {
+		self->outer_box.x = saturation_img->pos.x + saturation_img->pos.w;
 	} else if (self->outer_box.x < other_picker_pos.x) {
-		self->outer_box.x = other_picker_pos.x;
+		self->outer_box.x = saturation_img->pos.x;
 	} 
-	if (self->outer_box.y > other_picker_pos.y + other_picker_pos.h) {
-		self->outer_box.y = other_picker_pos.y + other_picker_pos.h;
+	if (self->outer_box.y > saturation_img->pos.y + saturation_img->pos.h) {
+		self->outer_box.y = saturation_img->pos.y + saturation_img->pos.h;
 	} else if (self->outer_box.y < other_picker_pos.y) {
-		self->outer_box.y = other_picker_pos.y;
+		self->outer_box.y = saturation_img->pos.y;
 	} 
-	int index_y = ((self->outer_box.y - other_picker_pos.y) * other_picker_surface->h / other_picker_pos.h)-1;
+	int index_y = ((self->outer_box.y - saturation_img->pos.y) * saturation_img->surface->h / saturation_img->pos.h)-1;
 	index_y = index_y < 0 ? 0 : index_y;
-	int index_x = ((self->outer_box.x - other_picker_pos.x) * other_picker_surface->w / other_picker_pos.w)-1;
+	int index_x = ((self->outer_box.x - saturation_img->pos.x) * saturation_img->surface->w / saturation_img->pos.w)-1;
 	index_x = index_x < 0 ? 0 : index_x;
-	other_index = index_y * other_picker_surface->w + index_x;
+	other_index = index_y * saturation_img->surface->w + index_x;
 
-	Uint32 *pixels = (Uint32*)other_picker_surface->pixels;
+	Uint32 *pixels = (Uint32*)saturation_img->surface->pixels;
 	Uint32 pixel = pixels[other_index];
 
 	self->bg_color.r = pixel >> 16;
