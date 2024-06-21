@@ -4,6 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../include/ui.h"
+
+#define FAN_CURVE_PATH "/.config/Ll-connect-config/fan_curve"
 #define HUB_PATH "/proc/Lian_li_hub/"
 #define MBSYNC_PATH "/proc/Lian_li_hub/mb_sync"
 #define PORT_ONE_PATH "/proc/Lian_li_hub/Port_one"
@@ -65,6 +68,8 @@ struct rgb_data prev_rgb_data[4] = { { &rgb_modes[0], 0x02, 0, 0, { 0 }, &rgb_mo
                                      { &rgb_modes[0], 0x02, 0, 0, { 0 }, &rgb_modes[0], 0x02, 0, 0, { 0 } } };
 
 
+int load_graph(struct graph *g, char *path);
+int save_graph(struct graph *g, char *path);
 int set_fan_speed(struct port *p, int speed);
 int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_colors, int do_check);
 int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_colors, int do_check);

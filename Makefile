@@ -17,6 +17,7 @@ all: bin/$(EXECUTABLE)
 
 bin/$(EXECUTABLE): $(LIB_DIR)/libui.so $(LIB_DIR)/libcontroller.so $(MAIN)
 	gcc -g -I$(INC_DIR) -L$(LIB_DIR) -Wl,-rpath,'$$ORIGIN/../$(LIB_DIR)' -lcontroller -lui -lSDL2 -o bin/$(EXECUTABLE) $(MAIN)
+	mkdir -p $(HOME)/.config/Ll-connect-config
 
 $(LIB_DIR)/libui.so: $(OBJ_DIR)/ui.o
 	$(CC) -g -shared -o $@ $< -lSDL2 -lSDL2_ttf

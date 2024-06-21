@@ -1,5 +1,79 @@
 #include "../include/controller.h"
 
+int load_graph(struct graph *g, char *path)
+{
+	const char *home_path = getenv("HOME");
+	if (home_path == NULL) {
+		printf("load_graph failed to get home_path\n");
+		return -1;
+	}
+	char new_path[100];
+	strcpy(new_path, home_path);
+	strcat(new_path, path);
+	FILE *f = fopen(new_path, "r");
+	if (f == NULL) {
+		printf("load_graph failed to open file at path %s\n", new_path);
+		return -1;
+	}
+	char *line = malloc(sizeof(char)*100);
+	size_t n = sizeof(char)*100;
+	int fan_speed, ct;
+
+	int i = 0;
+	while (getline(&line, &n, f) != -1) {
+		sscanf(line, "%d %d", &fan_speed, &ct);
+		printf("line = %s, ct = %d, fanspeed = %d\n", line, ct, fan_speed);
+		if (g->point_amount + 1 > g->total_points) {
+			g->total_points += 5;
+			g->points = realloc(g->points, sizeof(struct point) * g->total_points);
+		}
+		g->points[i].x = ct, g->points[i].y = fan_speed;
+		g->point_amount = ++i;
+
+	}
+	free(line);
+	fclose(f);
+	return 0;
+
+}
+
+int save_graph(struct graph *g, char *path)
+{
+	const char *home_path = getenv("HOME");
+	if (home_path == NULL) {
+		printf("save_graph failed to get home_path\n");
+		return -1;
+	}
+	char new_path[100];
+	strcpy(new_path, home_path);
+	strcat(new_path, path);
+	FILE *f = fopen(new_path, "w");
+	if (f == NULL) {
+		printf("save_graph failed to open file at path %s\n", new_path);
+		return -1;
+	}
+
+	for (int i = 0; i < g->point_amount; i++) {
+		fprintf(f, "%d %d\n", g->points[i].y, g->points[i].x);
+	}
+	fclose(f);
+	return 0;
+}
+
+float get_fan_speed_from_graph(struct graph *g, float temp) 
+{
+	for (int i = 0; i < g->point_amount; i++) {
+		float xone = (float)g->points[i].x, xtwo = (float)g->points[i + 1].x;
+		float yone = 100.0 - g->points[i].y, ytwo = 100.0 - g->points[i + 1].y;
+		if (xone < temp && xtwo > temp) {
+			float a = (ytwo - yone)/(xtwo - xone);
+			float b = yone - a * xone;
+			return a * temp + b;
+		}
+	}
+	return 0.0;
+}
+
 int set_fan_speed(struct port *p, int speed)
 {
 	char path[MAX_STR_SIZE];

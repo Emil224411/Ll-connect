@@ -29,35 +29,6 @@ int ui_init()
 	}
 	TTF_SetFontWrappedAlign(font, TTF_WRAPPED_ALIGN_LEFT);
 
-	/*text_arr = malloc(sizeof(struct text *) * 40);
-	text_arr_total_len = 10;
-	text_arr_used_len = 0;
-
-	input_box_arr = malloc(sizeof(struct input*) * 10);
-	input_box_arr_total_len = 10;
-	input_box_arr_used_len = 0;
-	selected_input = NULL;
-
-	button_arr = malloc(sizeof(struct button*) * 10);
-	button_arr_total_len = 10;
-	button_arr_used_len = 0;
-	selected_button = NULL;
-
-	ddm_arr = malloc(sizeof(struct drop_down_menu*) * 10);
-	ddm_arr_total_len = 10;
-	ddm_arr_used_len = 0;
-	selected_ddm = NULL;
-
-	graph_arr = malloc(sizeof(struct graph*) * 10);
-	graph_arr_total_len = 10;
-	graph_arr_used_len = 0;
-	selected_graph = NULL;
-
-	slider_arr = malloc(sizeof(struct slider*) * 10);
-	slider_arr_total_len = 10;
-	slider_arr_used_len = 0;
-	selected_slider = NULL;
-	*/
 	page_arr = malloc(sizeof(struct page *) * 5);
 	page_arr_total_len = 5;
 	page_arr_used_len = 0;
@@ -110,9 +81,11 @@ void handle_event(SDL_Event *event)
 		case SDL_MOUSEBUTTONDOWN:
 			//mabey create a mouse_button_down function for stuff that should happen regardless of left or right
 			if (event->button.button == SDL_BUTTON_LEFT) lmouse_button_down(event);
+			if (event->button.button == SDL_BUTTON_RIGHT) rmouse_button_down(event);
 			break;
 		case SDL_MOUSEBUTTONUP:
 			if (event->button.button == SDL_BUTTON_LEFT) lmouse_button_up(event);
+			if (event->button.button == SDL_BUTTON_RIGHT) rmouse_button_up(event);
 			break;
 		case SDL_MOUSEWHEEL:
 			mouse_wheel(&event->wheel);
@@ -203,6 +176,37 @@ void mouse_move(SDL_Event *event)
 		if (showen_page->selected_g->on_move != NULL) showen_page->selected_g->on_move(showen_page->selected_g, event);
 	}
 }
+
+void rmouse_button_down(SDL_Event *event)
+{
+	
+}
+
+void rmouse_button_up(SDL_Event *event)
+{
+	SDL_MouseButtonEvent mouse_data = event->button;
+	for (int i = 0; i < showen_page->g_arr_used_len; i++) {
+		if (CHECK_RECT(mouse_data, showen_page->g_arr[i]->scaled_pos)) {
+			showen_page->selected_g = showen_page->g_arr[i];
+			int offx = mouse_data.x - showen_page->selected_g->scaled_pos.x;
+			int offy = mouse_data.y - showen_page->selected_g->scaled_pos.y;
+			for (int j = 0; j < showen_page->selected_g->point_amount; j++) {
+				struct graph *tmp_graph = showen_page->selected_g;
+				if (offx < tmp_graph->points[j].x * tmp_graph->scale_w + tmp_graph->points_size.w && offx > tmp_graph->points[j].x * tmp_graph->scale_w
+						&& offy < tmp_graph->points[j].y * tmp_graph->scale_h + tmp_graph->points_size.h && offy > tmp_graph->points[j].y * tmp_graph->scale_h) {
+					tmp_graph->point_amount -= 1;
+					for (int i = j; i < tmp_graph->point_amount; i++) {
+						tmp_graph->points[i] = tmp_graph->points[i + 1];
+					}
+					tmp_graph->points[tmp_graph->point_amount].x = 0;
+					tmp_graph->points[tmp_graph->point_amount].y = 0;
+					tmp_graph->selected_point = NULL;
+				}
+			}
+		}
+	}
+}
+
 /* LATER: only check if button or input_box is visible mabey create array with all showen things idk */
 void lmouse_button_up(SDL_Event *event)
 {
@@ -217,6 +221,29 @@ void lmouse_button_up(SDL_Event *event)
 
 	}
 	if (showen_page->selected_g != NULL) {
+		if (event->button.clicks > 1) {
+			if (showen_page->selected_g->total_points < showen_page->selected_g->point_amount + 1) {
+				showen_page->selected_g->total_points += 5;
+				showen_page->selected_g->points = realloc(showen_page->selected_g->points, sizeof(struct point) * showen_page->selected_g->total_points);
+			}
+			struct graph *tmp_g = showen_page->selected_g;
+			for (int i = 0; i < tmp_g->point_amount; i++) {
+				if (tmp_g->points[i].x < (mouse_data.x-tmp_g->real_pos.x)/tmp_g->scale_w 
+						&& tmp_g->points[i + 1].x > (mouse_data.x - tmp_g->real_pos.x)/tmp_g->scale_w) {
+					struct point tmp_point = tmp_g->points[i + 1];
+					for (int j = i + 1; j < tmp_g->point_amount; j++) {
+						struct point other_tmp_point = tmp_g->points[j + 1];
+						tmp_g->points[j + 1] = tmp_point;
+						tmp_point = other_tmp_point;
+						
+					}
+					tmp_g->points[i + 1].x = (mouse_data.x - tmp_g->real_pos.x)/tmp_g->scale_w;
+					tmp_g->points[i + 1].y = (mouse_data.y - tmp_g->real_pos.y)/tmp_g->scale_h;
+					tmp_g->point_amount++;
+					break;
+				}
+			}
+		}
 		if (showen_page->selected_g->selected_point != NULL) showen_page->selected_g->selected_point = NULL;
 		showen_page->selected_g = NULL;
 	}
@@ -281,17 +308,30 @@ void lmouse_button_down(SDL_Event *event)
 	if (showen_page->selected_g == NULL) {
 		for (int i = 0; i < showen_page->g_arr_used_len; i++) {
 			if (CHECK_RECT(mouse_data, showen_page->g_arr[i]->scaled_pos)) {
-				showen_page->selected_g = showen_page->g_arr[i];
-				int offx = mouse_data.x - showen_page->selected_g->scaled_pos.x;
-				int offy = mouse_data.y - showen_page->selected_g->scaled_pos.y;
-				for (int j = 0; j < showen_page->selected_g->point_amount; j++) {
-					if (offx < showen_page->selected_g->points[j].x * showen_page->selected_g->scale_w + showen_page->selected_g->points_size.w && offx > showen_page->selected_g->points[j].x * showen_page->selected_g->scale_w
-							&& offy < showen_page->selected_g->points[j].y * showen_page->selected_g->scale_h + showen_page->selected_g->points_size.h && offy > showen_page->selected_g->points[j].y * showen_page->selected_g->scale_h) {
-						showen_page->selected_g->selected_point = &showen_page->selected_g->points[j];
-						showen_page->selected_g->selected_point_index = j;
-						showen_page->selected_g->selected = 1;
-					}
-				}
+				struct graph *tmp_g = showen_page->selected_g = showen_page->g_arr[i];
+				int offx = (mouse_data.x - tmp_g->scaled_pos.x);
+				int offy = (mouse_data.y - tmp_g->scaled_pos.y);
+				for (int j = 0; j < tmp_g->point_amount; j++) {
+					if (tmp_g->points[j].x * tmp_g->scale_w + tmp_g->points_size.w > offx && tmp_g->points[j].x * tmp_g->scale_w < offx && 
+							tmp_g->points[j].y * tmp_g->scale_h + tmp_g->points_size.h > offy && tmp_g->points[j].y * tmp_g->scale_h < offy) {
+						tmp_g->selected_point = &tmp_g->points[j];
+						tmp_g->selected_point_index = j;
+						tmp_g->selected = 1;
+					} else if (offx > tmp_g->scaled_pos.w - tmp_g->points_size.w 
+						 && offx + tmp_g->points_size.w < tmp_g->points[j].x * tmp_g->scale_w + tmp_g->points_size.h && offx + tmp_g->points_size.w > tmp_g->points[j].x * tmp_g->scale_w
+						 && offy < tmp_g->points[j].y * tmp_g->scale_h + tmp_g->points_size.h && offy > tmp_g->points[j].y * tmp_g->scale_h) {
+						tmp_g->selected_point = &tmp_g->points[j];
+						tmp_g->selected_point_index = j;
+						tmp_g->selected = 1;
+					} else if (offy > tmp_g->scaled_pos.h - tmp_g->points_size.h 
+						 && offx < tmp_g->points[j].x * tmp_g->scale_w + tmp_g->points_size.h && offx > tmp_g->points[j].x * tmp_g->scale_w
+						 && offy + tmp_g->points_size.h < tmp_g->points[j].y * tmp_g->scale_h + tmp_g->points_size.h && offy + tmp_g->points_size.h > tmp_g->points[j].y * tmp_g->scale_h) {
+						tmp_g->selected_point = &tmp_g->points[j];
+						tmp_g->selected_point_index = j;
+						tmp_g->selected = 1;
+						}
+					} 
+
 			}
 		}
 	}
@@ -533,7 +573,8 @@ struct button *create_button(char *string, int movable, int show, int x, int y, 
 	if (on_click != NULL) new_button.clickable = 1;
 	if (string != NULL) {
 		int tmp_w = 0, tmp_h = 0;
-		if (h != 0 && w != 0) tmp_h = h - 10, tmp_w = w - 10;
+		if (h != 0) tmp_h = h - 10;
+		if (w != 0) tmp_w = w - 10;
 		new_button.text = create_text(string, x + 5, y + 5, tmp_w, tmp_h, font_size, 0, text_color, bg_color, f, NULL);
 		new_button.texture = &new_button.text->texture;
 	} 
@@ -916,10 +957,9 @@ void update_slider(struct slider *slider, int x)
 
 struct graph *create_graph(int x, int y, int w, int h, int scale_w, int scale_h, int point_w, int point_h, int sp_w, int sp_h, int p_amount, void (*on_move)(), SDL_Color oc, SDL_Color bgc, SDL_Color fgc, SDL_Color point_c, SDL_Color sp_c, struct page *p)
 {
-	printf("create_graph\n");
 	struct graph *return_graph = malloc(sizeof(struct graph));
 	struct graph tmp_graph = { { x, y, w, h }, {x, y, w * scale_w, h * scale_h}, { 0, 0, point_w, point_h }, { 0, 0, sp_w, sp_h }, 
-				   scale_w, scale_h, 0, 0, NULL, 0, 0, 1, p_amount, NULL, on_move, oc, bgc, fgc, point_c, sp_c, p};
+				   scale_w, scale_h, 0, 0, NULL, 0, 0, 1, p_amount, p_amount, NULL, { 0 }, on_move, oc, bgc, fgc, point_c, sp_c, p};
 	struct point *pt = malloc(sizeof(struct point) * p_amount);
 	tmp_graph.points = pt;
 	memcpy(return_graph, &tmp_graph, sizeof(struct graph));
@@ -938,6 +978,7 @@ struct graph *create_graph(int x, int y, int w, int h, int scale_w, int scale_h,
 
 void destroy_graph(struct graph *graph)
 {
+	free(graph->points);
 	if (graph->parent_p != NULL) {
 		for (int i = graph->index; i < graph->parent_p->g_arr_used_len-1; i++) {
 			graph->parent_p->g_arr[i] = graph->parent_p->g_arr[i+1];
@@ -946,7 +987,6 @@ void destroy_graph(struct graph *graph)
 		graph->parent_p->g_arr[graph->parent_p->g_arr_used_len] = NULL;
 		graph->parent_p->g_arr_used_len -= 1;
 	}
-	free(graph->points);
 	free(graph);
 }
 
@@ -1011,6 +1051,11 @@ void render_graph(struct graph *graph)
 
 			SDL_RenderFillRect(renderer, &tmp_rect);
 		}
+	}
+	if (graph->x.x != 0) {
+		SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(graph->point_colors));
+		SDL_RenderDrawLine(renderer, graph->real_pos.x + graph->x.x * graph->scale_w, graph->real_pos.y, 
+						graph->real_pos.x + graph->x.x * graph->scale_w, graph->real_pos.y + graph->scaled_pos.h);
 	}
 	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(graph->outer_color));
 	SDL_RenderDrawRect(renderer, &graph->scaled_pos);
