@@ -6,11 +6,10 @@
  |														|
  |						TODO list							|
  |														|
- |		1.  finish fan speed control page apply to port apply to all.					|
- |		2.  implement load and save fan curves for all ports not just one fan curve.			|
- |		3.  implement save and load port.								|
- | 		4.  in kernel module implement fan curves 							|
- | 		5.  in kernel module implement saving and loading 						|
+ |		1.  finish implementing save and load port im too tired rn (src/controller.c:44).		|
+ |		2.  finish fan speed control page apply to port apply to all.					|
+ | 		3.  in kernel module implement fan curves 							|
+ | 		4.  in kernel module implement saving and loading 						|
  | 														|
  |--------------------------------------------------------------------------------------------------------------|
  |														|
@@ -587,52 +586,15 @@ void fan_ring_select(struct drop_down_menu *d, SDL_Event *event)
 
 int update_speed_str()
 {
-	char path[MAX_TEXT_SIZE];
-
-	strcpy(path, PORT_ONE_PATH);
-	strcat(path, "/fan_speed");
-	FILE *f = fopen(path, "r+");
-	if (f == NULL) {
-		printf("fan_speeds Port_one failed to open\n");
-		return -1;
+	for (int i = 0; i < 4; i++) {
+		speeds_pro[i] = get_fan_speed_pro(ports[i].path);
+		speeds_rpm[i] = get_fan_speed_rpm(ports[i].path);
 	}
-	fscanf(f, "%d %d\n", &speeds_pro[0], &speeds_rpm[0]);
-	fclose(f);
-
-	strcpy(path, PORT_TWO_PATH);
-	strcat(path, "/fan_speed");
-	f = fopen(path, "r+");
-	if (f == NULL) {
-		printf("fan_speeds Port_two failed to open\n");
-		return -1;
-	}
-	fscanf(f, "%d %d\n", &speeds_pro[1], &speeds_rpm[1]);
-	fclose(f);
-
-	strcpy(path, PORT_THREE_PATH);
-	strcat(path, "/fan_speed");
-	f = fopen(path, "r+");
-	if (f == NULL) {
-		printf("fan_speeds Port_three failed to open\n");
-		return -1;
-	}
-	fscanf(f, "%d %d\n", &speeds_pro[2], &speeds_rpm[2]);
-	fclose(f);
-
-	strcpy(path, PORT_FOUR_PATH);
-	strcat(path, "/fan_speed");
-	f = fopen(path, "r+");
-	if (f == NULL) {
-		printf("fan_speeds Port_four failed to open\n");
-		return -1;
-	}
-	fscanf(f, "%d %d\n", &speeds_pro[3], &speeds_rpm[3]);
 
 	sprintf(speeds_str, "%d, %d, %d, %d\n%d, %d, %d, %d", 
 			speeds_pro[0], speeds_pro[1], speeds_pro[2], speeds_pro[3], 
 			speeds_rpm[0], speeds_rpm[1], speeds_rpm[2], speeds_rpm[3]);
 
-	fclose(f);
 	return 0;
 }
 
