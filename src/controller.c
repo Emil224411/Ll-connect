@@ -78,22 +78,49 @@ int load_port(struct port *p)
 	fclose(f);
 	strcpy(path, home_path);
 	strcat(path, p->config_path); 
-	strcat(path, "/outer_color");
+	strcat(path, "/inner_colors");
 
+	f = fopen(path, "r");
+	size_t n = sizeof(char) * 351;
+	char line[351];
+	fread(line, sizeof(char), 351, f);
+	int stri = 0;
+	for (int i = 0; i < 48; i++) {
+		unsigned int tmpr, tmpg, tmpb;
+		sscanf(&line[stri], "%02x%02x%02x", &tmpr, &tmpb, &tmpg);
+		p->rgb.inner_color[i].r = tmpr;
+		p->rgb.inner_color[i].g = tmpg;
+		p->rgb.inner_color[i].b = tmpb;
+		stri += 6;
+	}
 
+	fclose(f);
 
 	strcpy(path, home_path);
 	strcat(path, p->config_path); 
 	strcat(path, "/outer_rgb"); 
 
 	f = fopen(path, "w");
-	fprintf(f, "%d %d %d %d", p->rgb.outer_mode->index, p->rgb.outer_speed, p->rgb.outer_brightnes, p->rgb.outer_direction);
+	printf("fopen at path %s\n", path);
+	fprintf(f, "%d %d %d %d", rgb_mode, p->rgb.outer_speed, p->rgb.outer_brightnes, p->rgb.outer_direction);
+	p->rgb.outer_mode = &rgb_modes[rgb_mode];
 
 	fclose(f);
 	strcpy(path, home_path);
 	strcat(path, p->config_path); 
-	
-	write_outer_colors(path, p->rgb.outer_color, p->fan_count, 1, 0);
+	strcat(path, "/outer_colors");
+
+	f = fopen(path, "r");
+	fread(line, sizeof(char), 351, f);
+	stri = 0;
+	for (int i = 0; i < 72; i++) {
+		unsigned int tmpr, tmpg, tmpb;
+		sscanf(&line[stri], "%02x%02x%02x", &tmpr, &tmpb, &tmpg);
+		p->rgb.outer_color[i].r = tmpr;
+		p->rgb.outer_color[i].g = tmpg;
+		p->rgb.outer_color[i].b = tmpb;
+		stri += 6;
+	}
 
 	return 0;
 }
@@ -114,6 +141,7 @@ int save_port(struct port *p)
 	}
 	fprintf(f, "%d", p->fan_count);
 	fclose(f);
+	printf("save_port: saved p->fan_count\n");
 
 	strcpy(path, p->config_path); 
 	strcat(path, "/fan_curve"); 
@@ -121,6 +149,7 @@ int save_port(struct port *p)
 		printf("save_port failed to save fan_curve graph\n");
 		return -1;
 	}
+	printf("save_port: saved p->fan_curve\n");
 
 	strcpy(path, home_path);
 	strcat(path, p->config_path); 
@@ -128,12 +157,14 @@ int save_port(struct port *p)
 
 	f = fopen(path, "w");
 	fprintf(f, "%d %d %d %d", p->rgb.inner_mode->index, p->rgb.inner_speed, p->rgb.inner_brightnes, p->rgb.inner_direction);
+	printf("save_port: saved p->rgb inner %d %d %d etc.\n", p->rgb.inner_speed, p->rgb.inner_direction, p->rgb.inner_brightnes);
 
 	fclose(f);
 	strcpy(path, home_path);
 	strcat(path, p->config_path); 
 	
 	write_inner_colors(path, p->rgb.inner_color, p->fan_count, 1, 0);
+	printf("save_port: saved p->rgb.inner_color\n");
 
 	strcpy(path, home_path);
 	strcat(path, p->config_path); 
@@ -141,12 +172,14 @@ int save_port(struct port *p)
 
 	f = fopen(path, "w");
 	fprintf(f, "%d %d %d %d", p->rgb.outer_mode->index, p->rgb.outer_speed, p->rgb.outer_brightnes, p->rgb.outer_direction);
+	printf("save_port: saved p->rgb outer %d %d %d etc.\n", p->rgb.inner_speed, p->rgb.inner_direction, p->rgb.inner_brightnes);
 
 	fclose(f);
 	strcpy(path, home_path);
 	strcat(path, p->config_path); 
 	
 	write_outer_colors(path, p->rgb.outer_color, p->fan_count, 1, 0);
+	printf("save_port: saved p->rgb.outer_color\n");
 
 	return 0;
 }
@@ -189,6 +222,10 @@ int load_graph(struct graph *g, char *path)
 
 int save_graph(struct graph *g, char *path)
 {
+	if (g == NULL) {
+		printf("save_graph: error g == NULL\n");
+		return -1;
+	}
 	const char *home_path = getenv("HOME");
 	if (home_path == NULL) {
 		printf("save_graph failed to get home_path\n");
@@ -571,7 +608,6 @@ int write_inner_colors(char *path, struct color *new_colors, int fan_count, floa
 			b *= bright;
 		}
 		sprintf(&inner_color_str[str_i], "%02x%02x%02x", r, b, g);
-		printf("%02x%02x%02x\n", r, g, b);
 		
 		str_i += 6;
 	}

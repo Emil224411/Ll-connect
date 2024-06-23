@@ -6,10 +6,12 @@
  |														|
  |						TODO list							|
  |														|
- |		1.  finish implementing save and load port im too tired rn (src/controller.c:44).		|
- |		2.  finish fan speed control page apply to port apply to all.					|
- | 		3.  in kernel module implement fan curves 							|
- | 		4.  in kernel module implement saving and loading 						|
+ | 		1.  in kernel module implement fan curves and FIX TIMER for checking cpu temp.			|
+ | 		2.  in kernel module implement saving and loading.						|
+ | 		3.  create settings page for setting fan count and what ever else there is a need for.		|
+ |		4.  have a look at the input box code and create two input boxes for setting a points x 	|
+ |				and y.										|
+ |		5.  finish fan speed control page apply to port apply to all.					|
  | 														|
  |--------------------------------------------------------------------------------------------------------------|
  |														|
@@ -18,10 +20,9 @@
  | 		1.  when a rgb_mode with only INNER_AND_OUTER flag set is applied you try to change 		|
  |		 	inner or outer mode it glithes is basicly fixed but the fix is not perfect so 		|
  |			refactor that since i dont feel like it rn and it works so yk 				|
- |		2. refactor or rewrite the input_box code. 			 				|
- | 		3. test which rgb modes require NOT_MOVING flag(and find a new name for the flag 		|
+ | 		2. test which rgb modes require NOT_MOVING flag(and find a new name for the flag 		|
  |			since Breathing needs the flag)(i dont think any more modes need it) 			|
- |		4. mabey write functions for setting colors and setting the mode in the driver 			|
+ |		3. mabey write functions for setting colors and setting the mode in the driver 			|
  | 			look at usbNotes.txt:41.								|
  |														|
  \**************************************************************************************************************/
@@ -58,6 +59,7 @@ void fan_ring_select(struct drop_down_menu *d, SDL_Event *event);
 void color_buttons_click(struct button *self, SDL_Event *e);
 void create_color_buttons();
 void change_colors_to_color_buttons(const struct rgb_mode *new_mode, int led_amount, struct color *colors_to_change);
+void change_color_buttons_to_colors(const struct rgb_mode *new_mode, int led_amount, struct color *colors_to_change);
 void apply(struct button *self, SDL_Event *e);
 void port_select_rgb_func(struct button *self, SDL_Event *event);
 void port_select_fan_func(struct button *self, SDL_Event *event);
@@ -67,6 +69,8 @@ static void set_all(int mode, int speed, int direction, int brightnes, int flag)
 void change_to_rgb_page(struct button *self, SDL_Event *e);
 void change_to_fan_page(struct button *self, SDL_Event *e);
 void update_temp();
+float get_fan_speed_from_graph(struct graph *g, float temp);
+void apply_fans_func(struct button *self, SDL_Event *e);
 
 float cpu_temp_num;
 
@@ -87,6 +91,7 @@ struct text *graph_fan_speed_text;
 struct text *graph_cpu_temp_text;
 struct graph *test_graph;
 char speeds_str[MAX_TEXT_SIZE];
+struct button *apply_fan_speed;
 struct text *speeds;
 int speeds_pro[4] = { 0 };
 int speeds_rpm[4] = { 0 };
@@ -171,7 +176,7 @@ int main()
 		}
 		SDL_Delay(1);
 	}
-	save_graph(test_graph, FAN_CURVE_PATH);
+	for (int i = 0; i < 4; i++) save_port(&ports[i]);
 	ui_shutdown();
 
 	return 0;
@@ -213,12 +218,20 @@ int init()
 
 	test_page = create_page();
 	test_page2 = create_page();
-	speeds = create_text(speeds_str, 10, 100, 0, 0, 0, 0, WHITE, edarkgrey, font, test_page2);
+	for (int i = 0; i < 4; i++) {
+		ports[i].fan_curve = create_graph(20, WINDOW_H-220, 100, 100, 4, 2, 10, 10, 10, 10, 0, moving_graph, WHITE, BLACK, BLUE, grey, BLUE, test_page2);
+		ports[i].fan_curve->show = 0;
+		ports[i].fan_curve->rerender = 0;
+		load_port(&ports[i]);
+	}
+	ports[0].fan_curve->show = 1;
+	ports[0].fan_curve->rerender = 1;
+	rgb_brightnes = ports[0].rgb.inner_brightnes;
 
-	ports[0].fan_count = 4;
-	ports[1].fan_count = 3;
-	ports[2].fan_count = 3;
-	ports[3].fan_count = 1;
+	rgb_speed = ports[0].rgb.inner_speed;
+
+	direction = ports[0].rgb.inner_direction;
+	speeds = create_text(speeds_str, 10, 100, 0, 0, 0, 0, WHITE, edarkgrey, font, test_page2);
 
 	color_img = create_image(10, WINDOW_H-130, 300, 20, 1530, 1, 32, test_page);
 	create_rgb_color_picker_surface();
@@ -267,32 +280,63 @@ int init()
 	rgb_speed_text = create_text("0%", rgb_speed_slider->pos.x + 210, rgb_speed_slider->button->outer_box.y - 2, 0, 0, 0, 0, WHITE, edarkgrey, font, test_page);
 	rgb_brightnes_text = create_text("0%", rgb_brightnes_slider->pos.x + 210, rgb_brightnes_slider->button->outer_box.y - 2, 0, 0, 0 , 0, WHITE, edarkgrey, font, test_page);
 
+	float rounded = 0.0;
+	switch (rgb_brightnes) {
+		case 0x08:
+			rounded = rgb_brightnes_slider->p = 0.00;
+			break;
+		case 0x03:
+			rounded = rgb_brightnes_slider->p = 0.25;
+			break;
+		case 0x02:
+			rounded = rgb_brightnes_slider->p = 0.50;
+			break;
+		case 0x01:
+			rounded = rgb_brightnes_slider->p = 0.75;
+			break;
+		case 0x00:
+			rounded = rgb_brightnes_slider->p = 1.00;
+			break;
+			
+			
+	}
+	char brightnes_str[6];
+	sprintf(brightnes_str, "%3d%%", (int)(rounded * 100));
+	change_text_and_render_texture(rgb_brightnes_text, brightnes_str, WHITE, edarkgrey, font);
+	rgb_brightnes_slider->button->outer_box.x = rgb_brightnes_slider->pos.x + (rgb_brightnes_slider->pos.w * rounded) - rgb_brightnes_slider->button->outer_box.w/2;
+	rounded = 0.0;
+	switch (rgb_speed) {
+		case 0x02:
+			rounded = rgb_speed_slider->p = 0.00;
+			break;
+		case 0x01:
+			rounded = rgb_speed_slider->p = 0.25;
+			break;
+		case 0x00:
+			rounded = rgb_speed_slider->p = 0.50;
+			break;
+		case 0xff:
+			rounded = rgb_speed_slider->p = 0.75;
+			break;
+		case 0xfe:
+			rounded = rgb_speed_slider->p = 1.00;
+			break;
+			
+			
+	}
+	sprintf(brightnes_str, "%3d%%", (int)(rounded * 100));
+	change_text_and_render_texture(rgb_speed_text, brightnes_str, WHITE, edarkgrey, font);
+	rgb_speed_slider->button->outer_box.x = rgb_speed_slider->pos.x + (rgb_speed_slider->pos.w * rounded) - rgb_speed_slider->button->outer_box.w/2;
 	toggle_merge = create_button("Merge", 0, 1, apply_to_all_rgb->outer_box.x + apply_to_all_rgb->outer_box.w + 5, apply_to_all_rgb->outer_box.y, 0, 0, 20, font, toggle_merge_button, NULL, WHITE, edarkgrey, WHITE, test_page);
 	
-	test_graph = create_graph(20, WINDOW_H-220, 100, 100, 4, 2, 10, 10, 10, 10, 0, moving_graph, WHITE, BLACK, BLUE, grey, BLUE, test_page2);
-	test_graph->rerender = 1;
-	/*test_graph->points[0].x = 15;
-	test_graph->points[0].y = 90;
-	test_graph->points[1].x = 30;
-	test_graph->points[1].y = 75;
-	test_graph->points[2].x = 40;
-	test_graph->points[2].y = 70;
-	test_graph->points[3].x = 50;
-	test_graph->points[3].y = 60;
-	test_graph->points[4].x = 60;
-	test_graph->points[4].y = 40;
-	test_graph->points[5].x = 70;
-	test_graph->points[5].y = 20;
-	*/
-	load_graph(test_graph, FAN_CURVE_PATH);
 	graph_cpu_temp_text = create_text("cputemp: %", 20, 220, 0, 0, 20, 0, WHITE, edarkgrey, font, test_page2);
 	graph_fan_speed_text = create_text("fanspeed: %", 20, 250, 0, 0, 20, 0, WHITE, edarkgrey, font, test_page2);
 	prev_w = 0, prev_h = 0;
 	for (int i = 0; i < 4; i++) {
 		char portstr[7];
 		sprintf(portstr, "Port %d", i+1); 
-		select_port_fan_buttons[i] = create_button(portstr, 0, 1, test_graph->scaled_pos.x + test_graph->scaled_pos.w + prev_w + 10, 
-					test_graph->scaled_pos.y + test_graph->scaled_pos.h - 73 + prev_h, 0, 0, 0, font, port_select_fan_func, NULL, WHITE, edarkgrey, WHITE, test_page2);
+		select_port_fan_buttons[i] = create_button(portstr, 0, 1, ports[0].fan_curve->scaled_pos.x + ports[0].fan_curve->scaled_pos.w + prev_w + 10, 
+					ports[0].fan_curve->scaled_pos.y + ports[0].fan_curve->scaled_pos.h - 73 + prev_h, 0, 0, 0, font, port_select_fan_func, NULL, WHITE, edarkgrey, WHITE, test_page2);
 		if ((i + 1) % 2 == 0) {
 			prev_h = select_port_fan_buttons[i]->outer_box.h + 5;
 			prev_w = 0;
@@ -300,6 +344,7 @@ int init()
 			prev_w = select_port_fan_buttons[i]->outer_box.w + 5;
 		}
 	}
+	apply_fan_speed = create_button("Apply", 0, 1, select_port_fan_buttons[3]->outer_box.x + select_port_fan_buttons[3]->outer_box.w, select_port_fan_buttons[3]->outer_box.y, 0, 0, 0, font, apply_fans_func, NULL, WHITE, edarkgrey, WHITE, test_page2);
 
 	rgb_page_button_r = create_button("rgb", 0, 1, 10, 20, 0, 0, 20, font, change_to_rgb_page, NULL, WHITE, edarkgrey, WHITE, test_page);
 	fan_page_button_r = create_button("fan", 0, 1, 10, rgb_page_button_r->outer_box.y + rgb_page_button_r->outer_box.h + 5, 
@@ -313,11 +358,16 @@ int init()
 	return 0;
 }
 
+void apply_fans_func(struct button *self, SDL_Event *e)
+{
+	set_fan_speed(&ports[selected_port], get_fan_speed_from_graph(ports[selected_port].fan_curve, cpu_temp_num));
+}
+
 float get_fan_speed_from_graph(struct graph *g, float temp) 
 {
-	for (int i = 0; i < test_graph->point_amount; i++) {
-		float xone = (float)test_graph->points[i].x, xtwo = (float)test_graph->points[i + 1].x;
-		float yone = 100.0 - test_graph->points[i].y, ytwo = 100.0 - test_graph->points[i + 1].y;
+	for (int i = 0; i < ports[selected_port].fan_curve->point_amount; i++) {
+		float xone = (float)ports[selected_port].fan_curve->points[i].x, xtwo = (float)ports[selected_port].fan_curve->points[i + 1].x;
+		float yone = 100.0 - ports[selected_port].fan_curve->points[i].y, ytwo = 100.0 - ports[selected_port].fan_curve->points[i + 1].y;
 		if (xone < temp && xtwo > temp) {
 			float a = (ytwo - yone)/(xtwo - xone);
 			float b = yone - a * xone;
@@ -345,7 +395,7 @@ void update_temp() {
 	char str[10];
 	sprintf(str, "%.2f", cpu_temp_num); 
 	change_text_and_render_texture(cpu_temp, str, cpu_temp->fg_color, cpu_temp->bg_color, font);
-	test_graph->x.x = cpu_temp_num;
+	ports[selected_port].fan_curve->x.x = cpu_temp_num;
 	fclose(fcpu);
 }
 
@@ -370,7 +420,11 @@ void port_select_fan_func(struct button *self, SDL_Event *event)
 {
 	for (int i = 0; i < 4; i++) {
 		if (self == select_port_fan_buttons[i]) {
+			ports[selected_port].fan_curve->show = 0;
+			ports[selected_port].fan_curve->rerender = 0;
 			selected_port = i;
+			ports[i].fan_curve->show = 1;
+			ports[i].fan_curve->rerender = 1;
 		}
 	}
 }
@@ -479,6 +533,30 @@ void change_colors_to_color_buttons(const struct rgb_mode *new_mode, int led_amo
 
 }
 
+void change_color_buttons_to_colors(const struct rgb_mode *new_mode, int led_amount, struct color *colors_to_change)
+{
+	int rj = 0;
+	if (new_mode->flags & NOT_MOVING) {
+		for (int i = 0; i < new_mode->colors; i++) {
+			for (int j = 0; j < led_amount; j++) {
+				color_buttons[i]->bg_color.r = colors_to_change[rj].r;
+				color_buttons[i]->bg_color.g = colors_to_change[rj].g;
+				color_buttons[i]->bg_color.b = colors_to_change[rj].b;
+				rj++;
+			}
+		}
+	} else if (new_mode->colors > 0) {
+		for (int j = 0; j < ports[selected_port].fan_count; j++) {
+			for (int i = 0; i < new_mode->colors; i++) {
+				color_buttons[i]->bg_color.r = colors_to_change[j * ports[selected_port].fan_count + i].r;
+				color_buttons[i]->bg_color.g = colors_to_change[j * ports[selected_port].fan_count + i].g;
+				color_buttons[i]->bg_color.b = colors_to_change[j * ports[selected_port].fan_count + i].b;
+			}
+		}
+	}
+
+}
+
 void apply(struct button *self, SDL_Event *e)
 {
 	int set_all = self == apply_to_all_rgb ? 1 : 0;
@@ -540,6 +618,7 @@ void create_color_buttons()
 						45, 40, 0, font, color_buttons_click, NULL, WHITE, RED, WHITE, test_page);
 		if (i > rgb_modes[rgb_mode_i].colors) color_buttons[i]->show = 0;
 	}
+	change_color_buttons_to_colors(ports[0].rgb.outer_mode, 12, ports[0].rgb.outer_color);
 }
 
 void rgb_mode_ddm_select(struct drop_down_menu *d, SDL_Event *event)
@@ -551,8 +630,12 @@ void rgb_mode_ddm_select(struct drop_down_menu *d, SDL_Event *event)
 				rgb_mode_i = i;
 				rgb_brightnes_text->show = rgb_brightnes_slider->show = (rgb_modes[i].flags & BRIGHTNESS) ? 1 : 0;
 				if (rgb_brightnes_text->show == 0) rgb_brightnes = 0;
+				else if (rgb_mode_ring_type == 0 || rgb_mode_ring_type == 2) rgb_brightnes = ports[selected_port].rgb.inner_brightnes;
+				else if (rgb_mode_ring_type == 1) rgb_brightnes = ports[selected_port].rgb.outer_brightnes;
 				rgb_speed_text->show = rgb_speed_slider->show = (rgb_modes[i].flags & SPEED) ? 1 : 0;
 				if (rgb_speed_text->show == 0) rgb_speed = 0;
+				else if (rgb_mode_ring_type == 0 || rgb_mode_ring_type == 2) rgb_speed = ports[selected_port].rgb.inner_speed;
+				else if (rgb_mode_ring_type == 1) rgb_speed = ports[selected_port].rgb.outer_speed;
 				direction = direction_buttons[0]->show = direction_buttons[1]->show = (rgb_modes[i].flags & DIRECTION) ? 1 : 0;
 				toggle_merge->show = (rgb_modes[i].flags & MERGE) && rgb_mode_ring_type == 2 ? 1 : 0;
 				if (toggle_merge->show == 0) rgb_merge = 0;
@@ -587,8 +670,8 @@ void fan_ring_select(struct drop_down_menu *d, SDL_Event *event)
 int update_speed_str()
 {
 	for (int i = 0; i < 4; i++) {
-		speeds_pro[i] = get_fan_speed_pro(ports[i].path);
-		speeds_rpm[i] = get_fan_speed_rpm(ports[i].path);
+		speeds_pro[i] = get_fan_speed_pro(ports[i].proc_path);
+		speeds_rpm[i] = get_fan_speed_rpm(ports[i].proc_path);
 	}
 
 	sprintf(speeds_str, "%d, %d, %d, %d\n%d, %d, %d, %d", 

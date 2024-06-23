@@ -67,7 +67,7 @@ struct port {
 
 int mb_sync = 0;
 struct port ports[4] = { 
-		{ PORT_ONE_PATH,   PORT_ONE_CONFIG_PATH,    { &rgb_modes[0], 0x02, 0, 0, { 0 }, &rgb_modes[0], 0x02, 0, 0, { 0 } }, 4, 30, 0 },
+		{ .proc_path = PORT_ONE_PATH,   .config_path = PORT_ONE_CONFIG_PATH, .number = 0 },
 		{ PORT_TWO_PATH,   PORT_TWO_CONFIG_PATH,    { &rgb_modes[0], 0x02, 0, 0, { 0 }, &rgb_modes[0], 0x02, 0, 0, { 0 } }, 3, 30, 1 },
 		{ PORT_THREE_PATH, PORT_THREE_CONFIG_PATH,  { &rgb_modes[0], 0x02, 0, 0, { 0 }, &rgb_modes[0], 0x02, 0, 0, { 0 } }, 3, 40, 2 },
 		{ PORT_FOUR_PATH,  PORT_FOUR_CONFIG_PATH,   { &rgb_modes[0], 0x02, 0, 0, { 0 }, &rgb_modes[0], 0x02, 0, 0, { 0 } }, 0,  0, 3 }, };
@@ -84,6 +84,8 @@ int get_fan_speed_rpm(const char *p);
 int get_fan_speed_pro(const char *p);
 int load_graph(struct graph *g, char *path);
 int save_graph(struct graph *g, char *path);
+int save_port(struct port *p);
+int load_port(struct port *p);
 int set_fan_speed(struct port *p, int speed);
 int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_colors, int do_check);
 int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_colors, int do_check);

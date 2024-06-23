@@ -1,23 +1,24 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/proc_fs.h>
+#include <linux/thermal.h>
+#include <linux/timer.h>
 #include <linux/usb.h>
 #include <linux/string.h>
+
+MODULE_LICENSE("GPL");
 
 #define VENDOR_ID 0x0cf2
 #define PRODUCT_ID 0xa104
 
-MODULE_LICENSE("GPL");
-
-static struct usb_device *dev;
-static struct proc_dir_entry *proc_dir;
-static struct proc_dir_entry *proc_mbsync;
-
-static struct usb_device_id dev_table[] = {
-	{ USB_DEVICE(VENDOR_ID, PRODUCT_ID) },
-	{},
-};
-MODULE_DEVICE_TABLE(usb, dev_table);
+#define INNER 		0b00000001
+#define OUTER           0b00000010
+#define INNER_AND_OUTER 0b00000100
+#define MERGE           0b00001000
+#define NOT_MOVING      0b00010000
+#define BRIGHTNESS      0b00100000
+#define SPEED           0b01000000
+#define DIRECTION       0b10000000
 
 struct rgb_data {
 	int mode, brightness, speed, direction;
@@ -39,16 +40,51 @@ struct port_data {
 static struct port_data ports[4];
 
 static int mb_sync_state;
-#define INNER 		0b00000001
-#define OUTER           0b00000010
-#define INNER_AND_OUTER 0b00000100
-#define MERGE           0b00001000
-/* flag for modes where they should send inner and outer color fx. Static Color */
-#define NOT_MOVING      0b00010000
 
-#define BRIGHTNESS      0b00100000
-#define SPEED           0b01000000
-#define DIRECTION       0b10000000
+static struct usb_device *dev;
+static struct proc_dir_entry *proc_dir;
+static struct proc_dir_entry *proc_mbsync;
+
+static struct usb_device_id dev_table[] = {
+	{ USB_DEVICE(VENDOR_ID, PRODUCT_ID) },
+	{},
+};
+MODULE_DEVICE_TABLE(usb, dev_table);
+static struct timer_list speed_timer;
+
+void update_fan_speeds_callback(struct timer_list *tl);
+static int get_cpu_temp(void);
+
+static int prev_temp = 0;
+/* DONT RUN IT CRASHES KERNEL OR SOMETHING FIX TOMORROW */
+void update_fan_speeds_callback(struct timer_list *tl) 
+{
+	int new_temp = get_cpu_temp();
+	if (new_temp != prev_temp)
+	{
+		printk("temp changed was %d is now %d\n", prev_temp, new_temp);
+	}
+}
+
+static int get_cpu_temp(void) 
+{
+	struct thermal_zone_device *thermal_dev;
+	int temp;
+
+	thermal_dev = thermal_zone_get_zone_by_name("x86_pkg_temp");
+	if (IS_ERR(thermal_dev)) {
+		printk(KERN_ERR"failed thermal_zone_get_zone_by_name\n");
+		return -1;
+	}
+
+	if (thermal_zone_get_temp(thermal_dev, &temp)) {
+		printk(KERN_ERR"failed thermal_zone_get_temp\n");
+		return -1;
+	}
+	printk("cpu temp = %d\n", temp);
+	return temp;
+}
+
 static void set_merge(int mode, int speed, int brightness, int direction, struct rgb_data *colors)
 {
 	const size_t packet_size = 353;
@@ -792,15 +828,19 @@ static int dev_probe(struct usb_interface *intf, const struct usb_device_id *id)
 		if (ports[i].proc_fan_speed == NULL) ERROR("proc_create fan_speed_one failed", i);
 	}
 
-	set_speeds(30, 30, 40, 0);
 
 	get_speed_in_rpm();
 
-
+/*
+ *	TODO FIX
+ *
+ *	timer_setup(&speed_timer, update_fan_speeds_callback, 0);
+ *	mod_timer(&speed_timer, jiffies + msecs_to_jiffies(5000));
+ */
 	ports[0].fan_count = 4;
-	ports[1].fan_count = 3;
-	ports[2].fan_count = 3;
-	ports[3].fan_count = 1;
+	ports[1].fan_count = 4;
+	ports[2].fan_count = 4;
+	ports[3].fan_count = 4;
 
 	printk(KERN_INFO"Lian Li Hub: driver probed\n");
 	return 0;
@@ -819,6 +859,11 @@ static void dev_disconnect(struct usb_interface *intf)
 		proc_remove(ports[i].proc_port);
 	}
 	proc_remove(proc_dir);
+/*
+ * 	TODO FIX
+ *
+ * 	del_timer(&speed_timer);
+ */
 	printk(KERN_INFO "Lian Li Hub: driver disconnect\n");
 }
 

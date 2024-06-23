@@ -227,7 +227,7 @@ void lmouse_button_up(SDL_Event *event)
 				showen_page->selected_g->points = realloc(showen_page->selected_g->points, sizeof(struct point) * showen_page->selected_g->total_points);
 			}
 			struct graph *tmp_g = showen_page->selected_g;
-			for (int i = 0; i < tmp_g->point_amount; i++) {
+			for (int i = 0; i < tmp_g->point_amount + 1; i++) {
 				if (tmp_g->points[i].x < (mouse_data.x-tmp_g->real_pos.x)/tmp_g->scale_w 
 						&& tmp_g->points[i + 1].x > (mouse_data.x - tmp_g->real_pos.x)/tmp_g->scale_w) {
 					struct point tmp_point = tmp_g->points[i + 1];
@@ -239,6 +239,23 @@ void lmouse_button_up(SDL_Event *event)
 					}
 					tmp_g->points[i + 1].x = (mouse_data.x - tmp_g->real_pos.x)/tmp_g->scale_w;
 					tmp_g->points[i + 1].y = (mouse_data.y - tmp_g->real_pos.y)/tmp_g->scale_h;
+					tmp_g->point_amount++;
+					break;
+				} else if (i == tmp_g->point_amount && tmp_g->points[i-1].x < (mouse_data.x-tmp_g->real_pos.x)/tmp_g->scale_w) {
+					tmp_g->points[i].x = (mouse_data.x - tmp_g->real_pos.x)/tmp_g->scale_w;
+					tmp_g->points[i].y = (mouse_data.y - tmp_g->real_pos.y)/tmp_g->scale_h;
+					tmp_g->point_amount++;
+					break;
+				} else if (i == 0 && tmp_g->points[i].x > (mouse_data.x-tmp_g->real_pos.x)/tmp_g->scale_w) {
+					struct point tmp_point = tmp_g->points[i];
+					for (int j = i + 1; j < tmp_g->point_amount + 1; j++) {
+						struct point other_tmp_point = tmp_g->points[j];
+						tmp_g->points[j] = tmp_point;
+						tmp_point = other_tmp_point;
+						
+					}
+					tmp_g->points[i].x = (mouse_data.x - tmp_g->real_pos.x)/tmp_g->scale_w;
+					tmp_g->points[i].y = (mouse_data.y - tmp_g->real_pos.y)/tmp_g->scale_h;
 					tmp_g->point_amount++;
 					break;
 				}
@@ -292,6 +309,15 @@ void lmouse_button_up(SDL_Event *event)
 		}
 	}
 }
+
+void select_ddm_item(struct drop_down_menu *ddm, int item)
+{
+	ddm->text[ddm->selected_text_index]->show = 0;
+	ddm->selected_text_index = item;
+	ddm->text[item]->show = 1;
+	ddm->scroll_offset = -(ddm->text[item]->dst.y - ddm->used_pos.y - 2);
+}
+
 void lmouse_button_down(SDL_Event *event)
 {
 	SDL_MouseButtonEvent mouse_data = event->button;
@@ -307,7 +333,7 @@ void lmouse_button_down(SDL_Event *event)
 	}
 	if (showen_page->selected_g == NULL) {
 		for (int i = 0; i < showen_page->g_arr_used_len; i++) {
-			if (CHECK_RECT(mouse_data, showen_page->g_arr[i]->scaled_pos)) {
+			if (CHECK_RECT(mouse_data, showen_page->g_arr[i]->scaled_pos) && showen_page->g_arr[i]->show != 0) {
 				struct graph *tmp_g = showen_page->selected_g = showen_page->g_arr[i];
 				int offx = (mouse_data.x - tmp_g->scaled_pos.x);
 				int offy = (mouse_data.y - tmp_g->scaled_pos.y);
@@ -780,7 +806,6 @@ void change_ddm_text_arr(struct drop_down_menu *ddm, int items, char newstr[][MA
 	int bigest_w = ddm->default_pos.w, bigest_h = ddm->default_pos.h;
 	for (int i = 0; i < items; i++) {
 		ddm->text[i] = create_text(newstr[i], 0, 0, 0, 0, 0, ddm->default_pos.w, tc, ddm->bg_color, f, NULL);
-		printf("str = %s\n", newstr[i]);
 		if (!ddm->static_w && bigest_w < ddm->text[i]->dst.w) bigest_w = ddm->text[i]->dst.w;
 		if (!ddm->static_h && bigest_h < ddm->text[i]->dst.h) bigest_h = ddm->text[i]->dst.h;
 		ddm->text[i]->dst.y = ddm->default_pos.y + prev_height + 2;

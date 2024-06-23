@@ -181,6 +181,7 @@ void render_input_box(struct input *input_box);
 struct drop_down_menu *create_drop_down_menu(int items, char item_str[][MAX_TEXT_SIZE], int x, int y, int w, int h, int dw, int dh, void (*function)(), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color tc, struct page *p);
 void destroy_ddm(struct drop_down_menu *ddm);
 void render_ddm(struct drop_down_menu *ddm);
+void select_ddm_item(struct drop_down_menu *ddm, int index);
 void change_ddm_text_arr(struct drop_down_menu *ddm, int items, char newstr[][MAX_TEXT_SIZE], TTF_Font *f);
 void update_ddm_highlight(int x, int y, struct drop_down_menu *ddm);
 
