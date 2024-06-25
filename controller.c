@@ -1,4 +1,72 @@
-#include "../include/controller.h"
+#include "controller.h"
+
+const struct rgb_mode rgb_modes[] = {
+	{ "Static Color",      0x01, 0x0,  6, INNER | OUTER | INNER_AND_OUTER | NOT_MOVING | BRIGHTNESS, 0 }, 
+	{ "Breathing",         0x02, 0x0,  6, INNER | OUTER | INNER_AND_OUTER | NOT_MOVING | BRIGHTNESS | SPEED, 1 },
+	{ "Rainbow Morph",     0x04, 0x0,  0, INNER | OUTER | INNER_AND_OUTER | BRIGHTNESS | SPEED, 2 },
+	{ "Rainbow",           0x05, 0x0,  0, INNER | OUTER | BRIGHTNESS | SPEED | DIRECTION, 3 },
+	{ "Breathing Rainbow", 0x06, 0x0,  0, OUTER | BRIGHTNESS | SPEED, 4 },
+	{ "Meteor Rainbow",    0x08, 0x0,  0, INNER | OUTER | BRIGHTNESS | SPEED, 5 },
+	{ "Color Cycle",       0x18, 0x0,  4, INNER | BRIGHTNESS | SPEED | DIRECTION, 6 },
+	{ "Meteor", 	       0x19, 0x0,  4, INNER | OUTER | INNER_AND_OUTER | BRIGHTNESS | SPEED | DIRECTION, 7 },
+	{ "Runway", 	       0x1a, 0x46, 2, INNER | OUTER | INNER_AND_OUTER | MERGE | BRIGHTNESS | SPEED | DIRECTION, 8 },
+	{ "Mop Up", 	       0x1b, 0x0,  2, INNER | OUTER | SPEED | BRIGHTNESS, 9 },
+	{ "Color Cycle",       0x1c, 0x0,  4, OUTER | BRIGHTNESS | SPEED | DIRECTION, 10 }, 
+	{ "Lottery", 	       0x1d, 0x0,  2, INNER | OUTER  | BRIGHTNESS | SPEED | DIRECTION, 11 },
+	{ "Wave", 	       0x1e, 0x0,  1, INNER | OUTER  | BRIGHTNESS | SPEED, 12 }, 
+	{ "Spring", 	       0x1f, 0x0,  4, INNER | OUTER  | BRIGHTNESS | SPEED | DIRECTION, 13 },
+	{ "Tail Chasing",      0x20, 0x0,  4, INNER | OUTER  | BRIGHTNESS | SPEED | DIRECTION, 14 },
+	{ "Warning", 	       0x21, 0x0,  4, INNER | OUTER  | BRIGHTNESS | SPEED, 15 },
+	{ "Voice", 	       0x22, 0x0,  4, INNER | OUTER  | BRIGHTNESS | SPEED | DIRECTION, 16 },
+	{ "Mixing", 	       0x23, 0x0,  2, INNER | OUTER | BRIGHTNESS | SPEED, 17 },
+	{ "Stack", 	       0x24, 0x0,  2, INNER | OUTER | BRIGHTNESS | SPEED | DIRECTION, 18 },
+	{ "Tide", 	       0x25, 0x0,  4, INNER | OUTER | BRIGHTNESS | SPEED, 19 },
+	{ "Scan", 	       0x26, 0x0,  1, INNER | OUTER | BRIGHTNESS | SPEED, 20 },
+	{ "Pac-Man", 	       0x27, 0x0,  2, INNER | BRIGHTNESS | SPEED | DIRECTION, 21 },
+	{ "Colorful City",     0x28, 0x0,  0, INNER | OUTER | BRIGHTNESS | SPEED, 22 },
+	{ "Render", 	       0x29, 0x0,  4, INNER | OUTER | BRIGHTNESS | SPEED | DIRECTION, 23 },
+	{ "Twinkle", 	       0x2a, 0x0,  0, INNER | OUTER | BRIGHTNESS | SPEED, 24 },
+	{ "Rainbow", 	       0x2b, 0x0,  0, INNER_AND_OUTER | BRIGHTNESS | SPEED | DIRECTION, 25 },
+	{ "Color Cycle",       0x2e, 0x0,  4, INNER_AND_OUTER | BRIGHTNESS | SPEED | DIRECTION, 26 },
+	{ "Taichi", 	       0x2f, 0x0,  2, INNER_AND_OUTER | BRIGHTNESS | SPEED | DIRECTION, 27 },
+	{ "Warning", 	       0x30, 0x0,  4, INNER_AND_OUTER | BRIGHTNESS | SPEED, 28 },
+	{ "Voice", 	       0x31, 0x0,  4, INNER_AND_OUTER | BRIGHTNESS | SPEED | DIRECTION, 29 },
+	{ "Mixing", 	       0x32, 0x47, 2, INNER_AND_OUTER | MERGE | BRIGHTNESS | SPEED, 30 },
+	{ "Tide", 	       0x33, 0x48, 4, INNER_AND_OUTER | MERGE | BRIGHTNESS | SPEED, 31 },
+	{ "Scan", 	       0x34, 0x44, 2, INNER_AND_OUTER | MERGE | BRIGHTNESS | SPEED, 32 },
+	{ "Contest", 	       0x35, 0x45, 3, INNER_AND_OUTER | MERGE | BRIGHTNESS | SPEED | DIRECTION, 33 },
+	{ "Colorful City",     0x38, 0x0,  0, INNER_AND_OUTER | BRIGHTNESS | SPEED, 34 },
+	{ "Render", 	       0x39, 0x0,  4, INNER_AND_OUTER | BRIGHTNESS | SPEED | DIRECTION, 35 },
+	{ "Twinkle", 	       0x3a, 0x0,  0, INNER_AND_OUTER | BRIGHTNESS | SPEED, 36 },
+	{ "Wave", 	       0x3b, 0x49, 1, INNER_AND_OUTER | MERGE | BRIGHTNESS | SPEED, 37 },
+	{ "Spring", 	       0x3c, 0x4b, 4, INNER_AND_OUTER | MERGE | BRIGHTNESS | SPEED | DIRECTION, 38 },
+	{ "Tail Chasing",      0x3d, 0x4a, 4, INNER_AND_OUTER | MERGE | BRIGHTNESS | SPEED | DIRECTION, 39 },
+	{ "Mop Up", 	       0x3e, 0x4c, 2, INNER_AND_OUTER | MERGE | BRIGHTNESS | SPEED, 40 },
+	{ "Tornado", 	       0x3f, 0x0,  4, INNER_AND_OUTER | BRIGHTNESS | SPEED | DIRECTION, 41 },
+	{ "Staggered", 	       0x40, 0x0,  4, INNER_AND_OUTER | BRIGHTNESS | SPEED, 42 },
+	{ "Spanning Teacups",  0x41, 0x0,  4, INNER_AND_OUTER | BRIGHTNESS | SPEED | DIRECTION, 43 },
+	{ "Electric Current",  0x42, 0x4f, 4, INNER_AND_OUTER | MERGE | BRIGHTNESS | SPEED, 44 },
+	{ "Stack", 	       0x43, 0x0,  2, INNER_AND_OUTER | BRIGHTNESS | SPEED | DIRECTION, 45 }, 
+};
+const int rgb_modes_amount = 46;
+
+int mb_sync = 0;
+
+int prev_inner_set_all[4];
+int prev_outer_set_all[4];
+struct rgb_data prev_rgb_data[4] = { 
+	{ &rgb_modes[0], 0x02, 0, 0, { {} }, &rgb_modes[0], 0x02, 0, 0, { {} } },
+	{ &rgb_modes[0], 0x02, 0, 0, { {} }, &rgb_modes[0], 0x02, 0, 0, { {} } },
+	{ &rgb_modes[0], 0x02, 0, 0, { {} }, &rgb_modes[0], 0x02, 0, 0, { {} } },
+	{ &rgb_modes[0], 0x02, 0, 0, { {} }, &rgb_modes[0], 0x02, 0, 0, { {} } }
+};
+
+struct port ports[4] = { 
+	{ PORT_ONE_PATH,   PORT_ONE_CONFIG_PATH,   .number = 0 },
+	{ PORT_TWO_PATH,   PORT_TWO_CONFIG_PATH,   .number = 1 },
+	{ PORT_THREE_PATH, PORT_THREE_CONFIG_PATH, .number = 2 },
+	{ PORT_FOUR_PATH,  PORT_FOUR_CONFIG_PATH,  .number = 3 }, 
+};
 
 int get_fan_speed_rpm(const char *p)
 {
@@ -36,11 +104,6 @@ int get_fan_speed_pro(const char *p)
 	return speed_pro;
 }
 
-/* 
- * 	load inner_mode, inner_speed, inner_brightnes, inner_direction, inner_color, 
- *           outer_mode, outer_speed, outer_brightnes, outer_direction, outer_color,
- *           fan_curve, fan_count
- */
 int load_port(struct port *p)
 {
 	char path[MAX_TEXT_SIZE];
@@ -81,7 +144,6 @@ int load_port(struct port *p)
 	strcat(path, "/inner_colors");
 
 	f = fopen(path, "r");
-	size_t n = sizeof(char) * 351;
 	char line[351];
 	fread(line, sizeof(char), 351, f);
 	int stri = 0;
@@ -247,12 +309,41 @@ int save_graph(struct graph *g, char *path)
 	return 0;
 }
 
+int set_fan_curve(struct port *p)
+{
+	if (p == NULL) {
+		printf("set_fan_curve: error g == NULL\n");
+		return -1;
+	}
+	char new_path[100];
+	strcpy(new_path, p->proc_path);
+	strcat(new_path, "/fan_curve");
+	FILE *f = fopen(new_path, "w");
+	if (f == NULL) {
+		printf("set_fan_curve: failed to open file at path %s\n", new_path);
+		return -1;
+	}
+	printf("set_fan_curve: open file at path %s\n", new_path);
+
+	char tmp_str[100];
+	int str_i = 0;
+	for (int i = 0; i < p->fan_curve->point_amount; i++) {
+		sprintf(&tmp_str[str_i], "%03d %03d\n", p->fan_curve->points[i].y, p->fan_curve->points[i].x);
+		printf("%03d %03d\n", p->fan_curve->points[i].y, p->fan_curve->points[i].x);
+		str_i += 8;
+	}
+	printf("\n%s\n", tmp_str);
+	fputs(tmp_str, f);
+	fclose(f);
+	return 0;
+}
+
 float get_fan_speed_from_graph(struct graph *g, float temp) 
 {
 	for (int i = 0; i < g->point_amount; i++) {
 		float xone = (float)g->points[i].x, xtwo = (float)g->points[i + 1].x;
 		float yone = 100.0 - g->points[i].y, ytwo = 100.0 - g->points[i + 1].y;
-		if (xone < temp && xtwo > temp) {
+		if (xone <= temp && xtwo >= temp) {
 			float a = (ytwo - yone)/(xtwo - xone);
 			float b = yone - a * xone;
 			return a * temp + b;
@@ -263,7 +354,7 @@ float get_fan_speed_from_graph(struct graph *g, float temp)
 
 int set_fan_speed(struct port *p, int speed)
 {
-	char path[MAX_STR_SIZE];
+	char path[MAX_TEXT_SIZE];
 
 	strcpy(path, p->proc_path);
 	strcat(path, "/fan_speed");
@@ -294,7 +385,7 @@ int set_mb_sync(int state)
 int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_colors, int do_check)
 {
 	printf("set_inner_rgb\n");
-	char path[MAX_STR_SIZE];
+	char path[MAX_TEXT_SIZE];
 	float bright;
 /*
  *	0%   = 08
@@ -372,7 +463,7 @@ int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_colors, int do_check)
 {
 	printf("set_outer_rgb:\n");
-	char path[MAX_STR_SIZE];
+	char path[MAX_TEXT_SIZE];
 	float bright;
 	switch (brightnes) {
 		case 0x01:
@@ -468,7 +559,7 @@ int set_inner_and_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int
 			break;
 	}
 
-	char path[MAX_STR_SIZE];
+	char path[MAX_TEXT_SIZE];
 	strcpy(path, p->proc_path);
 	int fan_c = p->fan_count;
 	int flag = new_mode->flags - (new_mode->flags & MERGE);
@@ -532,7 +623,7 @@ int set_merge(struct port *p, const struct rgb_mode *new_mode, int speed, int di
 			break;
 	}
 
-	char path[MAX_STR_SIZE];
+	char path[MAX_TEXT_SIZE];
 	strcpy(path, p->proc_path);
 	write_inner_colors(path, new_colors, p->fan_count, bright, new_mode->flags);
 

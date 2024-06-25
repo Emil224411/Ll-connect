@@ -1,8 +1,10 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/proc_fs.h>
+#include <linux/jiffies.h>
 #include <linux/thermal.h>
 #include <linux/timer.h>
+#include <linux/workqueue.h>
 #include <linux/usb.h>
 #include <linux/string.h>
 
@@ -24,13 +26,21 @@ struct rgb_data {
 	int mode, brightness, speed, direction;
 	unsigned char colors[351];
 };
+struct fan_curve {
+	int temp;
+	int speed;
+};
 
 struct port_data {
 	int fan_speed, fan_speed_rpm, fan_count;
+	struct fan_curve *points;
+	int points_used_len;
+	int points_total_len;
 	struct rgb_data inner_rgb, outer_rgb;
 	struct proc_dir_entry *proc_port;
 	struct proc_dir_entry *proc_fan_count;
 	struct proc_dir_entry *proc_fan_speed;
+	struct proc_dir_entry *proc_fan_curve;
 	struct proc_dir_entry *proc_inner_and_outer_rgb;
 	struct proc_dir_entry *proc_inner_rgb;
 	struct proc_dir_entry *proc_outer_rgb;
@@ -50,38 +60,79 @@ static struct usb_device_id dev_table[] = {
 	{},
 };
 MODULE_DEVICE_TABLE(usb, dev_table);
+
+void tmp_speed_function(void);
+void speed_wq_function(struct work_struct *work);
+static struct work_struct speed_wq;
+
 static struct timer_list speed_timer;
 
-void update_fan_speeds_callback(struct timer_list *tl);
+void timer_callback_handler(struct timer_list *tl);
+int get_fan_speed_from_temp(struct port_data *p, int temp);
+static void set_speeds(int port_one, int port_two, int port_three, int port_four);
+static void set_speed(int port, int new_speed);
 static int get_cpu_temp(void);
 
-static int prev_temp = 0;
-/* DONT RUN IT CRASHES KERNEL OR SOMETHING FIX TOMORROW */
-void update_fan_speeds_callback(struct timer_list *tl) 
+void timer_callback_handler(struct timer_list *tl) 
 {
-	int new_temp = get_cpu_temp();
-	if (new_temp != prev_temp)
-	{
-		printk("temp changed was %d is now %d\n", prev_temp, new_temp);
+	if (!work_pending(&speed_wq)) schedule_work(&speed_wq);
+	mod_timer(&speed_timer, jiffies + msecs_to_jiffies(2000));
+}
+
+static int prev_temp = 0;
+void speed_wq_function(struct work_struct *work)
+{
+	int new_temp = get_cpu_temp()/1000;
+	if (new_temp == -1) {
+		printk(KERN_ERR"Lian Li Hub: speed_wq_function failed get_cpu_temp\n");
+		return;
+	}
+	if (prev_temp != new_temp) {
+		int new_speed_one   = get_fan_speed_from_temp(&ports[0], new_temp);
+		int new_speed_two   = get_fan_speed_from_temp(&ports[1], new_temp);
+		int new_speed_three = get_fan_speed_from_temp(&ports[2], new_temp);
+		int new_speed_four  = get_fan_speed_from_temp(&ports[3], new_temp);
+		//printk("Lian Li Hub: new_temp = %d, prev_temp = %d, p1 speed = %d, p2 speed = %d, p3 speed = %d, p4 speed = %d\n", new_temp, prev_temp, new_speed_one, new_speed_two, new_speed_three, new_speed_four);
+		set_speeds(new_speed_one, new_speed_two, new_speed_three, new_speed_four);
+		prev_temp = new_temp;
 	}
 }
 
-static int get_cpu_temp(void) 
+int get_fan_speed_from_temp(struct port_data *p, int temp) 
+{
+		struct fan_curve prev_point = { 1, p->points[0].speed };
+		for (int i = 0; i < p->points_used_len; i++) {
+			int xone = prev_point.temp, xtwo = p->points[i].temp;
+			int yone = 100 - prev_point.speed, ytwo = 100 - p->points[i].speed;
+			if (xone <= temp && xtwo >= temp) {
+				int a = ((ytwo - yone)*10000)/(xtwo - xone);
+				int b = yone*10000 - a * xone;
+				int tmp = (a * temp + b)/10000;
+				return tmp;
+			}
+			prev_point = p->points[i];
+		}
+		if (p->points[p->points_used_len-1].temp < temp) {
+			return p->points[p->points_used_len-1].speed;
+		}
+	return 0;
+}
+
+int get_cpu_temp(void) 
 {
 	struct thermal_zone_device *thermal_dev;
 	int temp;
 
 	thermal_dev = thermal_zone_get_zone_by_name("x86_pkg_temp");
 	if (IS_ERR(thermal_dev)) {
-		printk(KERN_ERR"failed thermal_zone_get_zone_by_name\n");
+		printk(KERN_ERR"Lian Li Hub: failed thermal_zone_get_zone_by_name\n");
 		return -1;
 	}
 
 	if (thermal_zone_get_temp(thermal_dev, &temp)) {
-		printk(KERN_ERR"failed thermal_zone_get_temp\n");
+		printk(KERN_ERR"Lian Li Hub: failed thermal_zone_get_temp\n");
 		return -1;
 	}
-	printk("cpu temp = %d\n", temp);
 	return temp;
 }
 
@@ -501,7 +552,6 @@ static ssize_t write_rgb(struct file *f, const char *ubuf, size_t count, loff_t 
 	} else if (apply_to_all) {
 		set_all(flags, mode, speed, brightness, direction, &ports[port].outer_rgb, &ports[port].inner_rgb);
 	} else {
-		printk("Lian_li_hub: else now\n");
 		funtion_to_exec(port+1,  mode, speed, brightness, direction);
 	}
 
@@ -626,11 +676,10 @@ static ssize_t write_mbsync(struct file *f, const char *ubuf, size_t count, loff
 	kfree(text);
 	return delta;
 }
-
 static ssize_t read_fan_speed(struct file *f, char *ubuf, size_t count, loff_t *offs)
 {
 	get_speed_in_rpm();
-	size_t textsize = 128;
+	size_t textsize = 64;
 	char *text = kcalloc(textsize, sizeof(*text), GFP_KERNEL);
 	int to_copy, not_copied, copied;
 	int port = 0;
@@ -646,7 +695,7 @@ static ssize_t read_fan_speed(struct file *f, char *ubuf, size_t count, loff_t *
 		port = 3;
 	}
 
-	sprintf(text, "%d %d\n", ports[port].fan_speed, ports[port].fan_speed_rpm);
+	sprintf(text, "%d %d", ports[port].fan_speed, ports[port].fan_speed_rpm);
 
 	to_copy = min(count, textsize);
 
@@ -663,32 +712,83 @@ static ssize_t read_fan_speed(struct file *f, char *ubuf, size_t count, loff_t *
 	return copied;
 }
 
-static ssize_t write_fan_speed(struct file *f, const char *ubuf, size_t count, loff_t *offs)
+static ssize_t read_fan_curve(struct file *f, char *ubuf, size_t count, loff_t *offs)
 {
-	size_t text_size = 32;
+	const char *parent_name = f->f_path.dentry->d_parent->d_name.name;
+	int port = 0;
+	if (strcmp(parent_name, "Port_one") == 0) {
+		port = 0;
+	} else if (strcmp(parent_name, "Port_two") == 0) {
+		port = 1;
+	} else if (strcmp(parent_name, "Port_three") == 0) {
+		port = 2;
+	} else if (strcmp(parent_name, "Port_four") == 0) {
+		port = 3;
+	}
+	size_t textsize = ports[port].points_used_len * 8;
+	char *text = kcalloc(textsize, sizeof(*text), GFP_KERNEL);
+	int to_copy, not_copied, copied;
+
+
+	int str_i = 0;
+	for (int i = 0; i < ports[port].points_used_len; i++) {
+		sprintf(&text[str_i], "%03d %03d\n", ports[port].points[i].speed, ports[port].points[i].temp);
+		str_i += 8;
+	}
+
+	to_copy = min(count, textsize);
+
+	not_copied = copy_to_user(ubuf, text, to_copy);
+
+	copied = to_copy - not_copied;
+
+	kfree(text);
+
+	//i have no idea what this does but if i dont do it and try to read it doesnt stop printing
+	if (*offs) return 0;
+	else *offs = textsize;
+
+	return copied;
+}
+
+static ssize_t write_fan_curve(struct file *f, const char *ubuf, size_t count, loff_t *offs)
+{
+	size_t text_size = 128;
 	char *text= kcalloc(text_size, sizeof(*text), GFP_KERNEL);
 	int to_copy, not_copied, copied;
-	int speed;
+	int port;
 	const char *parent_name = f->f_path.dentry->d_parent->d_name.name;
 
+	if (strcmp(parent_name, "Port_one") == 0) {
+		port = 0;
+	} else if (strcmp(parent_name, "Port_two") == 0) {
+		port = 1;
+	} else if (strcmp(parent_name, "Port_three") == 0) {
+		port = 2;
+	} else if (strcmp(parent_name, "Port_four") == 0) {
+		port = 3;
+	}
 	to_copy = min(count, text_size);
 
 	not_copied = copy_from_user(text, ubuf, to_copy);
 
 	copied = to_copy - not_copied;
 
-	sscanf(text, "%d", &speed);
-
-	if (strcmp(parent_name, "Port_one") == 0) {
-		set_speed(1, speed);
-	} else if (strcmp(parent_name, "Port_two") == 0) {
-		set_speed(2, speed);
-	} else if (strcmp(parent_name, "Port_three") == 0) {
-		set_speed(3, speed);
-	} else if (strcmp(parent_name, "Port_four") == 0) {
-		set_speed(4, speed);
+	int i = 0, str_i = 0, point_i = 0;
+	while(text[i] != '\0' && i < copied) {
+		if (text[i] == '\n') {
+			if (point_i + 1 > ports[port].points_total_len) {
+				//clean up plz
+				ports[port].points = krealloc(ports[port].points, sizeof(struct fan_curve) * ports[port].points_total_len + 5, GFP_KERNEL);
+				ports[port].points_total_len += 5;
+			}
+			sscanf(&text[str_i], "%03d %03d\n", &ports[port].points[point_i].speed, &ports[port].points[point_i].temp);
+			str_i = i+1;
+			point_i += 1;
+			ports[port].points_used_len += 1;
+		}
+		i++;
 	}
-
 
 	kfree(text);
 	return copied;
@@ -773,7 +873,11 @@ static struct proc_ops pops_rgb = {
 
 static struct proc_ops pops_fan_speed = {
 	.proc_read = read_fan_speed,
-	.proc_write = write_fan_speed,
+};
+
+static struct proc_ops pops_fan_curve = {
+	.proc_read = read_fan_curve,
+	.proc_write = write_fan_curve,
 };
 
 static struct proc_ops pops_mb_sync = {
@@ -792,7 +896,6 @@ static int dev_probe(struct usb_interface *intf, const struct usb_device_id *id)
 
 	proc_mbsync = proc_create("mb_sync", 0666, proc_dir, &pops_mb_sync);
 	if (proc_mbsync == NULL) ERROR("proc_create mb_sync failed", 0);
-	// port one
 	for (int i = 0; i < 4; i++) {
 		switch (i) {
 			case 0:
@@ -824,33 +927,46 @@ static int dev_probe(struct usb_interface *intf, const struct usb_device_id *id)
 		if (ports[i].proc_inner_colors == NULL) ERROR("proc_create inner_colors_one failed", i);
 		ports[i].proc_outer_colors = proc_create("outer_colors", 0666, ports[i].proc_port, &pops_colors);
 		if (ports[i].proc_outer_colors == NULL) ERROR("proc_create outer_colors_one failed", i);
+		ports[i].proc_fan_curve = proc_create("fan_curve", 0666, ports[i].proc_port, &pops_fan_curve);
+		if (ports[i].proc_fan_curve == NULL) ERROR("proc_create fan_curve failed", i);
 		ports[i].proc_fan_speed = proc_create("fan_speed", 0666, ports[i].proc_port, &pops_fan_speed);
-		if (ports[i].proc_fan_speed == NULL) ERROR("proc_create fan_speed_one failed", i);
+		if (ports[i].proc_fan_speed == NULL) ERROR("proc_create fan_speed failed", i);
 	}
 
 
 	get_speed_in_rpm();
 
-/*
- *	TODO FIX
- *
- *	timer_setup(&speed_timer, update_fan_speeds_callback, 0);
- *	mod_timer(&speed_timer, jiffies + msecs_to_jiffies(5000));
- */
-	ports[0].fan_count = 4;
-	ports[1].fan_count = 4;
-	ports[2].fan_count = 4;
-	ports[3].fan_count = 4;
+	
+	for (int i = 0; i < 4; i++) {
+		ports[i].points = kmalloc(sizeof(struct fan_curve) * 8, GFP_KERNEL);
+		ports[i].points[0].speed = 85, ports[i].points[0].temp = 15;
+		ports[i].points[1].speed = 75, ports[i].points[1].temp = 25;
+		ports[i].points[2].speed = 73, ports[i].points[2].temp = 35;
+		ports[i].points[3].speed = 68, ports[i].points[3].temp = 42;
+		ports[i].points[4].speed = 60, ports[i].points[4].temp = 55;
+		ports[i].points[5].speed = 35, ports[i].points[5].temp = 70;
+		ports[i].points[6].speed = 10, ports[i].points[6].temp = 80;
 
+		ports[i].points_total_len = 8;
+		ports[i].points_used_len = 7;
+	}
+
+	INIT_WORK(&speed_wq, speed_wq_function);
+
+ 	timer_setup(&speed_timer, timer_callback_handler, 0);
+ 	mod_timer(&speed_timer, jiffies + msecs_to_jiffies(2000));
 	printk(KERN_INFO"Lian Li Hub: driver probed\n");
 	return 0;
 }
 
 static void dev_disconnect(struct usb_interface *intf)
 {
+  	del_timer(&speed_timer);
+	flush_work(&speed_wq);
 	for (int i = 0; i < 4; i++) {
+		kfree(ports[i].points);
 		proc_remove(ports[i].proc_fan_count);
-		proc_remove(ports[i].proc_fan_speed);
+		proc_remove(ports[i].proc_fan_curve);
 		proc_remove(ports[i].proc_inner_and_outer_rgb);
 		proc_remove(ports[i].proc_inner_rgb);
 		proc_remove(ports[i].proc_inner_colors);
@@ -859,11 +975,6 @@ static void dev_disconnect(struct usb_interface *intf)
 		proc_remove(ports[i].proc_port);
 	}
 	proc_remove(proc_dir);
-/*
- * 	TODO FIX
- *
- * 	del_timer(&speed_timer);
- */
 	printk(KERN_INFO "Lian Li Hub: driver disconnect\n");
 }
 

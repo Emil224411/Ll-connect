@@ -1,4 +1,32 @@
-#include "../include/ui.h"
+#include "ui.h"
+
+int running;
+
+SDL_Window   *window;
+SDL_Renderer *renderer;
+TTF_Font     *font;
+char font_path[128];
+int default_font_size = 20;
+
+SDL_Color BLACK   = {   0,   0,   0, SDL_ALPHA_OPAQUE };
+SDL_Color WHITE   = { 255, 255, 255, SDL_ALPHA_OPAQUE };
+SDL_Color RED     = { 255,   0,   0, SDL_ALPHA_OPAQUE };
+SDL_Color GREEN   = {   0, 255,   0, SDL_ALPHA_OPAQUE };
+SDL_Color BLUE    = {   0,   0, 255, SDL_ALPHA_OPAQUE };
+
+static int mouse_x, mouse_y;
+
+static struct page **page_arr;
+static struct page *showen_page;
+static int page_arr_total_len;
+static int page_arr_used_len;
+
+static void lmouse_button_down(SDL_Event *event);
+static void lmouse_button_up(SDL_Event *event);
+static void rmouse_button_down(SDL_Event *event);
+static void rmouse_button_up(SDL_Event *event);
+static void mouse_wheel(SDL_MouseWheelEvent *event);
+static void mouse_move(SDL_Event *event);
 
 int ui_init() 
 {
@@ -127,7 +155,7 @@ void handle_event(SDL_Event *event)
 	}
 }
 
-void mouse_wheel(SDL_MouseWheelEvent *event)
+static void mouse_wheel(SDL_MouseWheelEvent *event)
 {
 	int wheely = event->y;
 	SDL_Rect mouse_pos = { event->mouseX, event->mouseY, 0 };
@@ -146,7 +174,7 @@ void mouse_wheel(SDL_MouseWheelEvent *event)
 	}
 }
 
-void mouse_move(SDL_Event *event)
+static void mouse_move(SDL_Event *event)
 {
 	mouse_x = event->motion.x;
 	mouse_y = event->motion.y;
@@ -177,12 +205,12 @@ void mouse_move(SDL_Event *event)
 	}
 }
 
-void rmouse_button_down(SDL_Event *event)
+static void rmouse_button_down(SDL_Event *event)
 {
 	
 }
 
-void rmouse_button_up(SDL_Event *event)
+static void rmouse_button_up(SDL_Event *event)
 {
 	SDL_MouseButtonEvent mouse_data = event->button;
 	for (int i = 0; i < showen_page->g_arr_used_len; i++) {
@@ -208,7 +236,7 @@ void rmouse_button_up(SDL_Event *event)
 }
 
 /* LATER: only check if button or input_box is visible mabey create array with all showen things idk */
-void lmouse_button_up(SDL_Event *event)
+static void lmouse_button_up(SDL_Event *event)
 {
 	SDL_MouseButtonEvent mouse_data = event->button;
 	if (showen_page->selected_b != NULL && showen_page->selected_b->clickable == 1) {
@@ -318,7 +346,7 @@ void select_ddm_item(struct drop_down_menu *ddm, int item)
 	ddm->scroll_offset = -(ddm->text[item]->dst.y - ddm->used_pos.y - 2);
 }
 
-void lmouse_button_down(SDL_Event *event)
+static void lmouse_button_down(SDL_Event *event)
 {
 	SDL_MouseButtonEvent mouse_data = event->button;
 	for (int i = 0; i < showen_page->b_arr_used_len; i++) {
@@ -690,7 +718,6 @@ struct input *create_input(char *string, int resize_box, int max_len, int x, int
 void change_input_box_text(struct input *input_box, char *str)
 {
 	SDL_Rect prev_input_margin = input_box->outer_box;
-	SDL_Rect prev_text_pos = input_box->text->dst;
 	prev_input_margin.w = input_box->outer_box.w - input_box->text->dst.w;
 	prev_input_margin.h = input_box->outer_box.h - input_box->text->dst.h;
 
@@ -1035,11 +1062,11 @@ void render_graph(struct graph *graph)
 		x2 = graph->scaled_pos.x + graph->scaled_pos.w;
 	if (y2 > graph->scaled_pos.y + graph->scaled_pos.h - graph->points_size.h/2) 
 		y2 = graph->scaled_pos.y + graph->scaled_pos.h - graph->points_size.h/2;
-		SDL_RenderDrawLine(renderer, x2, y2, graph->scaled_pos.x + graph->scaled_pos.w, y2);
+	SDL_RenderDrawLine(renderer, x2, y2, graph->scaled_pos.x + graph->scaled_pos.w, y2);
 	if (y1 > graph->scaled_pos.y + graph->scaled_pos.h - graph->points_size.h/2) 
 		y1 = graph->scaled_pos.y + graph->scaled_pos.h - graph->points_size.h/2;
 
-		SDL_RenderDrawLine(renderer, graph->scaled_pos.x, y1, x1, y1);
+	SDL_RenderDrawLine(renderer, graph->scaled_pos.x, y1, x1, y1);
 	for (int i = 0; i < graph->point_amount; i++) {
 		if (i < graph->point_amount - 1) {
 			SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(graph->fg_color));
