@@ -1,0 +1,23 @@
+it's not done yet but i'm working on it and it works pretty well
+
+you can set fan curves for each port and your fan speeds will update every 2 seconds
+when you reboot your pc you will have to run Ll-connect again and apply the fan curve to each port but it will save the fan curves so it takes 5 clicks
+
+you can also set the rgb
+
+install:
+   1.  clone the repo
+
+   2.  cd to the repo
+
+   3.  run "sudo make install"
+
+   4.  cd to the kernel directory
+
+   5.  run "make"
+
+   6.  (not recommended currently since the driver is not done and it might cause some issues) run "make install"
+
+   7.  run "sudo insmod Lian_li_hub.ko"(currently you should do this every time you boot your pc)
+
+   8.  run "Ll-connect" from the terminal or how ever you run programs
