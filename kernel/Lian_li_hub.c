@@ -463,7 +463,6 @@ static ssize_t write_colors(struct file *f, const char *ubuf, size_t count, loff
 
 	kfree(text);
 	return copied;
-
 }
 
 static ssize_t read_rgb(struct file *f, char *ubuf, size_t count, loff_t *offs)
@@ -603,6 +602,7 @@ static void mb_sync(int enable)
 		return;
 	}
 	mb_sync_state = enable;
+	kfree(buffer);
 }
 
 static ssize_t read_mbsync(struct file *f, char *ubuf, size_t count, loff_t *offs)
@@ -778,6 +778,7 @@ static ssize_t read_fan_count(struct file *f, char *ubuf, size_t count, loff_t *
 
 	copied = to_copy - not_copied;
 
+	kfree(text);
 	if (*offs) return 0;
 	else *offs = text_size;
 
