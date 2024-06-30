@@ -1,5 +1,6 @@
 #ifndef CONTROLLER_H
 #define CONTROLLER_H
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,14 +21,14 @@
 #define PORT_FOUR_CONFIG_PATH "/.config/Ll-connect-config/Port_4"
 
 /* rgb mode flags */
-#define INNER 		0b00000001
-#define OUTER 		0b00000010
-#define INNER_AND_OUTER 0b00000100
-#define MERGE 		0b00001000
-#define NOT_MOVING 	0b00010000
-#define BRIGHTNESS 	0b00100000
-#define SPEED 		0b01000000
-#define DIRECTION 	0b10000000
+#define INNER 		0x01
+#define OUTER 		0x02
+#define INNER_AND_OUTER 0x04
+#define MERGE 		0x08
+#define NOT_MOVING 	0x10
+#define BRIGHTNESS 	0x20
+#define SPEED 		0x40
+#define DIRECTION 	0x80
 
 struct color {
 	u_int8_t r, g, b;
@@ -53,7 +54,8 @@ struct port {
 	const char config_path[MAX_TEXT_SIZE];
 	struct rgb_data rgb;
 	int fan_count, fan_speed, number;
-	struct graph *fan_curve;
+	struct point *curve;
+	int points_used, points_total;
 };
 
 /* global varibles */
@@ -70,6 +72,8 @@ int save_port(struct port *p);
 int load_port(struct port *p);
 int save_graph(struct graph *g, char *path);
 int load_graph(struct graph *g, char *path);
+int load_fan_curve(struct port *p, char *path);
+int save_fan_curve(struct port *p, char *path);
 
 /* set rgb functions */
 int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_colors, int do_check);
@@ -88,5 +92,7 @@ int get_fan_speed_rpm(const char *path);
 int get_fan_speed_pro(const char *path);
 
 int set_mb_sync(int state);
+int get_fan_count_from_driver(struct port *p);
+int set_fan_count(struct port *p, int fc);
 
 #endif

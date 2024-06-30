@@ -1,5 +1,6 @@
 #ifndef UI_H
 #define UI_H
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -55,7 +56,7 @@ struct slider {
 	int show;
 	int index; /* private */
 	SDL_Color bar_color;
-	void (*on_move)();
+	void (*on_move)(struct slider *self, SDL_Event *event);
 	struct page *parent_p;
 };
 
@@ -129,10 +130,10 @@ extern SDL_Window   *window;
 extern SDL_Renderer *renderer;
 
 /* functions */
-int  ui_init();
-void ui_shutdown();
+int  ui_init(void);
+void ui_shutdown(void);
 void handle_event(SDL_Event *event);
-void show_screen();
+void show_screen(void);
 void clear_screen(SDL_Color color);
 
 /* image functions */
@@ -142,10 +143,10 @@ void show_image(struct image *img);
 SDL_Texture *create_texture_from_surface(SDL_Surface *sur);
 
 /* page functions */
-struct page *create_page();
+struct page *create_page(void);
 void destroy_page(struct page *page);
 void show_page(struct page *page);
-void render_showen_page();
+void render_showen_page(void);
 
 /* text functions */
 struct text *create_text(char *string, int x, int y, int w, int h, int font_size, int wrap_length, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f, struct page *p);
@@ -156,12 +157,12 @@ int render_text_texture(struct text *t, SDL_Color fg_color, SDL_Color bg_color, 
 void change_text_and_render_texture(struct text *text, char *new_text, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f);
 
 /* button functions */
-struct button *create_button(char *string, int movable, int show, int x, int y, int w, int h, int font_size, TTF_Font *f, void (*on_click)(), void (*on_move)(), SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color, struct page *p);
+struct button *create_button(char *string, int movable, int show, int x, int y, int w, int h, int font_size, TTF_Font *f, void (*on_click)(struct button *s, SDL_Event *e), void (*on_move)(struct button *b, SDL_Event *e), SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color, struct page *p);
 void destroy_button(struct button *button);
 void render_button(struct button *button);
 
 /* slider functions */
-struct slider *create_slider(int show, int x, int y, int w, int h, int button_size, void (*on_relase)(), void (*on_move)(), SDL_Color button_fg_color, SDL_Color button_bg_color, SDL_Color bar_color, struct page *p);
+struct slider *create_slider(int show, int x, int y, int w, int h, int button_size, void (*on_relase)(struct button *s, SDL_Event *e), void (*on_move)(struct slider *s, SDL_Event *e), SDL_Color button_fg_color, SDL_Color button_bg_color, SDL_Color bar_color, struct page *p);
 void render_slider(struct slider *slider);
 void update_slider(struct slider *slider, int x);
 void destroy_slider(struct slider *slider);
@@ -173,7 +174,7 @@ void change_input_box_text(struct input *input_box, char *str);
 void render_input_box(struct input *input_box);
 
 /* drop down menu functions */
-struct drop_down_menu *create_drop_down_menu(int items, char item_str[][MAX_TEXT_SIZE], int x, int y, int w, int h, int dw, int dh, void (*function)(), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color tc, struct page *p);
+struct drop_down_menu *create_drop_down_menu(int items, char item_str[][MAX_TEXT_SIZE], int x, int y, int w, int h, int dw, int dh, void (*function)(struct drop_down_menu *s, SDL_Event *e), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color tc, struct page *p);
 void destroy_ddm(struct drop_down_menu *ddm);
 void render_ddm(struct drop_down_menu *ddm);
 void select_ddm_item(struct drop_down_menu *ddm, int index);

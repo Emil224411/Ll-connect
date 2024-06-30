@@ -28,7 +28,7 @@ static void rmouse_button_up(SDL_Event *event);
 static void mouse_wheel(SDL_MouseWheelEvent *event);
 static void mouse_move(SDL_Event *event);
 
-int ui_init() 
+int ui_init(void) 
 {
 	window = NULL;
 	renderer = NULL;
@@ -66,7 +66,7 @@ int ui_init()
 	return 0;
 }
 
-void ui_shutdown()
+void ui_shutdown(void)
 {
 	SDL_StopTextInput();
 	while (page_arr_used_len > 0) {
@@ -89,7 +89,7 @@ void ui_shutdown()
 	SDL_Quit();
 }
 
-void show_screen()
+void show_screen(void)
 {
 	SDL_RenderPresent(renderer);
 }
@@ -187,7 +187,7 @@ static void mouse_move(SDL_Event *event)
 	if (showen_page->selected_s != NULL) {
 		update_slider(showen_page->selected_s, mouse_x);
 		if (showen_page->selected_s->on_move) 
-			showen_page->selected_s->on_move();
+			showen_page->selected_s->on_move(showen_page->selected_s, event);
 	}
 	if (showen_page->selected_g != NULL) {
 		if (showen_page->selected_g->selected_point != NULL) {
@@ -402,7 +402,7 @@ SDL_Texture *create_texture_from_surface(SDL_Surface *sur)
 	return textest;
 }
 
-struct page *create_page()
+struct page *create_page(void)
 {
 	
 	struct page *return_page = malloc(sizeof(struct page));
@@ -494,7 +494,7 @@ void show_page(struct page *page)
 	showen_page = page;
 }
 
-void render_showen_page()
+void render_showen_page(void)
 {
 	if (showen_page == NULL) return;
 	for (int i = 0; i < showen_page->img_arr_used_len; i++) {
@@ -951,11 +951,11 @@ void update_ddm_highlight(int x, int y, struct drop_down_menu *ddm)
 }
 
 
-struct slider *create_slider(int show, int bar_x, int bar_y, int bar_w, int bar_h, int button_size, void (*on_relase)(), void (*on_move)(), SDL_Color button_fg_color, SDL_Color button_bg_color, SDL_Color bar_color, struct page *p)
+struct slider *create_slider(int show, int x, int y, int w, int h, int button_size, void (*on_relase)(struct button *s, SDL_Event *e), void (*on_move)(struct slider *s, SDL_Event *e), SDL_Color button_fg_color, SDL_Color button_bg_color, SDL_Color bar_color, struct page *p)
 {
 	struct slider *return_slider = malloc(sizeof(struct slider));
-	struct button *b = create_button(NULL, 1, show, bar_x - button_size/2, bar_y + bar_h/2- button_size/2, button_size, button_size, 0, font, on_relase, update_slider, button_fg_color, button_bg_color, button_fg_color, NULL);
-	struct slider new_slider = { b, { bar_x, bar_y, bar_w, bar_h }, 0, show, 0, bar_color, on_move, p };
+	struct button *b = create_button(NULL, 1, show, x - button_size/2, y + h/2- button_size/2, button_size, button_size, 0, font, on_relase, NULL, button_fg_color, button_bg_color, button_fg_color, NULL);
+	struct slider new_slider = { b, { x, y, w, h }, 0, show, 0, bar_color, on_move, p };
 
 	memcpy(return_slider, &new_slider, sizeof(struct slider));
 	if (p != NULL) {

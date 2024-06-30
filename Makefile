@@ -4,18 +4,13 @@ PREFIX = /usr/local
 # libs
 SDLLIBS = -lSDL2 -lSDL2_ttf
 
-CFLAGS   = -g -std=c99 -pedantic -Wall -O0
-#CFLAGS   = -std=c99 -pedantic -Wall -Wno-deprecated-declarations -Os
+#CFLAGS   = -g -std=c99 -pedantic -Wall -O0
+CFLAGS   = -std=c99 -pedantic -Wall -Wno-deprecated-declarations -Os
 LDFLAGS  = ${SDLLIBS}
 
 # compiler and linker
 CC = gcc
 
-PREFIX = /usr/local
-
-CFLAGS = -Wall -g
-
-EXECUTABLE = Ll-connect
 SRC = main.c controller.c ui.c
 OBJ = ${SRC:.c=.o}
 
@@ -39,6 +34,5 @@ install: all
 
 uninstall:
 	rm -f $(DESTDIR)$(PREFIX)/bin/Ll-connect
-
 
 .PHONY: all clean install uninstall
