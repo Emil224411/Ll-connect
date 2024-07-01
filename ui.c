@@ -439,6 +439,10 @@ struct page *create_page(void)
 	return_page->img_arr_total_len = 5;
 	return_page->img_arr_used_len = 0;
 
+	return_page->line_arr = malloc(sizeof(struct line*) * 5);
+	return_page->line_arr_total_len = 5;
+	return_page->line_arr_used_len = 0;
+
 	if (page_arr_used_len + 1 > page_arr_total_len) {
 		page_arr = realloc(page_arr, sizeof(struct page *) * (page_arr_total_len + 1));
 		page_arr_total_len += 1;
@@ -478,12 +482,16 @@ void destroy_page(struct page *page)
 	while (page->g_arr_used_len > 0) {
 		destroy_graph(tmp_garr[page->g_arr_used_len-1]);
 	}
+	while (page->line_arr_used_len > 0) {
+		destroy_line(page->line_arr[page->line_arr_used_len-1]);
+	}
 	page_arr_used_len -= 1;
 	free(page->i_arr);
 	free(page->b_arr);
 	free(page->s_arr);
 	free(page->t_arr);
 	free(page->g_arr);
+	free(page->line_arr);
 	free(page->img_arr);
 	free(page);
 }
@@ -518,7 +526,9 @@ void render_showen_page(void)
 	for (int i = 0; i < showen_page->d_arr_used_len; i++) {
 		if (showen_page->d_arr[i]->show != 0) render_ddm(showen_page->d_arr[i]);
 	}
-
+	for (int i = 0; i < showen_page->line_arr_used_len; i++) {
+		if (showen_page->line_arr[i]->show != 0) render_line(showen_page->line_arr[i]);
+	}
 }
 
 struct text *create_text(char *string, int x, int y, int w, int h, int font_size, int wrap_length, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f, struct page *p)
@@ -1162,8 +1172,43 @@ void show_image(struct image *img)
 	if (img->show != 0) SDL_RenderCopy(renderer, img->texture, NULL, &img->pos);
 }
 
+struct line *create_line(int x1, int y1, int x2, int y2, SDL_Color color, struct page *p)
+{
+	struct line *ret_line = malloc(sizeof(struct line));
+	if (p != NULL) {
+		ret_line->parent_p = p;
+		ret_line->show = p->show;
+		if (p->line_arr_used_len + 1 > p->line_arr_total_len) {
+			p->line_arr = (struct line**)realloc(p->line_arr, sizeof(struct line*) * (p->line_arr_total_len + 5));
+			p->line_arr_total_len += 5;
+		}
+		p->line_arr[p->line_arr_used_len] = ret_line;
+		ret_line->index = p->line_arr_used_len;
+		p->line_arr_used_len += 1;
+	}
+	ret_line->color = color;
+	ret_line->start.x = x1; ret_line->start.y = y1;
+	ret_line->too.x = x2; ret_line->too.y = y2;
+	return ret_line;
+}
 
-
+void destroy_line(struct line *line)
+{
+	if (line->parent_p != NULL) {
+		for (int i = line->index; i < line->parent_p->line_arr_used_len-1; i++) {
+			line->parent_p->line_arr[i] = line->parent_p->line_arr[i+1];
+			line->parent_p->line_arr[i]->index = i;
+		}
+		line->parent_p->line_arr[line->parent_p->line_arr_used_len] = NULL;
+		line->parent_p->line_arr_used_len -= 1;
+	}
+	free(line);
+}
+void render_line(struct line *line)
+{
+	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(line->color));
+	SDL_RenderDrawLine(renderer, line->start.x, line->start.y, line->too.x, line->too.y);
+}
 
 
 

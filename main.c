@@ -114,7 +114,14 @@ struct text *cpu_temp;
 struct text *graph_fan_speed_text;
 struct text *graph_cpu_temp_text;
 struct text *speeds;
+struct text *port_speed_pro[4];
+struct text *port_speed_rpm[4];
+struct text *port_text;
+struct text *port_nummber[4];
 
+struct line *port_box_lines[6];
+
+struct button *port_bg;
 struct button *fan_page_button_f;
 struct button *rgb_page_button_f;
 struct button *setting_page_button_f;
@@ -193,7 +200,6 @@ int main(void)
 			b2 = a;
 			update_temp();
 			update_speed_str();		
-			change_text_and_render_texture(speeds, speeds_str, speeds->fg_color, speeds->bg_color, font);
 		}
 		SDL_Delay(1);
 	}
@@ -234,17 +240,11 @@ int init(void)
 		return -1;
 	}
 
-	if (update_speed_str() != 0) {
-		printf("update_speed_str failed");
-		return -1;
-	}
-
-
 	init_fan_page();
 	init_rgb_page();
 	init_settings_page();
 
-	show_page(rgb_page);
+	show_page(fan_speed_page);
 
 	return 0;
 }
@@ -264,7 +264,31 @@ int init_fan_page(void)
 	}
 	fan_curve_graphs[0]->show = 1;
 	fan_curve_graphs[0]->rerender = 1;
-	speeds = create_text(speeds_str, 425, 250, 0, 0, 0, 0, WHITE, edarkgrey, font, fan_speed_page);
+
+
+	port_bg = create_button(NULL, 0, 1, 425, 100, 200, 200, 0, font, NULL, NULL, WHITE, BLACK, WHITE, fan_speed_page);
+
+	port_box_lines[0] = create_line(port_bg->outer_box.x + port_bg->outer_box.w/3, port_bg->outer_box.y, port_bg->outer_box.x + port_bg->outer_box.w/3, port_bg->outer_box.y + port_bg->outer_box.h, WHITE, fan_speed_page);
+	port_box_lines[0]->show = 1;
+	port_box_lines[1] = create_line(port_bg->outer_box.x + port_bg->outer_box.w/1.5, port_bg->outer_box.y, port_bg->outer_box.x + port_bg->outer_box.w/1.5, port_bg->outer_box.y + port_bg->outer_box.h, WHITE, fan_speed_page);
+	port_box_lines[1]->show = 1;
+
+	port_text = create_text("PORTS", 426, 106, 0, 0, 15, 0, WHITE, BLACK, font, fan_speed_page);
+	port_text = create_text("RPM", port_box_lines[0]->start.x + 5, 106, 0, 0, 15, 0, WHITE, BLACK, font, fan_speed_page);
+	port_text = create_text("%", port_box_lines[1]->start.x + 5, 106, 0, 0, 15, 0, WHITE, BLACK, font, fan_speed_page);
+	port_box_lines[2] = create_line(port_bg->outer_box.x, port_text->dst.y + port_text->dst.h + 1, port_bg->outer_box.x + port_bg->outer_box.w, port_text->dst.y + port_text->dst.h + 1, WHITE, fan_speed_page);
+	port_box_lines[2]->show = 1;
+
+	for (int i = 0; i < 4; i++) {
+		port_speed_pro[i] = create_text("0", 425, 250 + i * 30, 0, 0, 0, 0, WHITE, edarkgrey, font, fan_speed_page);
+		port_speed_rpm[i] = create_text("0", 500, 250 + i * 30, 0, 0, 0, 0, WHITE, edarkgrey, font, fan_speed_page);
+	}
+	if (update_speed_str() != 0) {
+		printf("update_speed_str failed");
+		return -1;
+	}
+	//speeds = create_text(speeds_str, 425, 250, 0, 0, 0, 0, WHITE, edarkgrey, font, fan_speed_page);
+
 	cpu_temp = create_text("current cpu temp: 0", 425, 220, 0, 0, 20, 0, WHITE, edarkgrey, font, fan_speed_page);
 	
 	graph_cpu_temp_text = create_text("cputemp: %", 20, 220, 0, 0, 20, 0, WHITE, edarkgrey, font, fan_speed_page);
@@ -443,7 +467,6 @@ void apply_fans_func(struct button *self, SDL_Event *e)
 		ports[selected_port].curve = realloc(ports[selected_port].curve, sizeof(struct port) * fan_curve_graphs[selected_port]->point_amount);
 		ports[selected_port].points_total = fan_curve_graphs[selected_port]->point_amount;
 	}
-	//memcpy(ports[selected_port].curve, fan_curve_graphs[selected_port]->points, sizeof(struct port) * ports[selected_port].points_total);
 	set_fan_curve(&ports[selected_port]);
 }
 
@@ -751,12 +774,11 @@ int update_speed_str(void)
 	for (int i = 0; i < 4; i++) {
 		speeds_pro[i] = get_fan_speed_pro(ports[i].proc_path);
 		speeds_rpm[i] = get_fan_speed_rpm(ports[i].proc_path);
+		sprintf(port_speed_pro[i]->str, "%d", speeds_pro[i]);
+		sprintf(port_speed_rpm[i]->str, "%d", speeds_rpm[i]);
+		change_text_and_render_texture(port_speed_pro[i], port_speed_pro[i]->str, WHITE, edarkgrey, font);
+		change_text_and_render_texture(port_speed_rpm[i], port_speed_rpm[i]->str, WHITE, edarkgrey, font);
 	}
-
-	sprintf(speeds_str, "%d, %d, %d, %d\n%d, %d, %d, %d", 
-			speeds_pro[0], speeds_pro[1], speeds_pro[2], speeds_pro[3], 
-			speeds_rpm[0], speeds_rpm[1], speeds_rpm[2], speeds_rpm[3]);
-
 	return 0;
 }
 

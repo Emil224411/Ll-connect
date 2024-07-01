@@ -98,6 +98,13 @@ struct graph {
 	struct page *parent_p;
 };
 
+struct line {
+	SDL_Color color;
+	int show, index;
+	struct point start, too;
+	struct page *parent_p;
+};
+
 struct page {
 	int show;
 	struct text **t_arr;
@@ -114,6 +121,8 @@ struct page {
 	int g_arr_total_len, g_arr_used_len;
 	struct image **img_arr;
 	int img_arr_total_len, img_arr_used_len;
+	struct line **line_arr;
+	int line_arr_total_len, line_arr_used_len;
 };
 
 /* global variables */
@@ -186,5 +195,10 @@ struct graph *create_graph(int x, int y, int w, int h, int scalew, int scaleh, i
 void destroy_graph(struct graph *graph);
 void render_graph(struct graph *graph);
 void change_graph_point(struct graph *graph);
+
+/* line functions */
+struct line *create_line(int x1, int y1, int x2, int y2, SDL_Color color, struct page *p);
+void destroy_line(struct line *line);
+void render_line(struct line *line);
 
 #endif
