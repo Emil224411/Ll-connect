@@ -62,12 +62,12 @@ struct slider {
 
 struct input {
 	int index, selected, max_len, show;
-	struct text *text;
+	struct text *text, *default_text;
 	int resize_box;
 	void (*function)(struct input *self, SDL_Event *event);
 	SDL_Rect default_outer_box, outer_box;
 	SDL_Color outer_box_color, bg_color;
-
+	SDL_Rect char_size;
 	struct page *parent_p;
 };
 
@@ -132,6 +132,7 @@ extern SDL_Color RED;
 extern SDL_Color GREEN;
 extern SDL_Color BLUE;
 
+extern struct page *showen_page;
 extern int running;
 extern char font_path[128];
 extern TTF_Font *font;
@@ -177,7 +178,7 @@ void update_slider(struct slider *slider, int x);
 void destroy_slider(struct slider *slider);
 
 /* input functions */
-struct input *create_input(char *text, int resize_box, int max_len, int x, int y, int w, int h, void (*function)(struct input *self, SDL_Event *event), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color, struct page *p);
+struct input *create_input(char *text, char *def_text, int resize_box, int max_len, int x, int y, int w, int h, void (*function)(struct input *self, SDL_Event *event), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color, struct page *p);
 void destroy_input_box(struct input *input_box);
 void change_input_box_text(struct input *input_box, char *str);
 void render_input_box(struct input *input_box);

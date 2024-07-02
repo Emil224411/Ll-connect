@@ -14,10 +14,12 @@ SDL_Color RED     = { 255,   0,   0, SDL_ALPHA_OPAQUE };
 SDL_Color GREEN   = {   0, 255,   0, SDL_ALPHA_OPAQUE };
 SDL_Color BLUE    = {   0,   0, 255, SDL_ALPHA_OPAQUE };
 
+static struct line *cursor;
+
 static int mouse_x, mouse_y;
 
 static struct page **page_arr;
-static struct page *showen_page;
+struct page *showen_page;
 static int page_arr_total_len;
 static int page_arr_used_len;
 
@@ -62,6 +64,8 @@ int ui_init(void)
 	page_arr_used_len = 0;
 	showen_page = NULL;
 
+	cursor = create_line(0, 0, 0, 0, WHITE, NULL);
+
 	SDL_StartTextInput();
 	return 0;
 }
@@ -69,6 +73,7 @@ int ui_init(void)
 void ui_shutdown(void)
 {
 	SDL_StopTextInput();
+	destroy_line(cursor);
 	while (page_arr_used_len > 0) {
 		destroy_page(page_arr[page_arr_used_len-1]);
 	}
@@ -145,7 +150,9 @@ void handle_event(SDL_Event *event)
 				size_t len = strlen(showen_page->selected_i->text->str);
 				if (len >= showen_page->selected_i->max_len) break;
 				if (showen_page->selected_i->max_len > 0) {
-					char *tmpstr = strncat(showen_page->selected_i->text->str, event->text.text, MAX_TEXT_SIZE - len);
+					char tmpstr[MAX_TEXT_SIZE]; 
+					strncpy(tmpstr, showen_page->selected_i->text->str, MAX_TEXT_SIZE);
+					strncat(tmpstr, event->text.text, MAX_TEXT_SIZE - len);
 					change_input_box_text(showen_page->selected_i, tmpstr);
 				}
 			}
@@ -298,13 +305,22 @@ static void lmouse_button_up(SDL_Event *event)
 			hit = 1;
 			showen_page->i_arr[i]->selected = 1;
 			showen_page->selected_i = showen_page->i_arr[i];
+			cursor->show = 1;
+			int text_str_len = strlen(showen_page->i_arr[i]->text->str);
+			cursor->start.x = showen_page->i_arr[i]->text->dst.x + showen_page->i_arr[i]->char_size.w * text_str_len;
+			cursor->start.y = showen_page->i_arr[i]->text->dst.y;
+			cursor->too.x = showen_page->i_arr[i]->text->dst.x + showen_page->i_arr[i]->char_size.w * text_str_len;
+			cursor->too.y = showen_page->i_arr[i]->text->dst.y + showen_page->i_arr[i]->char_size.h;
 			SDL_StartTextInput();
 		} else if (showen_page->i_arr[i]->selected != 0) {
 			showen_page->i_arr[i]->selected = 0;
 			SDL_StopTextInput();
 		}
 	}
-	if (hit == 0) showen_page->selected_i = NULL;
+	if (hit == 0) {
+		showen_page->selected_i = NULL;
+		cursor->show = 0;
+	}
 	hit = 0;
 	if (showen_page->selected_d != NULL && CHECK_RECT(mouse_data, showen_page->selected_d->drop_pos)) {
 		for (int i = 0; i < showen_page->selected_d->items; i++) {
@@ -520,6 +536,7 @@ void render_showen_page(void)
 	for (int i = 0; i < showen_page->i_arr_used_len; i++) {
 		if (showen_page->i_arr[i]->show != 0) render_input_box(showen_page->i_arr[i]);
 	}
+	if (cursor->show != 0) render_line(cursor);
 	for (int i = 0; i < showen_page->s_arr_used_len; i++) {
 		if (showen_page->s_arr[i]->show != 0) render_slider(showen_page->s_arr[i]);
 	}
@@ -591,7 +608,6 @@ void destroy_text_texture(struct text *text)
 int prev_font_size = 20;
 int render_text_texture(struct text *t, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f)
 {
-
 	if (prev_font_size != t->font_size) {
 		TTF_SetFontSize(f, t->font_size);
 		prev_font_size = t->font_size;
@@ -689,21 +705,39 @@ void render_button(struct button *button)
 // 	   |---------|
 // 	-> |some text|
 // 	   |---------|
-struct input *create_input(char *string, int resize_box, int max_len, int x, int y, int w, int h, void (*function)(), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color, struct page *p)
+struct input *create_input(char *string, char *def_text, int resize_box, int max_len, int x, int y, int w, int h, void (*function)(), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color, struct page *p)
 {
 	struct input *return_input = malloc(sizeof(struct input));
-	struct input new_input = { 0, 0, max_len, 1, NULL, resize_box, function, { x, y, w, h }, {x, y, w, h }, outer_color, bg_color, p };
+	struct input new_input = { 0, 0, max_len, 1, NULL, NULL, resize_box, function, { x, y, w, h }, {x, y, w, h }, outer_color, bg_color, { 0 }, p };
 
 	if (string != NULL) {
-		new_input.text = create_text(string, x+5, y+5, 0, 0, 0, 0, text_color, bg_color, f, NULL);
+		if (max_len != 0) {
+			char tstr[max_len+1];
+			for (int i = 0; i < max_len; i++) {
+				tstr[i] = ' ';
+			}
+			tstr[max_len] = '\0';
+			new_input.text = create_text(tstr, x+5, y+5, 0, 0, 20, 0, text_color, bg_color, f, NULL);
+			w = new_input.text->dst.w + 10;
+			h = new_input.text->dst.h + 10;
+			tstr[1] = '\0';
+			change_text_and_render_texture(new_input.text, tstr, text_color, bg_color, f);
+			new_input.char_size.w = new_input.text->dst.w;
+			new_input.char_size.h = new_input.text->dst.h;
+			change_text_and_render_texture(new_input.text, string, text_color, bg_color, f);
+		}
+		else new_input.text = create_text(string, x+5, y+5, 0, 0, 20, 0, text_color, bg_color, f, NULL);
+	}
+	if (def_text != NULL) {
+		new_input.default_text = create_text(def_text, x+5, y+5, 0, 0, 20, 0, text_color, bg_color, f, NULL);
 	}
 
 	if (w == 0) {
 		new_input.default_outer_box.w = new_input.outer_box.w = new_input.text->dst.w + 10;
-	} else  new_input.default_outer_box.w = new_input.outer_box.w = w;
+	} else new_input.default_outer_box.w = new_input.outer_box.w = w;
 	if (h == 0) {
 		new_input.default_outer_box.h = new_input.outer_box.h = new_input.text->dst.h + 10;
-	} else  new_input.default_outer_box.h = new_input.outer_box.h = h;
+	} else new_input.default_outer_box.h = new_input.outer_box.h = h;
 
 	if (!resize_box) {
 		new_input.text->src = new_input.text->dst;
@@ -731,12 +765,33 @@ void change_input_box_text(struct input *input_box, char *str)
 	prev_input_margin.w = input_box->outer_box.w - input_box->text->dst.w;
 	prev_input_margin.h = input_box->outer_box.h - input_box->text->dst.h;
 
+	size_t old_len = strlen(input_box->text->str), new_len = strlen(str);
+	if (old_len < new_len) {
+		cursor->too.x = cursor->start.x += input_box->char_size.w;
+	} else if (old_len > new_len) {
+		cursor->too.x = cursor->start.x -= input_box->char_size.w;
+	}
 	strncpy(input_box->text->str, str, MAX_TEXT_SIZE);
-	render_text_texture(input_box->text, input_box->text->fg_color, input_box->text->bg_color, font);
+	if (str[0] != '\0') {
+		render_text_texture(input_box->text, input_box->text->fg_color, input_box->text->bg_color, font);
+		input_box->text->show = 1;
+		input_box->default_text->show = 0;
+	} else {
+		render_text_texture(input_box->default_text, input_box->default_text->fg_color, input_box->default_text->bg_color, font);
+		input_box->text->show = 0;
+		input_box->default_text->show = 1;
+	}
 
-	if (input_box->selected && input_box->outer_box.w < input_box->text->dst.w) {
-		input_box->outer_box.h = input_box->text->dst.h + prev_input_margin.h;
+	if (input_box->resize_box == 1) {
+		input_box->text->src.x = 0;
+		input_box->text->src.y = 0;
+		input_box->text->src.w = input_box->text->dst.w;
+		input_box->text->src.h = input_box->text->dst.h;
 		input_box->outer_box.w = input_box->text->dst.w + prev_input_margin.w;
+		input_box->outer_box.h = input_box->text->dst.h + prev_input_margin.h;
+	} else {
+		input_box->text->src.w = input_box->outer_box.w = input_box->default_outer_box.w;
+		input_box->text->src.h = input_box->outer_box.h = input_box->default_outer_box.h;
 	}
 }
 
@@ -747,25 +802,11 @@ void render_input_box(struct input *input_box)
 		return;
 	}
 	if (input_box->show == 0) return;
-	if (input_box->resize_box || input_box->selected) {
-		input_box->text->src.x = 0; 
-		input_box->text->src.y = 0;
-		input_box->text->src.w = input_box->text->dst.w;
-		input_box->text->src.h = input_box->text->dst.h;
-	} else {
-		//why did i comment this out???
-		//input_box->text.dst.h  = input_box->default_outer_box.h-10;
-		//input_box->text.dst.w  = input_box->default_outer_box.w-10;
-		input_box->outer_box.h = input_box->default_outer_box.h;
-		input_box->outer_box.w = input_box->default_outer_box.w;
-		//input_box->outer_box.h = input_box->text.src.h + 10;
-		//input_box->outer_box.w = input_box->text.src.w + 10;
-	}
 	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(input_box->bg_color));
 	SDL_RenderFillRect(renderer, &input_box->outer_box);
 	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(input_box->outer_box_color));
 	SDL_RenderDrawRect(renderer, &input_box->outer_box);
-	render_text(input_box->text, &input_box->text->src);
+	if (input_box->text->str[0] != '\0') render_text(input_box->text, &input_box->text->src);
 }
 
 void destroy_input_box(struct input *input_box)
