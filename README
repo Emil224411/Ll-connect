@@ -5,7 +5,10 @@ when you reboot your pc you will have to run Ll-connect again and apply the fan 
 
 you can also set the rgb
 
+dependencies: SDL2, SDL2_ttf(for the ui)
+
 install:
+if you dont want to use the ui skip 3 and 8.
    1.  clone the repo
 
    2.  cd to the repo
@@ -21,3 +24,5 @@ install:
    7.  run "sudo insmod Lian_li_hub.ko"(currently you should do this every time you boot your pc)
 
    8.  run "Ll-connect" from the terminal or how ever you run programs
+
+if you want to use it without the ui you can by using the proc files but i would not recommend it
