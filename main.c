@@ -3,7 +3,8 @@
  |--------------------------------------------------------------------------------------------------------------|
  |														|
  | 		1.  getting seemingly random segfaults on shutdown why idk but from now on every time 		|
- |			i run ill use gdb. 									|
+ |			i run ill use gdb(ran it with htop open and mem usage was double the normal amount 	|
+ |			so look in to that). 									|
  |		2.  finish fan speed control page apply to port apply to all.					|
  | 		3.  finish settings page. 									|
  | 														|
@@ -250,7 +251,7 @@ int init(void)
 	init_rgb_page();
 	init_settings_page();
 
-	show_page(fan_speed_page);
+	show_page(rgb_page);
 
 	return 0;
 }
@@ -311,11 +312,11 @@ int init_fan_page(void)
 	graph_cpu_temp_text =  create_button("cpu temp :", 0, 1, 20, 200, 0, 0, 20, font, NULL, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
 	graph_fan_speed_text =  create_button("fan speed:", 0, 1, 20, 200 + 5 + graph_cpu_temp_text->outer_box.h, 0, 0, 20, font, NULL, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
 
-	cpu_temp_input = create_input("0", "cpu", 0, 3, 20 + graph_cpu_temp_text->outer_box.w, 200, 0, 0, NULL, font, WHITE, edarkgrey, WHITE, fan_speed_page);
+	cpu_temp_input = create_input("0", "cpu", 0, 3, 25 + graph_cpu_temp_text->outer_box.w, 200, 0, 0, NULL, font, WHITE, edarkgrey, WHITE, fan_speed_page);
 
 	cpu_temp_input->filter = filter_cpu_input;
 
-	fan_speed_input = create_input("0", "fan", 0, 3, 20 + graph_fan_speed_text->outer_box.w, 205 + graph_cpu_temp_text->outer_box.h, 0, 0, NULL, font, WHITE, edarkgrey, WHITE, fan_speed_page);
+	fan_speed_input = create_input("0", "fan", 0, 3, 25 + graph_fan_speed_text->outer_box.w, 205 + graph_cpu_temp_text->outer_box.h, 0, 0, NULL, font, WHITE, edarkgrey, WHITE, fan_speed_page);
 
 	fan_speed_input->filter = filter_cpu_input;
 
@@ -323,7 +324,7 @@ int init_fan_page(void)
 	for (int i = 0; i < 4; i++) {
 		char portstr[7];
 		sprintf(portstr, "Port %d", i+1); 
-		select_port_fan_buttons[i] = create_button(portstr, 0, 1, cpu_temp_input->outer_box.x + cpu_temp_input->outer_box.w + prev_w + 5, 
+		select_port_fan_buttons[i] = create_button(portstr, 0, 1, cpu_temp_input->outer_box.x + cpu_temp_input->outer_box.w + prev_w + 10, 
 					200 + prev_h, 0, 0, 0, font, port_select_fan_func, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
 		if ((i + 1) % 2 == 0) {
 			prev_h = select_port_fan_buttons[i]->outer_box.h + 5;
@@ -332,7 +333,7 @@ int init_fan_page(void)
 			prev_w = select_port_fan_buttons[i]->outer_box.w + 5;
 		}
 	}
-	apply_fan_speed = create_button("Apply", 0, 1, select_port_fan_buttons[3]->outer_box.x + select_port_fan_buttons[3]->outer_box.w, select_port_fan_buttons[3]->outer_box.y, 0, 0, 0, font, apply_fans_func, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
+	apply_fan_speed = create_button("Apply", 0, 1, select_port_fan_buttons[3]->outer_box.x + select_port_fan_buttons[3]->outer_box.w + 5, select_port_fan_buttons[3]->outer_box.y, 0, 0, 0, font, apply_fans_func, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
 
 
 	setting_page_button_f = create_button("settings", 0, 1, 10, 10, 0, 0, 20, font, change_to_settings_page, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
