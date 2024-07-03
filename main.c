@@ -106,8 +106,8 @@ void port_select_rgb_func(struct button *self, SDL_Event *event);
 struct page *fan_speed_page;
 
 struct text *cpu_temp;
-struct text *graph_fan_speed_text;
-struct text *graph_cpu_temp_text;
+struct button *graph_fan_speed_text;
+struct button *graph_cpu_temp_text;
 struct text *speeds;
 struct text *port_speed_pro[4];
 struct text *port_speed_rpm[4];
@@ -128,6 +128,9 @@ struct button *apply_fan_speed;
 struct graph *fan_curve_graphs[4];
 struct point line;
 
+struct input *cpu_temp_input;
+struct input *fan_speed_input;
+
 /* fan functions */
 int init_fan_page(void);
 void change_to_rgb_page(struct button *self, SDL_Event *e);
@@ -137,6 +140,7 @@ void change_to_fan_page(struct button *self, SDL_Event *e);
 void update_temp(void);
 float get_fan_speed_from_graph(struct graph *g, float temp);
 void apply_fans_func(struct button *self, SDL_Event *e);
+int filter_cpu_input(struct input *self, char new_text[32]);
 
 /* end fan page def */
 
@@ -199,6 +203,9 @@ int main(void)
 				update_temp();
 				update_speed_str();		
 			}
+			if (showen_page->selected_i != NULL) {
+				cursor->show = (cursor->show + 1) % 2;
+			}
 		}
 		SDL_Delay(1);
 	}
@@ -243,7 +250,7 @@ int init(void)
 	init_rgb_page();
 	init_settings_page();
 
-	show_page(rgb_page);
+	show_page(fan_speed_page);
 
 	return 0;
 }
@@ -254,6 +261,7 @@ int init_fan_page(void)
 	for (int i = 0; i < 4; i++) {
 		load_port(&ports[i]);
 		fan_curve_graphs[i] = create_graph(20, WINDOW_H-220, 100, 100, 4, 2, 10, 10, 10, 10, 0, moving_graph, WHITE, BLACK, BLUE, grey, BLUE, fan_speed_page);
+		fan_curve_graphs[i]->on_click = moving_graph;
 		fan_curve_graphs[i]->points = realloc(fan_curve_graphs[i]->points, sizeof(struct point) * ports[i].points_total);
 		mempcpy(fan_curve_graphs[i]->points, ports[i].curve, sizeof(struct point) * ports[i].points_total);
 		fan_curve_graphs[i]->point_amount = ports[i].points_used;
@@ -265,7 +273,7 @@ int init_fan_page(void)
 	fan_curve_graphs[0]->rerender = 1;
 
 
-	port_bg = create_button(NULL, 0, 1, 425, 100, 300, 191, 0, font, NULL, NULL, WHITE, BLACK, WHITE, fan_speed_page);
+	port_bg = create_button(NULL, 0, 1, 425, WINDOW_H - 211, 300, 191, 0, font, NULL, NULL, WHITE, BLACK, WHITE, fan_speed_page);
 
 	port_box_lines[0] = create_line(port_bg->outer_box.x + port_bg->outer_box.w/3, port_bg->outer_box.y, 
 			port_bg->outer_box.x + port_bg->outer_box.w/3, port_bg->outer_box.y + port_bg->outer_box.h - 31, WHITE, fan_speed_page);
@@ -274,9 +282,9 @@ int init_fan_page(void)
 			port_bg->outer_box.x + port_bg->outer_box.w/1.5, port_bg->outer_box.y + port_bg->outer_box.h - 31, WHITE, fan_speed_page);
 	port_box_lines[1]->show = 1;
 
-	port_text = create_text("PORTS", 426, 106, 0, 0, 20, 0, WHITE, BLACK, font, fan_speed_page);
-	rpm_text = create_text("RPM", port_box_lines[0]->start.x + 5, 106, 0, 0, 20, 0, WHITE, BLACK, font, fan_speed_page);
-	pro_text = create_text("%", port_box_lines[1]->start.x + 5, 106, 0, 0, 20, 0, WHITE, BLACK, font, fan_speed_page);
+	port_text = create_text("PORTS", 426, WINDOW_H - 205, 0, 0, 20, 0, WHITE, BLACK, font, fan_speed_page);
+	rpm_text = create_text("RPM", port_box_lines[0]->start.x + 5, WINDOW_H - 205, 0, 0, 20, 0, WHITE, BLACK, font, fan_speed_page);
+	pro_text = create_text("%", port_box_lines[1]->start.x + 5, WINDOW_H - 205, 0, 0, 20, 0, WHITE, BLACK, font, fan_speed_page);
 	port_box_lines[2] = create_line(port_bg->outer_box.x, port_text->dst.y + port_text->dst.h + 1, 
 			port_bg->outer_box.x + port_bg->outer_box.w - 2, port_text->dst.y + port_text->dst.h + 1, WHITE, fan_speed_page);
 	port_box_lines[2]->show = 1;
@@ -284,7 +292,7 @@ int init_fan_page(void)
 
 	for (int i = 0; i < 4; i++) {
 		char tmp_str[4];
-		sprintf(tmp_str, "#%d", i);
+		sprintf(tmp_str, "#%d", i + 1);
 		port_nummber[i] = create_text(tmp_str, port_text->dst.x + 2, port_text->dst.y + port_text->dst.h + 5, 0, 0, 23, 0, WHITE, port_bg->bg_color, font, fan_speed_page);
 		port_nummber[i]->dst.y += (port_nummber[i]->dst.h + 5) * i;
 		port_speed_pro[i] = create_text("0", pro_text->dst.x, port_nummber[i]->dst.y, 0, 0, 23, 0, WHITE, port_bg->bg_color, font, fan_speed_page);
@@ -300,15 +308,23 @@ int init_fan_page(void)
 
 	cpu_temp = create_text("current cpu temp: 0°", port_bg->outer_box.x + 5, port_box_lines[5]->start.y + 3, 0, 0, 20, 0, WHITE, BLACK, font, fan_speed_page);
 	
-	graph_cpu_temp_text = create_text("cputemp: 0°", 20, 220, 0, 0, 20, 0, WHITE, edarkgrey, font, fan_speed_page);
-	graph_fan_speed_text = create_text("fanspeed: 0%", 20, 250, 0, 0, 20, 0, WHITE, edarkgrey, font, fan_speed_page);
+	graph_cpu_temp_text =  create_button("cpu temp :", 0, 1, 20, 200, 0, 0, 20, font, NULL, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
+	graph_fan_speed_text =  create_button("fan speed:", 0, 1, 20, 200 + 5 + graph_cpu_temp_text->outer_box.h, 0, 0, 20, font, NULL, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
+
+	cpu_temp_input = create_input("0", "cpu", 0, 3, 20 + graph_cpu_temp_text->outer_box.w, 200, 0, 0, NULL, font, WHITE, edarkgrey, WHITE, fan_speed_page);
+
+	cpu_temp_input->filter = filter_cpu_input;
+
+	fan_speed_input = create_input("0", "fan", 0, 3, 20 + graph_fan_speed_text->outer_box.w, 205 + graph_cpu_temp_text->outer_box.h, 0, 0, NULL, font, WHITE, edarkgrey, WHITE, fan_speed_page);
+
+	fan_speed_input->filter = filter_cpu_input;
 
 	int prev_w = 0, prev_h = 0;
 	for (int i = 0; i < 4; i++) {
 		char portstr[7];
 		sprintf(portstr, "Port %d", i+1); 
-		select_port_fan_buttons[i] = create_button(portstr, 0, 1, fan_curve_graphs[0]->scaled_pos.x + fan_curve_graphs[0]->scaled_pos.w + prev_w + 10, 
-					fan_curve_graphs[0]->scaled_pos.y + fan_curve_graphs[0]->scaled_pos.h - 73 + prev_h, 0, 0, 0, font, port_select_fan_func, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
+		select_port_fan_buttons[i] = create_button(portstr, 0, 1, cpu_temp_input->outer_box.x + cpu_temp_input->outer_box.w + prev_w + 5, 
+					200 + prev_h, 0, 0, 0, font, port_select_fan_func, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
 		if ((i + 1) % 2 == 0) {
 			prev_h = select_port_fan_buttons[i]->outer_box.h + 5;
 			prev_w = 0;
@@ -318,7 +334,6 @@ int init_fan_page(void)
 	}
 	apply_fan_speed = create_button("Apply", 0, 1, select_port_fan_buttons[3]->outer_box.x + select_port_fan_buttons[3]->outer_box.w, select_port_fan_buttons[3]->outer_box.y, 0, 0, 0, font, apply_fans_func, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
 
-	create_input("0", "cpu", 0, 3, 200, 10, 0, 0, NULL, font, WHITE, BLACK, WHITE, fan_speed_page);
 
 	setting_page_button_f = create_button("settings", 0, 1, 10, 10, 0, 0, 20, font, change_to_settings_page, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
 	rgb_page_button_f = create_button("rgb", 0, 1, 10, setting_page_button_f->outer_box.y + setting_page_button_f->outer_box.h + 5,
@@ -478,6 +493,33 @@ void fan_count_button_click(struct button *self, SDL_Event *e)
 	}
 }
 
+int filter_cpu_input(struct input *self, char new_text[32])
+{
+	int num = 0, nums[3] = { 0,0,0 };
+	int str_l = strlen(self->text->str);
+	if (str_l == 1) {
+		nums[0] = (self->text->str[0] - 48) * 10;
+	} else if (str_l == 2) {
+		nums[0] = (self->text->str[0] - 48) * 100;
+		nums[1] = (self->text->str[1] - 48) * 10;
+	}
+	if (new_text[0] >= 48 && new_text[0] <= 57) {
+		nums[str_l] = new_text[0] - 48;
+	} else return 1;
+	num = nums[0] + nums[1] + nums[2];
+	if (num > 100) {
+		num = 100;
+		self->text->str[0] = '1';
+		self->text->str[1] = 48;
+		new_text[0] = 48;
+	}
+	if (fan_curve_graphs[selected_port]->selected_point != NULL) {
+		if (self == cpu_temp_input) fan_curve_graphs[selected_port]->selected_point->x = num;
+		else if (self == fan_speed_input) fan_curve_graphs[selected_port]->selected_point->y = 100-num;
+	}
+	return 0;
+}
+
 void apply_fans_func(struct button *self, SDL_Event *e)
 {
 	if (fan_curve_graphs[selected_port]->point_amount > ports[selected_port].points_total) {
@@ -517,10 +559,10 @@ void moving_graph(struct graph *self, SDL_Event *e)
 {
 	if (self->selected_point != NULL) {
 		char tmp_str[25];
-		sprintf(tmp_str, "fanspeed: %3d%%", 100-self->selected_point->y );
-		change_text_and_render_texture(graph_fan_speed_text, tmp_str, WHITE, edarkgrey, font);
-		sprintf(tmp_str, "cputemp: %3d°", self->selected_point->x); 
-		change_text_and_render_texture(graph_cpu_temp_text, tmp_str, WHITE, edarkgrey, font);
+		sprintf(tmp_str, "%d", 100-self->selected_point->y );
+		change_input_box_text(cpu_temp_input, tmp_str);
+		sprintf(tmp_str, "%d", self->selected_point->x); 
+		change_input_box_text(fan_speed_input, tmp_str);
 	}
 }
 

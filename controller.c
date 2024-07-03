@@ -152,7 +152,7 @@ int load_port(struct port *p)
 
 	FILE *f = fopen(path, "r");
 	if (f == NULL) {
-		printf("save_port failed to open file at path %s\n", path);
+		printf("load port failed to open file at path %s\n", path);
 		return -1;
 	}
 	fscanf(f, "%d", &p->fan_count);

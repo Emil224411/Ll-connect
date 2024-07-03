@@ -7,6 +7,7 @@ SDL_Renderer *renderer;
 TTF_Font     *font;
 char font_path[128];
 int default_font_size = 20;
+struct line *cursor;
 
 SDL_Color BLACK   = {   0,   0,   0, SDL_ALPHA_OPAQUE };
 SDL_Color WHITE   = { 255, 255, 255, SDL_ALPHA_OPAQUE };
@@ -14,7 +15,6 @@ SDL_Color RED     = { 255,   0,   0, SDL_ALPHA_OPAQUE };
 SDL_Color GREEN   = {   0, 255,   0, SDL_ALPHA_OPAQUE };
 SDL_Color BLUE    = {   0,   0, 255, SDL_ALPHA_OPAQUE };
 
-static struct line *cursor;
 
 static int mouse_x, mouse_y;
 
@@ -151,8 +151,15 @@ void handle_event(SDL_Event *event)
 				if (len >= showen_page->selected_i->max_len) break;
 				if (showen_page->selected_i->max_len > 0) {
 					char tmpstr[MAX_TEXT_SIZE]; 
-					strncpy(tmpstr, showen_page->selected_i->text->str, MAX_TEXT_SIZE);
-					strncat(tmpstr, event->text.text, MAX_TEXT_SIZE - len);
+					if (showen_page->selected_i->filter != NULL && showen_page->selected_i->filter(showen_page->selected_i, event->text.text) == 0) {
+						strncpy(tmpstr, showen_page->selected_i->text->str, MAX_TEXT_SIZE);
+						strncat(tmpstr, event->text.text, MAX_TEXT_SIZE - len);
+					} else if (showen_page->selected_i->filter == NULL) {
+						strncpy(tmpstr, showen_page->selected_i->text->str, MAX_TEXT_SIZE);
+						strncat(tmpstr, event->text.text, MAX_TEXT_SIZE - len);
+					} else {
+						strncpy(tmpstr, showen_page->selected_i->text->str, MAX_TEXT_SIZE);
+					}
 					change_input_box_text(showen_page->selected_i, tmpstr);
 				}
 			}
@@ -197,7 +204,7 @@ static void mouse_move(SDL_Event *event)
 			showen_page->selected_s->on_move(showen_page->selected_s, event);
 	}
 	if (showen_page->selected_g != NULL) {
-		if (showen_page->selected_g->selected_point != NULL) {
+		if (showen_page->selected_g->selected_point != NULL && event->motion.state == SDL_PRESSED) {
 			if (event->motion.x <= showen_page->selected_g->scaled_pos.x + showen_page->selected_g->scaled_pos.w 
 					&& event->motion.x >= showen_page->selected_g->scaled_pos.x) {
 				showen_page->selected_g->selected_point->x = (event->motion.x - showen_page->selected_g->scaled_pos.x)/showen_page->selected_g->scale_w;
@@ -295,9 +302,9 @@ static void lmouse_button_up(SDL_Event *event)
 					break;
 				}
 			}
+		} else {
+			showen_page->selected_g = NULL;
 		}
-		if (showen_page->selected_g->selected_point != NULL) showen_page->selected_g->selected_point = NULL;
-		showen_page->selected_g = NULL;
 	}
 	int hit = 0;
 	for (int i = 0; i < showen_page->i_arr_used_len; i++) {
@@ -381,27 +388,32 @@ static void lmouse_button_down(SDL_Event *event)
 				struct graph *tmp_g = showen_page->selected_g = showen_page->g_arr[i];
 				int offx = (mouse_data.x - tmp_g->scaled_pos.x);
 				int offy = (mouse_data.y - tmp_g->scaled_pos.y);
+				int h = 0;
 				for (int j = 0; j < tmp_g->point_amount; j++) {
 					if (tmp_g->points[j].x * tmp_g->scale_w + tmp_g->points_size.w > offx && tmp_g->points[j].x * tmp_g->scale_w < offx && 
 							tmp_g->points[j].y * tmp_g->scale_h + tmp_g->points_size.h > offy && tmp_g->points[j].y * tmp_g->scale_h < offy) {
 						tmp_g->selected_point = &tmp_g->points[j];
 						tmp_g->selected_point_index = j;
 						tmp_g->selected = 1;
+						h = 1;
 					} else if (offx > tmp_g->scaled_pos.w - tmp_g->points_size.w 
 						 && offx + tmp_g->points_size.w < tmp_g->points[j].x * tmp_g->scale_w + tmp_g->points_size.h && offx + tmp_g->points_size.w > tmp_g->points[j].x * tmp_g->scale_w
 						 && offy < tmp_g->points[j].y * tmp_g->scale_h + tmp_g->points_size.h && offy > tmp_g->points[j].y * tmp_g->scale_h) {
 						tmp_g->selected_point = &tmp_g->points[j];
 						tmp_g->selected_point_index = j;
 						tmp_g->selected = 1;
+						h = 1;
 					} else if (offy > tmp_g->scaled_pos.h - tmp_g->points_size.h 
 						 && offx < tmp_g->points[j].x * tmp_g->scale_w + tmp_g->points_size.h && offx > tmp_g->points[j].x * tmp_g->scale_w
 						 && offy + tmp_g->points_size.h < tmp_g->points[j].y * tmp_g->scale_h + tmp_g->points_size.h && offy + tmp_g->points_size.h > tmp_g->points[j].y * tmp_g->scale_h) {
 						tmp_g->selected_point = &tmp_g->points[j];
 						tmp_g->selected_point_index = j;
 						tmp_g->selected = 1;
-						}
+						h = 1;
 					} 
-
+				} 
+				if (h == 0) tmp_g->selected_point = NULL;
+				else if (tmp_g->on_click != NULL) tmp_g->on_click(tmp_g, event);
 			}
 		}
 	}
@@ -708,7 +720,7 @@ void render_button(struct button *button)
 struct input *create_input(char *string, char *def_text, int resize_box, int max_len, int x, int y, int w, int h, void (*function)(), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color, struct page *p)
 {
 	struct input *return_input = malloc(sizeof(struct input));
-	struct input new_input = { 0, 0, max_len, 1, NULL, NULL, resize_box, function, { x, y, w, h }, {x, y, w, h }, outer_color, bg_color, { 0 }, p };
+	struct input new_input = { 0, 0, max_len, 1, NULL, NULL, resize_box, function, NULL, { x, y, w, h }, {x, y, w, h }, outer_color, bg_color, { 0 }, p };
 
 	if (string != NULL) {
 		if (max_len != 0) {
@@ -1062,7 +1074,7 @@ struct graph *create_graph(int x, int y, int w, int h, int scale_w, int scale_h,
 {
 	struct graph *return_graph = malloc(sizeof(struct graph));
 	struct graph tmp_graph = { { x, y, w, h }, {x, y, w * scale_w, h * scale_h}, { 0, 0, point_w, point_h }, { 0, 0, sp_w, sp_h }, 
-				   scale_w, scale_h, 0, 0, NULL, 0, 0, 1, p_amount, p_amount, NULL, { 0 }, on_move, oc, bgc, fgc, point_c, sp_c, p};
+				   scale_w, scale_h, 0, 0, NULL, 0, 0, 1, p_amount, p_amount, NULL, { 0 }, on_move, NULL, oc, bgc, fgc, point_c, sp_c, p};
 	struct point *pt = malloc(sizeof(struct point) * p_amount);
 	tmp_graph.points = pt;
 	memcpy(return_graph, &tmp_graph, sizeof(struct graph));
@@ -1143,17 +1155,15 @@ void render_graph(struct graph *graph)
 		SDL_RenderFillRect(renderer, &tmp_rect);
 	}
 
-	if (showen_page->selected_g != NULL) {
-		if (showen_page->selected_g->selected_point != NULL) {
-			SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(graph->selected_point_color));
-			SDL_Rect tmp_rect = { graph->selected_point->x * graph->scale_w + graph->scaled_pos.x, graph->selected_point->y * graph->scale_h + graph->scaled_pos.y, 
-						graph->points_selected_size.w, graph->points_selected_size.h };
+	if (graph->selected_point != NULL) {
+		SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(graph->selected_point_color));
+		SDL_Rect tmp_rect = { graph->selected_point->x * graph->scale_w + graph->scaled_pos.x, graph->selected_point->y * graph->scale_h + graph->scaled_pos.y, 
+					graph->points_selected_size.w, graph->points_selected_size.h };
 
-			if (tmp_rect.x + tmp_rect.w >= graph->scaled_pos.x + graph->scaled_pos.w) tmp_rect.x = graph->scaled_pos.x + graph->scaled_pos.w - graph->points_size.w - 1;
-			if (tmp_rect.y + tmp_rect.h >= graph->scaled_pos.y + graph->scaled_pos.h) tmp_rect.y = graph->scaled_pos.y + graph->scaled_pos.h - graph->points_size.h - 1;
+		if (tmp_rect.x + tmp_rect.w >= graph->scaled_pos.x + graph->scaled_pos.w) tmp_rect.x = graph->scaled_pos.x + graph->scaled_pos.w - graph->points_size.w - 1;
+		if (tmp_rect.y + tmp_rect.h >= graph->scaled_pos.y + graph->scaled_pos.h) tmp_rect.y = graph->scaled_pos.y + graph->scaled_pos.h - graph->points_size.h - 1;
 
-			SDL_RenderFillRect(renderer, &tmp_rect);
-		}
+		SDL_RenderFillRect(renderer, &tmp_rect);
 	}
 	if (graph->x.x != 0) {
 		SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(graph->point_colors));
@@ -1235,6 +1245,7 @@ struct line *create_line(int x1, int y1, int x2, int y2, SDL_Color color, struct
 
 void destroy_line(struct line *line)
 {
+	if (line == NULL) return;
 	if (line->parent_p != NULL) {
 		for (int i = line->index; i < line->parent_p->line_arr_used_len-1; i++) {
 			line->parent_p->line_arr[i] = line->parent_p->line_arr[i+1];

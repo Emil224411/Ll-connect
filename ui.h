@@ -64,7 +64,8 @@ struct input {
 	int index, selected, max_len, show;
 	struct text *text, *default_text;
 	int resize_box;
-	void (*function)(struct input *self, SDL_Event *event);
+	void (*on_type)(struct input *self, SDL_Event *event);
+	int (*filter)(struct input *self, char new_text[32]);
 	SDL_Rect default_outer_box, outer_box;
 	SDL_Color outer_box_color, bg_color;
 	SDL_Rect char_size;
@@ -94,6 +95,7 @@ struct graph {
 	struct point *points;
 	struct point x;
 	void (*on_move)(struct graph *self, SDL_Event *e);
+	void (*on_click)(struct graph *self, SDL_Event *e);
 	SDL_Color outer_color, bg_color, fg_color, point_colors, selected_point_color;
 	struct page *parent_p;
 };
@@ -133,6 +135,7 @@ extern SDL_Color GREEN;
 extern SDL_Color BLUE;
 
 extern struct page *showen_page;
+extern struct line *cursor;
 extern int running;
 extern char font_path[128];
 extern TTF_Font *font;
