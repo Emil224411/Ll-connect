@@ -2,11 +2,12 @@
  |					 	   TODO 							|
  |--------------------------------------------------------------------------------------------------------------|
  |														|
- | 		1.  getting seemingly random segfaults on shutdown why idk but from now on every time 		|
+ | 		1.  figure out a way to get default font from system 						|
+ | 		2.  getting seemingly random segfaults on shutdown why idk but from now on every time 		|
  |			i run ill use gdb(ran it with htop open and mem usage was double the normal amount 	|
  |			so look in to that). 									|
- |		2.  finish fan speed control page apply to port apply to all.					|
- | 		3.  finish settings page. 									|
+ |		3.  finish fan speed control page apply to port apply to all.					|
+ | 		4.  finish settings page. 									|
  | 														|
  |--------------------------------------------------------------------------------------------------------------|
  |														|
