@@ -2,8 +2,8 @@
  |					 	   TODO 							|
  |--------------------------------------------------------------------------------------------------------------|
  |														|
- |		1.  create two input boxes for setting fan curve points.(just implement function callback 	|
- |				on text input or what ever you want to call it ) 				|
+ | 		1.  getting seemingly random segfaults on shutdown why idk but from now on every time 		|
+ |			i run ill use gdb. 									|
  |		2.  finish fan speed control page apply to port apply to all.					|
  | 		3.  finish settings page. 									|
  | 														|
