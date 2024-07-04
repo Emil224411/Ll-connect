@@ -860,7 +860,6 @@ static void dev_disconnect(struct usb_interface *intf)
 		proc_remove(ports[i].proc_outer_colors);
 		proc_remove(ports[i].proc_port);
 	}
-	proc_remove(proc_dir);
 	printk(KERN_INFO "Lian Li Hub: driver disconnect\n");
 }
 
@@ -885,6 +884,7 @@ static int __init controller_init(void)
 
 static void __exit controller_exit(void)
 {
+	proc_remove(proc_dir);
 	usb_deregister(&driver);
 	printk(KERN_INFO "Lian Li Hub: driver exit\n");
 }

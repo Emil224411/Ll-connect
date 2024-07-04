@@ -30,6 +30,38 @@ static void rmouse_button_up(SDL_Event *event);
 static void mouse_wheel(SDL_MouseWheelEvent *event);
 static void mouse_move(SDL_Event *event);
 
+int get_default_fontpath(void)
+{
+	FcInit();
+
+	FcConfig *c = FcInitLoadConfigAndFonts();
+	FcPattern *p = FcNameParse((const FcChar8 *)"HackNerdFont");
+	FcConfigSubstitute(c, p, FcMatchPattern);
+	FcDefaultSubstitute(p);
+
+	char *font_p = NULL;
+	FcResult res;
+	FcPattern *font = FcFontMatch(c, p, &res);
+
+	int err = -1;
+	if (font) {
+		FcChar8 *file = NULL;
+		if (FcPatternGetString(font, FC_FILE, 0, &file) == FcResultMatch){
+			font_p = (char *)file;
+			strcpy(font_path, font_p);
+			printf("%s, %s\n", font_p, font_path);
+			err = 0;
+		}
+			
+	}
+
+	FcPatternDestroy(font);
+	FcPatternDestroy(p);
+	FcConfigDestroy(c);
+	FcFini();
+	return err;
+}
+
 int ui_init(void) 
 {
 	window = NULL;
@@ -42,7 +74,8 @@ int ui_init(void)
 		printf("TTF_Init failed err: %s\n", TTF_GetError());
 		return -1;
 	}
-	font = TTF_OpenFont(font_path, 20);
+	//strcpy(font_path, get_default_fontpath(), 128);
+	font = TTF_OpenFont("/usr/local/share/fonts/HackNerdFont-Regular.ttf", 20);
 	if (font == NULL) {
 		printf("TTF_OpenFont failed error: %s\n", TTF_GetError());
 		return -1;

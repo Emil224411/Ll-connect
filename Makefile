@@ -3,10 +3,11 @@ PREFIX = /usr/local
 
 # libs
 SDLLIBS = -lSDL2 -lSDL2_ttf
+FONTCONFLIB = -lfontconfig
 
 #CFLAGS   = -g -std=c99 -pedantic -Wall -O0
 CFLAGS   = -std=c99 -pedantic -Wall -Wno-deprecated-declarations -Os
-LDFLAGS  = ${SDLLIBS}
+LDFLAGS  = ${SDLLIBS} ${FONTCONFLIB}
 
 # compiler and linker
 CC = gcc
@@ -29,10 +30,11 @@ clean:
 
 install: all
 	mkdir -p ${DESTDIR}${PREFIX}/bin
+	cp -f ./HackNerdFont-Regular.ttf ${DESTDIR}${PREFIX}/share/fonts/
 	cp -f Ll-connect ${DESTDIR}${PREFIX}/bin
 	chmod 755 ${DESTDIR}${PREFIX}/bin/Ll-connect
 
 uninstall:
-	rm -f $(DESTDIR)$(PREFIX)/bin/Ll-connect
+	rm -f ${DESTDIR}${PREFIX}/bin/Ll-connect ${DESTDIR}${PREFIX}/share/fonts/HackNerdFont-Regular.ttf
 
 .PHONY: all clean install uninstall

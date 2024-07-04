@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <fontconfig/fontconfig.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
@@ -148,6 +149,7 @@ void ui_shutdown(void);
 void handle_event(SDL_Event *event);
 void show_screen(void);
 void clear_screen(SDL_Color color);
+int get_default_fontpath(void);
 
 /* image functions */
 struct image *create_image(int x, int y, int w, int h, int sur_w, int sur_h, int sur_depth, struct page *p);

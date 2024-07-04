@@ -2,12 +2,13 @@
  |					 	   TODO 							|
  |--------------------------------------------------------------------------------------------------------------|
  |														|
- | 		1.  figure out a way to get default font from system 						|
+ | 		1.  loading ports is kinda broken 								|
  | 		2.  getting seemingly random segfaults on shutdown why idk but from now on every time 		|
  |			i run ill use gdb(ran it with htop open and mem usage was double the normal amount 	|
  |			so look in to that). 									|
- |		3.  finish fan speed control page apply to port apply to all.					|
- | 		4.  finish settings page. 									|
+ | 		3.  kernel module crashing on wake from suspend. (error /proc/Lian_li_hub all ready created) 	|
+ |		4.  finish fan speed control page apply to port apply to all.					|
+ | 		5.  finish settings page. 									|
  | 														|
  |--------------------------------------------------------------------------------------------------------------|
  |														|
@@ -221,6 +222,7 @@ int main(void)
 
 int init(void)
 {
+	init_controller();
 	FILE *f = fopen("/proc/modules", "r");
 	if (f == NULL) {
 		printf("failed fopen /proc/modules\n");
@@ -310,14 +312,14 @@ int init_fan_page(void)
 
 	cpu_temp = create_text("current cpu temp: 0°", port_bg->outer_box.x + 5, port_box_lines[5]->start.y + 3, 0, 0, 20, 0, WHITE, BLACK, font, fan_speed_page);
 	
-	graph_cpu_temp_text =  create_button("cpu temp :", 0, 1, 20, 200, 0, 0, 20, font, NULL, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
-	graph_fan_speed_text =  create_button("fan speed:", 0, 1, 20, 200 + 5 + graph_cpu_temp_text->outer_box.h, 0, 0, 20, font, NULL, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
+	graph_fan_speed_text = create_button("fan speed :", 0, 1, 20, 200, 0, 0, 20, font, NULL, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
+	graph_cpu_temp_text  = create_button("cpu temp :", 0, 1, 20, 205 + graph_fan_speed_text->outer_box.h, graph_fan_speed_text->outer_box.w, 0, 20, font, NULL, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
 
-	cpu_temp_input = create_input("0", "cpu", 0, 3, 25 + graph_cpu_temp_text->outer_box.w, 200, 0, 0, NULL, font, WHITE, edarkgrey, WHITE, fan_speed_page);
+	cpu_temp_input = create_input("0", "cpu", 0, 3, 25 + graph_cpu_temp_text->outer_box.w, 205 + graph_cpu_temp_text->outer_box.h, 0, 0, NULL, font, WHITE, edarkgrey, WHITE, fan_speed_page);
 
 	cpu_temp_input->filter = filter_cpu_input;
 
-	fan_speed_input = create_input("0", "fan", 0, 3, 25 + graph_fan_speed_text->outer_box.w, 205 + graph_cpu_temp_text->outer_box.h, 0, 0, NULL, font, WHITE, edarkgrey, WHITE, fan_speed_page);
+	fan_speed_input = create_input("0", "fan", 0, 3, 25 + graph_fan_speed_text->outer_box.w, 200, 0, 0, NULL, font, WHITE, edarkgrey, WHITE, fan_speed_page);
 
 	fan_speed_input->filter = filter_cpu_input;
 

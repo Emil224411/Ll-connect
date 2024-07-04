@@ -1,6 +1,9 @@
 #ifndef CONTROLLER_H
 #define CONTROLLER_H
 #define _GNU_SOURCE
+#include <errno.h>
+#include <dirent.h>
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,7 +17,7 @@
 #define PORT_THREE_PATH "/proc/Lian_li_hub/Port_three"
 #define PORT_FOUR_PATH "/proc/Lian_li_hub/Port_four"
 
-#define FAN_CURVE_PATH "/.config/Ll-connect-config/fan_curve"
+#define CONFIG_PATH "/.config/Ll-connect-config"
 #define PORT_ONE_CONFIG_PATH "/.config/Ll-connect-config/Port_1"
 #define PORT_TWO_CONFIG_PATH "/.config/Ll-connect-config/Port_2"
 #define PORT_THREE_CONFIG_PATH "/.config/Ll-connect-config/Port_3"
@@ -67,6 +70,7 @@ extern int prev_inner_set_all[4];
 extern int prev_outer_set_all[4];
 extern struct rgb_data prev_rgb_data[4];
 
+int init_controller(void);
 /* save/load functions */
 int save_port(struct port *p);
 int load_port(struct port *p);

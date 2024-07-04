@@ -68,6 +68,50 @@ struct port ports[4] = {
 	{ PORT_FOUR_PATH,  PORT_FOUR_CONFIG_PATH,  .number = 3 }, 
 };
 
+int init_controller(void)
+{
+	const char *home = getenv("HOME");
+	char path[128];
+	strcpy(path, home);
+	strcat(path, CONFIG_PATH);
+	int err = mkdir(path, S_IRWXU | S_IXOTH | S_IROTH | S_IXGRP | S_IRGRP);
+	if (err != 0 && errno != EEXIST) {
+		printf("init_controller mkdir at path %s failed errno = %d\n", path, errno);
+		return -1;
+	}
+	strcpy(path, home);
+	strcat(path, PORT_ONE_CONFIG_PATH);
+	err = mkdir(path, S_IRWXU | S_IXOTH | S_IROTH | S_IXGRP | S_IRGRP);
+	if (err != 0 && errno != EEXIST) {
+		printf("init_controller mkdir at path %s failed errno = %d\n", path, errno);
+		return -1;
+	}
+	strcpy(path, home);
+	strcat(path, PORT_TWO_CONFIG_PATH);
+	err = mkdir(path, S_IRWXU | S_IXOTH | S_IROTH | S_IXGRP | S_IRGRP);
+	if (err != 0 && errno != EEXIST) {
+		printf("init_controller mkdir at path %s failed errno = %d\n", path, errno);
+		return -1;
+	}
+	strcpy(path, home);
+	strcat(path, PORT_THREE_CONFIG_PATH);
+	err = mkdir(path, S_IRWXU | S_IXOTH | S_IROTH | S_IXGRP | S_IRGRP);
+	if (err != 0 && errno != EEXIST) {
+		printf("init_controller mkdir at path %s failed errno = %d\n", path, errno);
+		return -1;
+	}
+	strcpy(path, home);
+	strcat(path, PORT_FOUR_CONFIG_PATH);
+	err = mkdir(path, S_IRWXU | S_IXOTH | S_IROTH | S_IXGRP | S_IRGRP);
+	if (err != 0 && errno != EEXIST) {
+		printf("init_controller mkdir at path %s failed errno = %d\n", path, errno);
+		return -1;
+	}
+
+	
+	return 0;
+}
+
 int set_fan_count(struct port *p, int fc)
 {
 	char path[MAX_TEXT_SIZE];
@@ -151,12 +195,21 @@ int load_port(struct port *p)
 	strcat(path, "/fan_count"); 
 
 	FILE *f = fopen(path, "r");
+	p->fan_count = 4;
 	if (f == NULL) {
-		printf("load port failed to open file at path %s\n", path);
-		return -1;
+		printf("load port failed to open file at path %s, ", path);
+		if (errno == ENOENT) {
+			printf("creating file now\n");
+			f = fopen(path, "w");
+			fclose(f);
+		} else {
+			printf("error = %d\n", errno);
+			return -1;
+		}
+	} else {
+		fscanf(f, "%d", &p->fan_count);
+		fclose(f);
 	}
-	fscanf(f, "%d", &p->fan_count);
-	fclose(f);
 
 	strcpy(path, p->config_path); 
 	strcat(path, "/fan_curve"); 
@@ -169,56 +222,115 @@ int load_port(struct port *p)
 	strcat(path, p->config_path); 
 	strcat(path, "/inner_rgb"); 
 
-	f = fopen(path, "r");
 	int rgb_mode;
-	fscanf(f, "%d %d %d %d", &rgb_mode, &p->rgb.inner_speed, &p->rgb.inner_brightnes, &p->rgb.inner_direction);
-	p->rgb.inner_mode = &rgb_modes[rgb_mode];
-
-	fclose(f);
+	f = fopen(path, "r");
+	rgb_mode = 0, p->rgb.outer_speed = 0, p->rgb.outer_brightnes = 0, p->rgb.outer_direction = 0;
+	p->rgb.outer_mode = &rgb_modes[rgb_mode];
+	if (f == NULL) {
+		printf("failed to open file at %s, ", path);
+		if (errno == ENOENT) {
+			printf("creating file now\n");
+			f = fopen(path, "w");
+			fclose(f);
+		} else {
+			printf("error = %d\n", errno);
+			return -1;
+		}
+	} else {
+		fscanf(f, "%d %d %d %d", &rgb_mode, &p->rgb.inner_speed, &p->rgb.inner_brightnes, &p->rgb.inner_direction);
+		p->rgb.inner_mode = &rgb_modes[rgb_mode];
+		fclose(f);
+	}
 	strcpy(path, home_path);
 	strcat(path, p->config_path); 
 	strcat(path, "/inner_colors");
 
 	f = fopen(path, "r");
-	char line[351];
-	fread(line, sizeof(char), 351, f);
-	int stri = 0;
 	for (int i = 0; i < 48; i++) {
-		unsigned int tmpr, tmpg, tmpb;
-		sscanf(&line[stri], "%02x%02x%02x", &tmpr, &tmpb, &tmpg);
-		p->rgb.inner_color[i].r = tmpr;
-		p->rgb.inner_color[i].g = tmpg;
-		p->rgb.inner_color[i].b = tmpb;
-		stri += 6;
+		p->rgb.inner_color[i].r = 0xff;
+		p->rgb.inner_color[i].g = 0x00;
+		p->rgb.inner_color[i].b = 0x00;
 	}
+	if (f == NULL) {
+		printf("load_port: failed to open file at path %s, ", path);
+		if (errno == ENOENT) {
+			printf("creating file now\n");
+			f = fopen(path, "w");
+			fclose(f);
+		} else {
+			printf("error = %d\n", errno);
+			return -1;
+		}
+	} else {
+		char line[351];
+		fread(line, sizeof(char), 351, f);
+		int stri = 0;
+		for (int i = 0; i < 48; i++) {
+			unsigned int tmpr, tmpg, tmpb;
+			sscanf(&line[stri], "%02x%02x%02x", &tmpr, &tmpb, &tmpg);
+			p->rgb.inner_color[i].r = tmpr;
+			p->rgb.inner_color[i].g = tmpg;
+			p->rgb.inner_color[i].b = tmpb;
+			stri += 6;
+		}
 
-	fclose(f);
-
+		fclose(f);
+	}
 	strcpy(path, home_path);
 	strcat(path, p->config_path); 
 	strcat(path, "/outer_rgb"); 
 
-	f = fopen(path, "w");
-	fprintf(f, "%d %d %d %d", rgb_mode, p->rgb.outer_speed, p->rgb.outer_brightnes, p->rgb.outer_direction);
+	f = fopen(path, "r");
+	rgb_mode = 0, p->rgb.outer_speed = 0, p->rgb.outer_brightnes = 0, p->rgb.outer_direction = 0;
 	p->rgb.outer_mode = &rgb_modes[rgb_mode];
-
-	fclose(f);
+	if (f == NULL) {
+		printf("load_port: failed to open file at path %s, ", path);
+		if (errno == ENOENT) {
+			printf("creating file now\n");
+			f = fopen(path, "w");
+			fclose(f);
+		} else {
+			printf("error = %d\n", errno);
+			return -1;
+		}
+	} else {
+		fprintf(f, "%d %d %d %d", rgb_mode, p->rgb.outer_speed, p->rgb.outer_brightnes, p->rgb.outer_direction);
+		p->rgb.outer_mode = &rgb_modes[rgb_mode];
+		fclose(f);
+	}
 	strcpy(path, home_path);
 	strcat(path, p->config_path); 
 	strcat(path, "/outer_colors");
 
 	f = fopen(path, "r");
-	fread(line, sizeof(char), 351, f);
-	stri = 0;
 	for (int i = 0; i < 72; i++) {
-		unsigned int tmpr, tmpg, tmpb;
-		sscanf(&line[stri], "%02x%02x%02x", &tmpr, &tmpb, &tmpg);
-		p->rgb.outer_color[i].r = tmpr;
-		p->rgb.outer_color[i].g = tmpg;
-		p->rgb.outer_color[i].b = tmpb;
-		stri += 6;
+		p->rgb.outer_color[i].r = 0xff;
+		p->rgb.outer_color[i].g = 0;
+		p->rgb.outer_color[i].b = 0;
 	}
-
+	if (f == NULL) {
+		printf("load_port: failed to open file at path %s, ", path);
+		if (errno == ENOENT) {
+			printf("creating file now\n");
+			f = fopen(path, "w");
+			fclose(f);
+		} else {
+			printf("error = %d\n", errno);
+			return -1;
+		}
+	} else {
+		char line[351];
+		fread(line, sizeof(char), 351, f);
+		int stri = 0;
+		for (int i = 0; i < 72; i++) {
+			unsigned int tmpr, tmpg, tmpb;
+			sscanf(&line[stri], "%02x%02x%02x", &tmpr, &tmpb, &tmpg);
+			p->rgb.outer_color[i].r = tmpr;
+			p->rgb.outer_color[i].g = tmpg;
+			p->rgb.outer_color[i].b = tmpb;
+			stri += 6;
+		}
+	}
 	return 0;
 }
 int save_port(struct port *p)
@@ -285,37 +397,45 @@ int load_fan_curve(struct port *p, char *path)
 		printf("load_graph failed to get home_path\n");
 		return -1;
 	}
-	char new_path[100];
-	strcpy(new_path, home_path);
-	strcat(new_path, path);
-	FILE *f = fopen(new_path, "r");
-	if (f == NULL) {
-		printf("load_graph failed to open file at path %s\n", new_path);
-		return -1;
-	}
 	if (p->curve == NULL) {
 		p->curve = malloc(sizeof(struct point) * 5);
 		p->points_total = 5;
 		p->points_used = 0;
 	}
-
-	char *line = malloc(sizeof(char)*100);
-	size_t n = sizeof(char)*100;
-	int fan_speed, ct;
-
-	int i = 0;
-	while (getline(&line, &n, f) != -1) {
-		sscanf(line, "%d %d", &fan_speed, &ct);
-		if (p->points_used + 1 > p->points_total) {
-			p->points_total += 5;
-			p->curve = realloc(p->curve, sizeof(struct point) * p->points_total);
+	char new_path[100];
+	strcpy(new_path, home_path);
+	strcat(new_path, path);
+	FILE *f = fopen(new_path, "r");
+	if (f == NULL) {
+		printf("load_graph: failed to open file at path %s, ", new_path);
+		if (errno == ENOENT) {
+			printf("creating file now\n");
+			f = fopen(new_path, "w");
+			fclose(f);
+		} else {
+			printf("error = %d\n", errno);
+			return -1;
 		}
-		p->curve[i].x = ct, p->curve[i].y = fan_speed;
-		p->points_used = ++i;
+		
+	} else {
+		char *line = malloc(sizeof(char)*100);
+		size_t n = sizeof(char)*100;
+		int fan_speed, ct;
 
+		int i = 0;
+		while (getline(&line, &n, f) != -1) {
+			sscanf(line, "%d %d", &fan_speed, &ct);
+			if (p->points_used + 1 > p->points_total) {
+				p->points_total += 5;
+				p->curve = realloc(p->curve, sizeof(struct point) * p->points_total);
+			}
+			p->curve[i].x = ct, p->curve[i].y = fan_speed;
+			p->points_used = ++i;
+
+		}
+		free(line);
+		fclose(f);
 	}
-	free(line);
-	fclose(f);
 	return 0;
 }
 
