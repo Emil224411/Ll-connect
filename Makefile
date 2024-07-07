@@ -5,8 +5,8 @@ PREFIX = /usr/local
 SDLLIBS = -lSDL2 -lSDL2_ttf
 FONTCONFLIB = -lfontconfig
 
-#CFLAGS   = -g -std=c99 -pedantic -Wall -O0
-CFLAGS   = -std=c99 -pedantic -Wall -Wno-deprecated-declarations -Os
+CFLAGS   = -g -std=c99 -pedantic -Wall -O0
+#CFLAGS   = -std=c99 -pedantic -Wall -Wno-deprecated-declarations -Os
 LDFLAGS  = ${SDLLIBS} ${FONTCONFLIB}
 
 # compiler and linker

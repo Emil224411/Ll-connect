@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <fontconfig/fontconfig.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
@@ -191,6 +190,8 @@ void render_input_box(struct input *input_box);
 /* drop down menu functions */
 struct drop_down_menu *create_drop_down_menu(int items, char item_str[][MAX_TEXT_SIZE], int x, int y, int w, int h, int dw, int dh, void (*function)(struct drop_down_menu *s, SDL_Event *e), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color tc, struct page *p);
 void destroy_ddm(struct drop_down_menu *ddm);
+void remove_item_ddm(struct drop_down_menu *ddm, int item);
+void add_item_ddm(struct drop_down_menu *ddm, char *newstr, TTF_Font *f);
 void render_ddm(struct drop_down_menu *ddm);
 void select_ddm_item(struct drop_down_menu *ddm, int index);
 void change_ddm_text_arr(struct drop_down_menu *ddm, int items, char newstr[][MAX_TEXT_SIZE], TTF_Font *f);
@@ -201,6 +202,7 @@ struct graph *create_graph(int x, int y, int w, int h, int scalew, int scaleh, i
 void destroy_graph(struct graph *graph);
 void render_graph(struct graph *graph);
 void change_graph_point(struct graph *graph);
+int change_graph_points(struct graph *g, struct point *new_points, int new_size);
 
 /* line functions */
 struct line *create_line(int x1, int y1, int x2, int y2, SDL_Color color, struct page *p);

@@ -68,48 +68,127 @@ struct port ports[4] = {
 	{ PORT_FOUR_PATH,  PORT_FOUR_CONFIG_PATH,  .number = 3 }, 
 };
 
-int init_controller(void)
+struct point default_fan_curve[7] = {
+	{ 10, 80 },
+	{ 35, 70 },
+	{ 60, 55 },
+	{ 68, 42 },
+	{ 73, 35 },
+	{ 75, 25 },
+	{ 85, 15 },
+};
+
+
+struct curve *fan_curve_arr;
+int fan_curve_arr_len = 0;
+int fan_curve_arr_total = 0;
+
+int mkconfdir(const char *path) 
 {
 	const char *home = getenv("HOME");
-	char path[128];
-	strcpy(path, home);
-	strcat(path, CONFIG_PATH);
-	int err = mkdir(path, S_IRWXU | S_IXOTH | S_IROTH | S_IXGRP | S_IRGRP);
+	char full_path[128];
+	strcpy(full_path, home);
+	strcat(full_path, path);
+	int err = mkdir(full_path, S_IRWXU | S_IXOTH | S_IROTH | S_IXGRP | S_IRGRP);
 	if (err != 0 && errno != EEXIST) {
-		printf("init_controller mkdir at path %s failed errno = %d\n", path, errno);
+		printf("mkconfdir: mkdir at path %s failed errno = %d\n", full_path, errno);
 		return -1;
+	} else if (errno == EEXIST) {
+		return 1;
+	} else {
+		return 0;
 	}
-	strcpy(path, home);
-	strcat(path, PORT_ONE_CONFIG_PATH);
-	err = mkdir(path, S_IRWXU | S_IXOTH | S_IROTH | S_IXGRP | S_IRGRP);
-	if (err != 0 && errno != EEXIST) {
-		printf("init_controller mkdir at path %s failed errno = %d\n", path, errno);
-		return -1;
-	}
-	strcpy(path, home);
-	strcat(path, PORT_TWO_CONFIG_PATH);
-	err = mkdir(path, S_IRWXU | S_IXOTH | S_IROTH | S_IXGRP | S_IRGRP);
-	if (err != 0 && errno != EEXIST) {
-		printf("init_controller mkdir at path %s failed errno = %d\n", path, errno);
-		return -1;
-	}
-	strcpy(path, home);
-	strcat(path, PORT_THREE_CONFIG_PATH);
-	err = mkdir(path, S_IRWXU | S_IXOTH | S_IROTH | S_IXGRP | S_IRGRP);
-	if (err != 0 && errno != EEXIST) {
-		printf("init_controller mkdir at path %s failed errno = %d\n", path, errno);
-		return -1;
-	}
-	strcpy(path, home);
-	strcat(path, PORT_FOUR_CONFIG_PATH);
-	err = mkdir(path, S_IRWXU | S_IXOTH | S_IROTH | S_IXGRP | S_IRGRP);
-	if (err != 0 && errno != EEXIST) {
-		printf("init_controller mkdir at path %s failed errno = %d\n", path, errno);
-		return -1;
-	}
+}
 
-	
+void init_fan_curve_conf(void)
+{
+	char path[128];
+	int no_more_files = 0, i = 0;
+	fan_curve_arr = malloc(sizeof(struct curve));
+	fan_curve_arr_total = 1;
+	strcpy(path, FAN_CURVE_CONFIG_PATH);
+	while (no_more_files == 0) {
+		char file_path[164];
+		sprintf(file_path, "%s%d", path, i);
+		if (fan_curve_arr_len + 1 > fan_curve_arr_total) {
+			fan_curve_arr = realloc(fan_curve_arr, sizeof(struct curve) * (fan_curve_arr_total + 5));
+			fan_curve_arr_total += 5;
+			memset(&fan_curve_arr[fan_curve_arr_len], 0, sizeof(struct curve) * (fan_curve_arr_total - fan_curve_arr_len));
+		}
+		no_more_files = load_curve(&fan_curve_arr[i].curve, &fan_curve_arr[i].used_points, &fan_curve_arr[i].total_points, file_path);
+		if (no_more_files != -1) {
+			fan_curve_arr_len++;
+		}
+		i++;
+	}
+}
+
+void shutdown_controller(void)
+{
+	for (int i = 0; i < fan_curve_arr_len; i++) {
+		free(fan_curve_arr[i].curve);
+	}
+	free(fan_curve_arr);
+}
+
+int init_controller(void)
+{
+	int err = mkconfdir(CONFIG_PATH);
+	if (err == -1) {
+		printf("init_controller: mkconfdir failed at path %s\n", CONFIG_PATH);
+		return -1;
+	}
+	err = mkconfdir(PORT_ONE_CONFIG_PATH);
+	if (err == -1) {
+		printf("init_controller: mkconfdir failed at path %s\n", PORT_ONE_CONFIG_PATH);
+		return -1;
+	}
+	err = mkconfdir(PORT_TWO_CONFIG_PATH);
+	if (err == -1) {
+		printf("init_controller: mkconfdir failed at path %s\n", PORT_TWO_CONFIG_PATH);
+		return -1;
+	}
+	err = mkconfdir(PORT_THREE_CONFIG_PATH);
+	if (err == -1) {
+		printf("init_controller: mkconfdir failed at path %s\n", PORT_THREE_CONFIG_PATH);
+		return -1;
+	}
+	err = mkconfdir(PORT_FOUR_CONFIG_PATH);
+	if (err == -1) {
+		printf("init_controller: mkconfdir failed at path %s\n", PORT_FOUR_CONFIG_PATH);
+		return -1;
+	}
+	init_fan_curve_conf();
 	return 0;
+}
+
+void remove_curve(int index)
+{
+	if (fan_curve_arr_len <= 1) return;
+	free(fan_curve_arr[index].curve);
+	for (int i = index; i < fan_curve_arr_len-1; i++) {
+		fan_curve_arr[i].curve = fan_curve_arr[i+1].curve;
+		fan_curve_arr[i].total_points = fan_curve_arr[i+1].total_points;
+		fan_curve_arr[i].used_points = fan_curve_arr[i+1].used_points;
+	}
+	fan_curve_arr_len -= 1;
+}
+
+void add_curve(void)
+{
+	if (fan_curve_arr_len + 1 > fan_curve_arr_total) {
+		struct curve* tmp = realloc(fan_curve_arr, sizeof(struct curve) * (fan_curve_arr_len + 1));
+		if (tmp == NULL) {
+			printf("add_curve: failed to reallocate fan_curve_arr\n");
+			return;
+		}
+		fan_curve_arr = tmp;
+		fan_curve_arr_total += 1;
+	}
+	fan_curve_arr[fan_curve_arr_len].curve = alloc_point_arr(1);
+	fan_curve_arr[fan_curve_arr_len].total_points = 1;
+	fan_curve_arr[fan_curve_arr_len].used_points = 0;
+	fan_curve_arr_len++;
 }
 
 int set_fan_count(struct port *p, int fc)
@@ -211,11 +290,27 @@ int load_port(struct port *p)
 		fclose(f);
 	}
 
-	strcpy(path, p->config_path); 
+	strcpy(path, home_path);
+	strcat(path, p->config_path); 
 	strcat(path, "/fan_curve"); 
-	if (load_fan_curve(p, path) != 0) {
-		printf("load failed to save fan_curve graph\n");
-		return -1;
+	f = fopen(path, "r");
+	if (f == NULL) {
+		printf("load port: failed to open file at %s, ", path);
+		if (errno == ENOENT) {
+			printf("creating file now and setting curve to default\n");
+			p->curve_i = 0;
+			f = fopen(path, "w");
+			if (f != NULL) {
+				fprintf(f, "%d", 0);
+				fclose(f);
+			}
+		} else {
+			printf("errno = %d\n", errno);
+			return -1;
+		}
+	} else {
+		fscanf(f, "%d", &p->curve_i);
+		fclose(f);
 	}
 
 	strcpy(path, home_path);
@@ -224,8 +319,8 @@ int load_port(struct port *p)
 
 	int rgb_mode;
 	f = fopen(path, "r");
-	rgb_mode = 0, p->rgb.outer_speed = 0, p->rgb.outer_brightnes = 0, p->rgb.outer_direction = 0;
-	p->rgb.outer_mode = &rgb_modes[rgb_mode];
+	rgb_mode = 0, p->rgb.inner_speed = 0, p->rgb.inner_brightnes = 0, p->rgb.inner_direction = 0;
+	p->rgb.inner_mode = &rgb_modes[rgb_mode];
 	if (f == NULL) {
 		printf("failed to open file at %s, ", path);
 		if (errno == ENOENT) {
@@ -351,12 +446,12 @@ int save_port(struct port *p)
 	fprintf(f, "%d", p->fan_count);
 	fclose(f);
 
-	strcpy(path, p->config_path); 
+	strcpy(path, home_path);
+	strcat(path, p->config_path); 
 	strcat(path, "/fan_curve"); 
-	if (save_fan_curve(p, path) != 0) {
-		printf("save_port failed to save fan_curve graph\n");
-		return -1;
-	}
+	f = fopen(path, "w");
+	fprintf(f, "%d", p->curve_i);
+	fclose(f);
 
 	strcpy(path, home_path);
 	strcat(path, p->config_path); 
@@ -390,52 +485,106 @@ int save_port(struct port *p)
 	return 0;
 }
 
-int load_fan_curve(struct port *p, char *path)
+struct point *alloc_point_arr(int size)
 {
+	struct point *p = calloc(size, sizeof(struct point));
+	return p;
+}
+
+void resize_point_arr(struct point **arr, int *total_points, int new_size) 
+{
+	struct point *new_p = (struct point *)realloc(*arr, sizeof(struct point) * new_size);
+	*total_points = new_size;
+	*arr = new_p;
+}
+
+void reallocate_curve(struct point **curves_points, int *points_used, int *points_total, int additional_points) 
+{
+	struct point *new_curve = (struct point *)realloc(*curves_points, (*points_total + additional_points) * sizeof(struct point));
+	if (new_curve == NULL) {
+	    fprintf(stderr, "Failed to reallocate memory for points array\n");
+	    return;
+	}
+	// Update the pointer and total_points
+	*curves_points = new_curve;
+	*points_total += additional_points;
+
+}
+
+
+int load_curve(struct point **p, int *points_used, int *points_total, char *path)
+{
+	int ret = 0;
 	const char *home_path = getenv("HOME");
 	if (home_path == NULL) {
 		printf("load_graph failed to get home_path\n");
 		return -1;
 	}
-	if (p->curve == NULL) {
-		p->curve = malloc(sizeof(struct point) * 5);
-		p->points_total = 5;
-		p->points_used = 0;
+	printf("load_curve:\np = %p, *p = %p, points_used = %d, points_total = %d\npath = %s\n", (void *)p, (void *)*p, *points_used, *points_total, path);
+	if (*p == NULL || *points_total == 0) {
+		*p = alloc_point_arr(7);
+		*points_total = 7;
 	}
 	char new_path[100];
 	strcpy(new_path, home_path);
 	strcat(new_path, path);
 	FILE *f = fopen(new_path, "r");
 	if (f == NULL) {
-		printf("load_graph: failed to open file at path %s, ", new_path);
-		if (errno == ENOENT) {
-			printf("creating file now\n");
-			f = fopen(new_path, "w");
-			fclose(f);
+		printf("load_curve: failed to open file at path %s, ", new_path);
+		if (fan_curve_arr_len < 1 && errno == ENOENT) {
+			printf("save_curve called\n");
+			save_curve(default_fan_curve, 7, path);
+			f = fopen(new_path, "r");
+			ret = 1;
 		} else {
 			printf("error = %d\n", errno);
 			return -1;
 		}
 		
-	} else {
-		char *line = malloc(sizeof(char)*100);
-		size_t n = sizeof(char)*100;
-		int fan_speed, ct;
+	} 
+	char *line = malloc(sizeof(char)*100);
+	size_t n = sizeof(char)*100;
+	int fan_speed, ct;
 
-		int i = 0;
-		while (getline(&line, &n, f) != -1) {
-			sscanf(line, "%d %d", &fan_speed, &ct);
-			if (p->points_used + 1 > p->points_total) {
-				p->points_total += 5;
-				p->curve = realloc(p->curve, sizeof(struct point) * p->points_total);
-			}
-			p->curve[i].x = ct, p->curve[i].y = fan_speed;
-			p->points_used = ++i;
-
+	int i = 0;
+	while (getline(&line, &n, f) != -1) {
+		sscanf(line, "%d %d", &fan_speed, &ct);
+		if (*points_used + 1 > *points_total) {
+			reallocate_curve(p, points_used, points_total, 5);
 		}
-		free(line);
-		fclose(f);
+		(*p)[i].x = ct, (*p)[i].y = fan_speed;
+		*points_used = ++i;
+
 	}
+	free(line);
+	fclose(f);
+	return ret;
+}
+
+int save_curve(struct point *p, int points_used, char *path)
+{
+	if (p == NULL) {
+		printf("save_fan_curve: error p == NULL\n");
+		return -1;
+	}
+	const char *home_path = getenv("HOME");
+	if (home_path == NULL) {
+		printf("save_fan_curve: failed to get home_path\n");
+		return -1;
+	}
+	char new_path[100];
+	strcpy(new_path, home_path);
+	strcat(new_path, path);
+	FILE *f = fopen(new_path, "w");
+	if (f == NULL) {
+		printf("save_fan_curve: failed to open file at path %s, errno = %d\n", new_path, errno);
+		return -1;
+	}
+
+	for (int i = 0; i < points_used; i++) {
+		fprintf(f, "%d %d\n", p[i].y, p[i].x);
+	}
+	fclose(f);
 	return 0;
 }
 
@@ -475,32 +624,6 @@ int load_graph(struct graph *g, char *path)
 
 }
 
-int save_fan_curve(struct port *p, char *path)
-{
-	if (p->curve == NULL) {
-		printf("save_fan_curve: error p->curve == NULL\n");
-		return -1;
-	}
-	const char *home_path = getenv("HOME");
-	if (home_path == NULL) {
-		printf("save_fan_curve: failed to get home_path\n");
-		return -1;
-	}
-	char new_path[100];
-	strcpy(new_path, home_path);
-	strcat(new_path, path);
-	FILE *f = fopen(new_path, "w");
-	if (f == NULL) {
-		printf("save_fan_curve: failed to open file at path %s\n", new_path);
-		return -1;
-	}
-
-	for (int i = 0; i < p->points_used; i++) {
-		fprintf(f, "%d %d\n", p->curve[i].y, p->curve[i].x);
-	}
-	fclose(f);
-	return 0;
-}
 int save_graph(struct graph *g, char *path)
 {
 	if (g == NULL) {
@@ -531,7 +654,7 @@ int save_graph(struct graph *g, char *path)
 int set_fan_curve(struct port *p)
 {
 	if (p == NULL) {
-		printf("set_fan_curve: error g == NULL\n");
+		printf("set_fan_curve: error p == NULL\n");
 		return -1;
 	}
 	char new_path[100];
@@ -546,12 +669,10 @@ int set_fan_curve(struct port *p)
 
 	char tmp_str[100];
 	int str_i = 0;
-	for (int i = 0; i < p->points_used; i++) {
-		sprintf(&tmp_str[str_i], "%03d %03d\n", p->curve[i].y, p->curve[i].x);
-		printf("%03d %03d\n", p->curve[i].y, p->curve[i].x);
+	for (int i = 0; i < fan_curve_arr[p->curve_i].used_points; i++) {
+		sprintf(&tmp_str[str_i], "%03d %03d\n", fan_curve_arr[p->curve_i].curve[i].y, fan_curve_arr[p->curve_i].curve[i].x);
 		str_i += 8;
 	}
-	printf("\n%s", tmp_str);
 	fputs(tmp_str, f);
 	fclose(f);
 	return 0;

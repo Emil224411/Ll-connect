@@ -18,6 +18,7 @@
 #define PORT_FOUR_PATH "/proc/Lian_li_hub/Port_four"
 
 #define CONFIG_PATH "/.config/Ll-connect-config"
+#define FAN_CURVE_CONFIG_PATH "/.config/Ll-connect-config/fan_curve_"
 #define PORT_ONE_CONFIG_PATH "/.config/Ll-connect-config/Port_1"
 #define PORT_TWO_CONFIG_PATH "/.config/Ll-connect-config/Port_2"
 #define PORT_THREE_CONFIG_PATH "/.config/Ll-connect-config/Port_3"
@@ -58,7 +59,13 @@ struct port {
 	struct rgb_data rgb;
 	int fan_count, fan_speed, number;
 	struct point *curve;
+	int curve_i;
 	int points_used, points_total;
+};
+
+struct curve {
+	int total_points, used_points;
+	struct point *curve;
 };
 
 /* global varibles */
@@ -70,14 +77,20 @@ extern int prev_inner_set_all[4];
 extern int prev_outer_set_all[4];
 extern struct rgb_data prev_rgb_data[4];
 
+extern struct curve *fan_curve_arr;
+extern int fan_curve_arr_len;
+
 int init_controller(void);
+void init_fan_curve_conf(void);
+void shutdown_controller(void);
 /* save/load functions */
 int save_port(struct port *p);
 int load_port(struct port *p);
-int save_graph(struct graph *g, char *path);
-int load_graph(struct graph *g, char *path);
-int load_fan_curve(struct port *p, char *path);
-int save_fan_curve(struct port *p, char *path);
+int save_curve(struct point *p, int points_used, char *path);
+int load_curve(struct point **p, int *points_used, int *points_total, char *path);
+void remove_curve(int index);
+void add_curve(void);
+struct point *alloc_point_arr(int size);
 
 /* set rgb functions */
 int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_colors, int do_check);

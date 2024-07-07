@@ -29,7 +29,7 @@ static void rmouse_button_down(SDL_Event *event);
 static void rmouse_button_up(SDL_Event *event);
 static void mouse_wheel(SDL_MouseWheelEvent *event);
 static void mouse_move(SDL_Event *event);
-
+/*
 int get_default_fontpath(void)
 {
 	FcInit();
@@ -61,6 +61,7 @@ int get_default_fontpath(void)
 	FcFini();
 	return err;
 }
+*/
 
 int ui_init(void) 
 {
@@ -202,22 +203,36 @@ void handle_event(SDL_Event *event)
 	}
 }
 
+static void scroll_ddm(struct drop_down_menu *ddm, int wheely)
+{
+	int th = 0;
+	for (int i = 0; i < ddm->items; i++) {
+		th += ddm->text[i]->dst.h;
+		if (th > ddm->drop_pos.h) break;
+	}
+	if (th < ddm->drop_pos.h) {
+		ddm->scroll_offset = 0;
+		return;
+	}
+	int lty = ddm->text[ddm->items-1]->dst.y; 
+	int lth = ddm->text[ddm->items-1]->dst.h;
+	int dpy = ddm->drop_pos.y, dph = ddm->drop_pos.h;
+
+	ddm->scroll_offset += wheely * 10;
+	ddm->update_highlight = 1;
+	if (ddm->scroll_offset > 0) 
+		ddm->scroll_offset = 0;
+	else if (ddm->scroll_offset < -(lty + lth - dpy - dph)) 
+		ddm->scroll_offset = -(lty + lth - dpy - dph);
+
+}
+
 static void mouse_wheel(SDL_MouseWheelEvent *event)
 {
 	int wheely = event->y;
 	SDL_Rect mouse_pos = { event->mouseX, event->mouseY, 0 };
 	if (showen_page->selected_d != NULL && CHECK_RECT(mouse_pos, showen_page->selected_d->drop_pos) ) {
-		int lty = showen_page->selected_d->text[showen_page->selected_d->items-1]->dst.y; 
-		int lth = showen_page->selected_d->text[showen_page->selected_d->items-1]->dst.h;
-		int dpy = showen_page->selected_d->drop_pos.y, dph = showen_page->selected_d->drop_pos.h;
-
-		showen_page->selected_d->scroll_offset += wheely * 10;
-		showen_page->selected_d->update_highlight = 1;
-		if (showen_page->selected_d->scroll_offset > 0) 
-			showen_page->selected_d->scroll_offset = 0;
-		else if (showen_page->selected_d->scroll_offset < -(lty + lth - dpy - dph)) 
-			showen_page->selected_d->scroll_offset = -(lty + lth - dpy - dph);
-
+		scroll_ddm(showen_page->selected_d, wheely);
 	}
 }
 
@@ -586,10 +601,14 @@ void render_showen_page(void)
 		if (showen_page->s_arr[i]->show != 0) render_slider(showen_page->s_arr[i]);
 	}
 	for (int i = 0; i < showen_page->d_arr_used_len; i++) {
-		if (showen_page->d_arr[i]->show != 0) render_ddm(showen_page->d_arr[i]);
+		if (showen_page->d_arr[i]->show != 0 && showen_page->selected_d != showen_page->d_arr[i]) 
+			render_ddm(showen_page->d_arr[i]);
 	}
 	for (int i = 0; i < showen_page->line_arr_used_len; i++) {
 		if (showen_page->line_arr[i]->show != 0) render_line(showen_page->line_arr[i]);
+	}
+	if (showen_page->selected_d != NULL) {
+		render_ddm(showen_page->selected_d);
 	}
 }
 
@@ -962,6 +981,52 @@ void destroy_ddm(struct drop_down_menu *ddm)
 	free(ddm);
 }
 
+void add_item_ddm(struct drop_down_menu *ddm, char *newstr, TTF_Font *f) 
+{
+	ddm->text = realloc(ddm->text, sizeof(struct text *) * (++ddm->items));
+
+	SDL_Color tc = ddm->text[0]->fg_color;
+	int prev_height = 0;
+	int bigest_w = ddm->default_pos.w, bigest_h = ddm->default_pos.h;
+	ddm->text[ddm->items-1] = create_text(newstr, 0, 0, 0, 0, 0, ddm->default_pos.w, tc, ddm->bg_color, f, NULL);
+	for (int i = 0; i < ddm->items; i++) {
+		if (!ddm->static_w && bigest_w < ddm->text[i]->dst.w) bigest_w = ddm->text[i]->dst.w;
+		if (!ddm->static_h && bigest_h < ddm->text[i]->dst.h) bigest_h = ddm->text[i]->dst.h;
+		ddm->text[i]->dst.y = ddm->default_pos.y + prev_height + 2;
+		ddm->text[i]->dst.x = ddm->default_pos.x + 4;
+		prev_height += ddm->text[i]->dst.h;
+		ddm->text[i]->show = 0;
+	}
+	ddm->selected_text_index = 0;
+	ddm->scroll_offset = 0;
+	ddm->text[0]->show = 1;
+}
+
+void remove_item_ddm(struct drop_down_menu *ddm, int item)
+{
+	if (ddm->items <= 1) return;
+	if (ddm->selected_text_index == item) {
+		ddm->selected_text_index = 0;
+	}
+	destroy_text(ddm->text[item]);
+	for (int i = item; i < ddm->items-1; i++) {
+		ddm->text[i] = ddm->text[i+1];
+	}
+	int prev_height = 0;
+	int bigest_w = ddm->default_pos.w, bigest_h = ddm->default_pos.h;
+	for (int i = 0; i < ddm->items-1; i++) {
+		if (!ddm->static_w && bigest_w < ddm->text[i]->dst.w) bigest_w = ddm->text[i]->dst.w;
+		if (!ddm->static_h && bigest_h < ddm->text[i]->dst.h) bigest_h = ddm->text[i]->dst.h;
+		ddm->text[i]->dst.y = ddm->default_pos.y + prev_height + 2;
+		ddm->text[i]->dst.x = ddm->default_pos.x + 4;
+		prev_height += ddm->text[i]->dst.h;
+		ddm->text[i]->show = 0;
+	}
+	ddm->text[ddm->items] = NULL;
+	ddm->items -= 1;
+	scroll_ddm(ddm, 0);
+}
+
 /* 	mabey split up in to a few functions but idk 	*/
 void render_ddm(struct drop_down_menu *ddm)
 {
@@ -1145,6 +1210,19 @@ void render_graph(struct graph *graph)
 		return;
 	}
 	if (graph->show == 0) return;
+	/* TODO come up with a better way */
+	if (graph->point_amount <= 0) {
+		SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(graph->bg_color));
+		SDL_RenderFillRect(renderer, &graph->scaled_pos);
+		SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(graph->outer_color));
+		SDL_RenderDrawRect(renderer, &graph->scaled_pos);
+		if (graph->x.x != 0) {
+			SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(graph->point_colors));
+			SDL_RenderDrawLine(renderer, graph->real_pos.x + graph->x.x * graph->scale_w, graph->real_pos.y, 
+							graph->real_pos.x + graph->x.x * graph->scale_w, graph->real_pos.y + graph->scaled_pos.h);
+		}
+		return;
+	}
 	int x1 = graph->points[0].x * graph->scale_w + graph->real_pos.x + graph->points_size.w/2;
 	int y1 = graph->points[0].y * graph->scale_h + graph->real_pos.y + graph->points_size.h/2;
 	int x2 = graph->points[graph->point_amount - 1].x * graph->scale_w + graph->real_pos.x + graph->points_size.w/2;
@@ -1206,6 +1284,22 @@ void render_graph(struct graph *graph)
 	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(graph->outer_color));
 	SDL_RenderDrawRect(renderer, &graph->scaled_pos);
 
+}
+
+int change_graph_points(struct graph *g, struct point *new_points, int new_size)
+{
+	if (g->total_points < new_size) {
+		struct point *tmp = realloc(g->points, sizeof(struct point) * new_size);
+		if (tmp == NULL) {
+			printf("change_graph_points: failed to reallocate points new_size = %d\n", new_size);
+			return -1;
+		}
+		g->points = tmp;
+		g->total_points = new_size;
+	}
+	memcpy(g->points, new_points, sizeof(struct point) * new_size);
+	g->point_amount = new_size;
+	return 0;
 }
 
 struct image *create_image(int x, int y, int w, int h, int sur_w, int sur_h, int sur_depth, struct page *p)
