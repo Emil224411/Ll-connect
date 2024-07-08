@@ -44,8 +44,8 @@ struct button {
 	void (*on_move) (struct button *self, SDL_Event *event);
 	int clickable, movable, show;
 	int index; /* private */
-	SDL_Rect outer_box;
-	SDL_Color outer_box_color, bg_color;
+	SDL_Rect pos;
+	SDL_Color outer_color, bg_color;
 	struct page *parent_p;
 };
 
@@ -66,8 +66,8 @@ struct input {
 	int resize_box;
 	void (*on_type)(struct input *self, SDL_Event *event);
 	int (*filter)(struct input *self, char new_text[32]);
-	SDL_Rect default_outer_box, outer_box;
-	SDL_Color outer_box_color, bg_color;
+	SDL_Rect default_pos, pos;
+	SDL_Color outer_color, bg_color;
 	SDL_Rect char_size;
 	struct page *parent_p;
 };
@@ -80,7 +80,7 @@ struct drop_down_menu {
 	void (*function)(struct drop_down_menu *self, SDL_Event *event);
 	int scroll_offset;
 	SDL_Rect default_pos, used_pos, drop_pos, highlight_pos;
-	SDL_Color outer_box_color, bg_color;
+	SDL_Color outer_color, bg_color;
 	struct page *parent_p;
 };
 
@@ -105,6 +105,19 @@ struct line {
 	int show, index;
 	struct point start, too;
 	struct page *parent_p;
+};
+
+struct prompt {
+	SDL_Rect pos;
+	int show, index;
+	struct text **text_arr;
+	int text_arr_total, text_arr_used;
+	struct input **input_arr, *selected_input;
+	int input_arr_total, input_arr_used;
+	struct button **button_arr, *selected_button;
+	int button_arr_total, button_arr_used;
+	SDL_Color bg_color, outer_color;
+	TTF_Font *font;
 };
 
 struct page {
@@ -149,6 +162,15 @@ void handle_event(SDL_Event *event);
 void show_screen(void);
 void clear_screen(SDL_Color color);
 int get_default_fontpath(void);
+
+/* prompt functions */
+struct prompt *create_prompt(int x, int y, int w, int h, SDL_Color bg_color, SDL_Color outer_color, TTF_Font *f);
+void destroy_prompt(struct prompt *p);
+void render_prompt(struct prompt *p);
+void show_prompt(struct prompt *p);
+void add_button_to_prompt(struct prompt *p, struct button *b);
+void add_input_to_prompt(struct prompt *p, struct input *i);
+void add_text_to_prompt(struct prompt *p, struct text *t);
 
 /* image functions */
 struct image *create_image(int x, int y, int w, int h, int sur_w, int sur_h, int sur_depth, struct page *p);

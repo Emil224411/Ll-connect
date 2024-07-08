@@ -115,7 +115,7 @@ void init_fan_curve_conf(void)
 			fan_curve_arr_total += 5;
 			memset(&fan_curve_arr[fan_curve_arr_len], 0, sizeof(struct curve) * (fan_curve_arr_total - fan_curve_arr_len));
 		}
-		no_more_files = load_curve(&fan_curve_arr[i].curve, &fan_curve_arr[i].used_points, &fan_curve_arr[i].total_points, file_path);
+		no_more_files = load_curve(&fan_curve_arr[i].curve, fan_curve_arr[i].name, MAX_TEXT_SIZE, &fan_curve_arr[i].used_points, &fan_curve_arr[i].total_points, file_path);
 		if (no_more_files != -1) {
 			fan_curve_arr_len++;
 		}
@@ -125,7 +125,13 @@ void init_fan_curve_conf(void)
 
 void shutdown_controller(void)
 {
+	for (int i = 0; i < 4; i++) {
+		save_port(&ports[i]);
+	}
 	for (int i = 0; i < fan_curve_arr_len; i++) {
+		char save_to[MAX_TEXT_SIZE];
+		sprintf(save_to, "%s%d", FAN_CURVE_CONFIG_PATH, i);
+		save_curve(fan_curve_arr[i].curve, fan_curve_arr[i].name, fan_curve_arr[i].used_points, save_to);
 		free(fan_curve_arr[i].curve);
 	}
 	free(fan_curve_arr);
@@ -512,7 +518,7 @@ void reallocate_curve(struct point **curves_points, int *points_used, int *point
 }
 
 
-int load_curve(struct point **p, int *points_used, int *points_total, char *path)
+int load_curve(struct point **p, char *name, int name_len, int *points_used, int *points_total, char *path)
 {
 	int ret = 0;
 	const char *home_path = getenv("HOME");
@@ -520,7 +526,6 @@ int load_curve(struct point **p, int *points_used, int *points_total, char *path
 		printf("load_graph failed to get home_path\n");
 		return -1;
 	}
-	printf("load_curve:\np = %p, *p = %p, points_used = %d, points_total = %d\npath = %s\n", (void *)p, (void *)*p, *points_used, *points_total, path);
 	if (*p == NULL || *points_total == 0) {
 		*p = alloc_point_arr(7);
 		*points_total = 7;
@@ -528,12 +533,13 @@ int load_curve(struct point **p, int *points_used, int *points_total, char *path
 	char new_path[100];
 	strcpy(new_path, home_path);
 	strcat(new_path, path);
+	printf("load_curve:\np = %p, *p = %p, points_used = %d, points_total = %d\npath = %s, new_path = %s\n", (void *)p, (void *)*p, *points_used, *points_total, path, new_path);
 	FILE *f = fopen(new_path, "r");
 	if (f == NULL) {
 		printf("load_curve: failed to open file at path %s, ", new_path);
 		if (fan_curve_arr_len < 1 && errno == ENOENT) {
 			printf("save_curve called\n");
-			save_curve(default_fan_curve, 7, path);
+			save_curve(default_fan_curve, "default", 7, path);
 			f = fopen(new_path, "r");
 			ret = 1;
 		} else {
@@ -547,6 +553,14 @@ int load_curve(struct point **p, int *points_used, int *points_total, char *path
 	int fan_speed, ct;
 
 	int i = 0;
+	getline(&line, &n, f);
+	printf("line = %s, name = %s, name_len = %d\n", line, name, name_len);
+	if (name != NULL && line[0] != '\n') strncpy(name, line, name_len);
+	else if (line[0] == '\n') {
+		name[0] = '0';
+		name[1] = '\0';
+	}
+	printf("name after = %s\n", name);
 	while (getline(&line, &n, f) != -1) {
 		sscanf(line, "%d %d", &fan_speed, &ct);
 		if (*points_used + 1 > *points_total) {
@@ -561,7 +575,7 @@ int load_curve(struct point **p, int *points_used, int *points_total, char *path
 	return ret;
 }
 
-int save_curve(struct point *p, int points_used, char *path)
+int save_curve(struct point *p, char *name, int points_used, char *path)
 {
 	if (p == NULL) {
 		printf("save_fan_curve: error p == NULL\n");
@@ -580,7 +594,8 @@ int save_curve(struct point *p, int points_used, char *path)
 		printf("save_fan_curve: failed to open file at path %s, errno = %d\n", new_path, errno);
 		return -1;
 	}
-
+	if (name != NULL) fprintf(f, "%s", name);
+	else fputc('\n', f);
 	for (int i = 0; i < points_used; i++) {
 		fprintf(f, "%d %d\n", p[i].y, p[i].x);
 	}

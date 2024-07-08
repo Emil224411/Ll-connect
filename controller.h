@@ -64,6 +64,7 @@ struct port {
 };
 
 struct curve {
+	char name[MAX_TEXT_SIZE];
 	int total_points, used_points;
 	struct point *curve;
 };
@@ -86,8 +87,8 @@ void shutdown_controller(void);
 /* save/load functions */
 int save_port(struct port *p);
 int load_port(struct port *p);
-int save_curve(struct point *p, int points_used, char *path);
-int load_curve(struct point **p, int *points_used, int *points_total, char *path);
+int save_curve(struct point *p, char *name, int points_used, char *path);
+int load_curve(struct point **p, char *name, int name_len, int *points_used, int *points_total, char *path);
 void remove_curve(int index);
 void add_curve(void);
 struct point *alloc_point_arr(int size);

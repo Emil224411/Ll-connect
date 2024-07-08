@@ -18,6 +18,9 @@ SDL_Color BLUE    = {   0,   0, 255, SDL_ALPHA_OPAQUE };
 
 static int mouse_x, mouse_y;
 
+static struct prompt **prompt_arr;
+static struct prompt *showen_prompt = NULL;
+static int prompt_arr_len;
 static struct page **page_arr;
 struct page *showen_page;
 static int page_arr_total_len;
@@ -91,12 +94,17 @@ int ui_init(void)
 		printf("SDL_CreateRenderer failed err: %s\n", SDL_GetError());
 		return -1;
 	}
+	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 	TTF_SetFontWrappedAlign(font, TTF_WRAPPED_ALIGN_LEFT);
 
 	page_arr = malloc(sizeof(struct page *) * 5);
 	page_arr_total_len = 5;
 	page_arr_used_len = 0;
 	showen_page = NULL;
+
+	prompt_arr = malloc(sizeof(struct prompt *) * 1);
+	prompt_arr_len = 0;
+	showen_prompt = NULL;
 
 	cursor = create_line(0, 0, 0, 0, WHITE, NULL);
 
@@ -111,6 +119,9 @@ void ui_shutdown(void)
 	while (page_arr_used_len > 0) {
 		destroy_page(page_arr[page_arr_used_len-1]);
 	}
+	while (prompt_arr_len > 0) {
+		destroy_prompt(prompt_arr[prompt_arr_len-1]);
+	}
 	if (window != NULL) {
 		SDL_DestroyWindow(window);
 		window = NULL;
@@ -124,6 +135,7 @@ void ui_shutdown(void)
 		font = NULL;
 	}
 	free(page_arr);
+	free(prompt_arr);
 	TTF_Quit();
 	SDL_Quit();
 }
@@ -301,6 +313,15 @@ static void rmouse_button_up(SDL_Event *event)
 static void lmouse_button_up(SDL_Event *event)
 {
 	SDL_MouseButtonEvent mouse_data = event->button;
+	// TODO change this it looks bad it is just not good give each thing its own function maby
+	if (showen_prompt != NULL && showen_prompt->selected_button != NULL) {
+		struct button *tmp_self = NULL;
+		if (showen_prompt->selected_button->clickable) {
+			tmp_self = showen_prompt->selected_button;
+		}
+		showen_prompt->selected_button = NULL;
+		if (tmp_self != NULL) tmp_self->on_click(tmp_self, event);
+	}
 	if (showen_page->selected_b != NULL && showen_page->selected_b->clickable == 1) {
 		showen_page->selected_b->on_click(showen_page->selected_b, event);
 		showen_page->selected_b = NULL;
@@ -356,7 +377,7 @@ static void lmouse_button_up(SDL_Event *event)
 	}
 	int hit = 0;
 	for (int i = 0; i < showen_page->i_arr_used_len; i++) {
-		if (CHECK_RECT(mouse_data, showen_page->i_arr[i]->outer_box))  {
+		if (CHECK_RECT(mouse_data, showen_page->i_arr[i]->pos))  {
 			hit = 1;
 			showen_page->i_arr[i]->selected = 1;
 			showen_page->selected_i = showen_page->i_arr[i];
@@ -420,13 +441,20 @@ void select_ddm_item(struct drop_down_menu *ddm, int item)
 static void lmouse_button_down(SDL_Event *event)
 {
 	SDL_MouseButtonEvent mouse_data = event->button;
+	if (showen_prompt != NULL) {
+		for (int i = 0; i < showen_prompt->button_arr_used; i++) {
+			if (showen_prompt->button_arr[i]->clickable == 1 && CHECK_RECT(event->button, showen_prompt->button_arr[i]->pos)) {
+				showen_prompt->selected_button = showen_prompt->button_arr[i];
+			}
+		}
+	}
 	for (int i = 0; i < showen_page->b_arr_used_len; i++) {
-		if (showen_page->b_arr[i]->clickable == 1 && CHECK_RECT(event->button, showen_page->b_arr[i]->outer_box)) {
+		if (showen_page->b_arr[i]->clickable == 1 && CHECK_RECT(event->button, showen_page->b_arr[i]->pos)) {
 			showen_page->selected_b = showen_page->b_arr[i];
 		}
 	}
 	for (int i = 0; i < showen_page->s_arr_used_len; i++) {
-		if (CHECK_RECT(mouse_data, showen_page->s_arr[i]->button->outer_box)) {
+		if (CHECK_RECT(mouse_data, showen_page->s_arr[i]->button->pos)) {
 			showen_page->selected_s = showen_page->s_arr[i];
 		}
 	}
@@ -610,6 +638,9 @@ void render_showen_page(void)
 	if (showen_page->selected_d != NULL) {
 		render_ddm(showen_page->selected_d);
 	}
+	if (showen_prompt != NULL) {
+		render_prompt(showen_prompt);
+	}
 }
 
 struct text *create_text(char *string, int x, int y, int w, int h, int font_size, int wrap_length, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f, struct page *p)
@@ -722,8 +753,8 @@ struct button *create_button(char *string, int movable, int show, int x, int y, 
 		new_button.text = create_text(string, x + 5, y + 5, tmp_w, tmp_h, font_size, 0, text_color, bg_color, f, NULL);
 		new_button.texture = &new_button.text->texture;
 	} 
-	new_button.outer_box.w = w == 0 ? new_button.text->dst.w + 10 : w;
-	new_button.outer_box.h = h == 0 ? new_button.text->dst.h + 10 : h;
+	new_button.pos.w = w == 0 ? new_button.text->dst.w + 10 : w;
+	new_button.pos.h = h == 0 ? new_button.text->dst.h + 10 : h;
 	memcpy(return_button, &new_button, sizeof(struct button));
 	if (p != NULL) {
 		if (p->b_arr_used_len + 1 > p->b_arr_total_len) {
@@ -760,9 +791,9 @@ void render_button(struct button *button)
 	}
 	if (button->show == 0 ) return;
 	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(button->bg_color));
-	SDL_RenderFillRect(renderer, &button->outer_box);
-	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(button->outer_box_color));
-	SDL_RenderDrawRect(renderer, &button->outer_box);
+	SDL_RenderFillRect(renderer, &button->pos);
+	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(button->outer_color));
+	SDL_RenderDrawRect(renderer, &button->pos);
 	if (button->text != NULL) render_text(button->text, NULL);
 }
 
@@ -797,11 +828,11 @@ struct input *create_input(char *string, char *def_text, int resize_box, int max
 	}
 
 	if (w == 0) {
-		new_input.default_outer_box.w = new_input.outer_box.w = new_input.text->dst.w + 10;
-	} else new_input.default_outer_box.w = new_input.outer_box.w = w;
+		new_input.default_pos.w = new_input.pos.w = new_input.text->dst.w + 10;
+	} else new_input.default_pos.w = new_input.pos.w = w;
 	if (h == 0) {
-		new_input.default_outer_box.h = new_input.outer_box.h = new_input.text->dst.h + 10;
-	} else new_input.default_outer_box.h = new_input.outer_box.h = h;
+		new_input.default_pos.h = new_input.pos.h = new_input.text->dst.h + 10;
+	} else new_input.default_pos.h = new_input.pos.h = h;
 
 	if (!resize_box) {
 		new_input.text->src = new_input.text->dst;
@@ -825,9 +856,9 @@ struct input *create_input(char *string, char *def_text, int resize_box, int max
 
 void change_input_box_text(struct input *input_box, char *str)
 {
-	SDL_Rect prev_input_margin = input_box->outer_box;
-	prev_input_margin.w = input_box->outer_box.w - input_box->text->dst.w;
-	prev_input_margin.h = input_box->outer_box.h - input_box->text->dst.h;
+	SDL_Rect prev_input_margin = input_box->pos;
+	prev_input_margin.w = input_box->pos.w - input_box->text->dst.w;
+	prev_input_margin.h = input_box->pos.h - input_box->text->dst.h;
 
 	size_t old_len = strlen(input_box->text->str), new_len = strlen(str);
 	if (old_len < new_len) {
@@ -851,11 +882,11 @@ void change_input_box_text(struct input *input_box, char *str)
 		input_box->text->src.y = 0;
 		input_box->text->src.w = input_box->text->dst.w;
 		input_box->text->src.h = input_box->text->dst.h;
-		input_box->outer_box.w = input_box->text->dst.w + prev_input_margin.w;
-		input_box->outer_box.h = input_box->text->dst.h + prev_input_margin.h;
+		input_box->pos.w = input_box->text->dst.w + prev_input_margin.w;
+		input_box->pos.h = input_box->text->dst.h + prev_input_margin.h;
 	} else {
-		input_box->text->src.w = input_box->outer_box.w = input_box->default_outer_box.w;
-		input_box->text->src.h = input_box->outer_box.h = input_box->default_outer_box.h;
+		input_box->text->src.w = input_box->pos.w = input_box->default_pos.w;
+		input_box->text->src.h = input_box->pos.h = input_box->default_pos.h;
 	}
 }
 
@@ -867,9 +898,9 @@ void render_input_box(struct input *input_box)
 	}
 	if (input_box->show == 0) return;
 	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(input_box->bg_color));
-	SDL_RenderFillRect(renderer, &input_box->outer_box);
-	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(input_box->outer_box_color));
-	SDL_RenderDrawRect(renderer, &input_box->outer_box);
+	SDL_RenderFillRect(renderer, &input_box->pos);
+	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(input_box->outer_color));
+	SDL_RenderDrawRect(renderer, &input_box->pos);
 	if (input_box->text->str[0] != '\0') render_text(input_box->text, &input_box->text->src);
 }
 
@@ -1060,7 +1091,7 @@ void render_ddm(struct drop_down_menu *ddm)
 
 		render_text(&tmp_text, &tmp_text.src);
 
-		SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(ddm->outer_box_color));
+		SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(ddm->outer_color));
 		SDL_RenderDrawRect(renderer, &ddm->used_pos);
 	} else {
 		SDL_RenderFillRect(renderer, &ddm->drop_pos);
@@ -1090,7 +1121,7 @@ void render_ddm(struct drop_down_menu *ddm)
 			} else ddm->text[i]->show = 0;
 			ddm->text[i]->src = tmp_text.src;
 		}
-		SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(ddm->outer_box_color));
+		SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(ddm->outer_color));
 		SDL_RenderDrawRect(renderer, &ddm->drop_pos);
 		if (ddm->update_highlight) update_ddm_highlight(mouse_x, mouse_y, ddm);
 		SDL_RenderDrawRect(renderer, &ddm->highlight_pos);
@@ -1164,7 +1195,7 @@ void update_slider(struct slider *slider, int x)
 	if      (x >= slider->pos.x + slider->pos.w) x = slider->pos.x + slider->pos.w;
 	else if (x <= slider->pos.x) 		     x = slider->pos.x;
 	slider->p = (float)(x-slider->pos.x)/(slider->pos.w);
-	slider->button->outer_box.x = x - slider->button->outer_box.w/2;
+	slider->button->pos.x = x - slider->button->pos.w/2;
 }
 
 
@@ -1389,6 +1420,146 @@ void render_line(struct line *line)
 	SDL_RenderDrawLine(renderer, line->start.x, line->start.y, line->too.x, line->too.y);
 }
 
+void render_prompt(struct prompt *p)
+{
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 128);
+	SDL_Rect bg = { 0, 0, WINDOW_W, WINDOW_H };
+	SDL_RenderFillRect(renderer, &bg);
+	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(p->bg_color));
+	SDL_RenderFillRect(renderer, &p->pos);
+	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(p->outer_color));
+	SDL_RenderDrawRect(renderer, &p->pos);
+	for (int i = 0; i < p->button_arr_used; i++) {
+		render_button(p->button_arr[i]);
+	}
+	for (int i = 0; i < p->input_arr_used; i++) {
+		render_input_box(p->input_arr[i]);
+	}
+	for (int i = 0; i < p->text_arr_used; i++) {
+		render_text(p->text_arr[i], &p->text_arr[i]->src);
+	}
+}
+
+void show_prompt(struct prompt *p)
+{
+	if (showen_prompt != NULL) showen_prompt->show = 0;
+	showen_prompt = p;
+	if (showen_prompt != NULL) showen_prompt->show = 1;
+}
+
+void add_button_to_prompt(struct prompt *p, struct button *b)
+{
+	b->pos.x += p->pos.x;
+	b->pos.y += p->pos.y;
+	b->text->dst.x += p->pos.x;
+	b->text->dst.y += p->pos.y;
+	b->index = p->button_arr_used;
+	if (p->button_arr_total < p->button_arr_used + 1) {
+		struct button **tmp = realloc(p->button_arr, sizeof(struct button *) * (p->button_arr_total + 5));
+		if (tmp == NULL) {
+			printf("add_button_to_prompt: failed to reallocate p->button_arr\n");
+			return;
+		}
+		p->button_arr_total += 5;
+		p->button_arr = tmp;
+	}
+	p->button_arr[p->button_arr_used] = b;
+	p->button_arr_used++;
+}
+
+void add_input_to_prompt(struct prompt *p, struct input *i)
+{
+	i->default_pos.x += p->pos.x;
+	i->default_pos.y += p->pos.y;
+	i->pos.x += p->pos.x;
+	i->pos.y += p->pos.y;
+	i->text->dst.x += p->pos.x;
+	i->text->dst.y += p->pos.y;
+	i->index = p->input_arr_used;
+	if (p->input_arr_total < p->input_arr_used + 1) {
+		struct input **tmp = realloc(p->input_arr, sizeof(struct input *) * (p->input_arr_total + 5));
+		if (tmp == NULL) {
+			printf("add_input_to_prompt: failed to reallocate p->input_arr\n");
+			return;
+		}
+		p->input_arr_total += 5;
+		p->input_arr = tmp;
+	}
+	p->input_arr[p->input_arr_used] = i;
+	p->input_arr_used++;
+}
+
+void add_text_to_prompt(struct prompt *p, struct text *t)
+{
+	t->dst.x += p->pos.x;
+	t->dst.y += p->pos.y;
+	t->index = p->text_arr_used;
+	if (p->text_arr_total < p->text_arr_used + 1) {
+		struct text **tmp = realloc(p->text_arr, sizeof(struct text *) * (p->text_arr_total + 5));
+		if (tmp == NULL) {
+			printf("add_text_to_prompt: failed to reallocate p->text_arr\n");
+			return;
+		}
+		p->text_arr_total += 5;
+		p->text_arr = tmp;
+	}
+	p->text_arr[p->text_arr_used] = t;
+	p->text_arr_used++;
+}
+
+void destroy_prompt(struct prompt *p)
+{
+	if (p == NULL) return;
+	printf("destroy_prompt:\n");
+	while (p->button_arr_used > 0) {
+		destroy_button(p->button_arr[p->button_arr_used-1]);
+		p->button_arr_used -= 1;
+	}
+	while (p->input_arr_used > 0) {
+		destroy_input_box(p->input_arr[p->input_arr_used-1]);
+		p->input_arr_used -= 1;
+	}
+	while (p->text_arr_used > 0) {
+		destroy_text(p->text_arr[p->text_arr_used-1]);
+		p->text_arr_used -= 1;
+	}
+	for (int i = p->index; i < prompt_arr_len-1; i++) {
+		prompt_arr[i] = prompt_arr[i + 1];
+		prompt_arr[i]->index = i;
+	}
+	free(p->button_arr);
+	free(p->input_arr);
+	free(p->text_arr);
+	free(p);
+	prompt_arr[prompt_arr_len] = NULL;
+	prompt_arr_len -= 1;
+}
+
+struct prompt *create_prompt(int x, int y, int w, int h, SDL_Color bg_color, SDL_Color outer_color, TTF_Font *font)
+{
+	struct prompt *ret_prompt = malloc(sizeof(struct prompt));
+	struct prompt tmp_prompt = { { x, y, w, h }, 0, prompt_arr_len, NULL, 0, 0, NULL, NULL, 0, 0, NULL, NULL, 0, 0, bg_color, outer_color, font };
+	tmp_prompt.text_arr = malloc(sizeof(struct button *) * 5);
+	tmp_prompt.text_arr_total = 5;
+	tmp_prompt.input_arr = malloc(sizeof(struct button *) * 5);
+	tmp_prompt.input_arr_total = 5;
+	tmp_prompt.button_arr = malloc(sizeof(struct button *) * 5);
+	tmp_prompt.button_arr_total = 5;
+	struct prompt **tmp = realloc(prompt_arr, sizeof(struct prompt *) * (prompt_arr_len + 1));
+	if (tmp == NULL) {
+		printf("create_prompt: failed to reallocate prompt_arr\n");
+		free(tmp_prompt.text_arr);
+		free(tmp_prompt.input_arr);
+		free(tmp_prompt.button_arr);
+		free(ret_prompt);
+		return NULL;
+	}
+	prompt_arr = tmp;
+	memcpy(ret_prompt, &tmp_prompt, sizeof(struct prompt));
+	prompt_arr[prompt_arr_len] = ret_prompt;
+	prompt_arr_len++;
+	return prompt_arr[prompt_arr_len-1];
+}
 
 
 

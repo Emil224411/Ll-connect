@@ -2,13 +2,15 @@
  |					 	   TODO 							|
  |--------------------------------------------------------------------------------------------------------------|
  |														|
- | 		1.  create save button for fan curves 								|
- |		1.  finish fan speed control page apply to port apply to all.					|
- | 		2.  getting seemingly random segfaults on shutdown why idk but from now on every time 		|
+ |		1.  move event handler stuff in to seperet functions						|
+ | 		1.  create promts										|
+ | 		2.  create save button for fan curves 								|
+ |		3.  finish fan speed control page apply to port apply to all.					|
+ | 		4.  getting seemingly random segfaults on shutdown why idk but from now on every time 		|
  |			i run ill use gdb(ran it with htop open and mem usage was double the normal amount 	|
  |			so look in to that). 									|
- | 		3.  kernel module crashing on wake from suspend. (error /proc/Lian_li_hub all ready created) 	|
- | 		4.  finish settings page. 									|
+ | 		5.  kernel module crashing on wake from suspend. (error /proc/Lian_li_hub all ready created) 	|
+ | 		6.  finish settings page. 									|
  | 														|
  |--------------------------------------------------------------------------------------------------------------|
  |														|
@@ -82,6 +84,10 @@ struct drop_down_menu *fan_ring_ddm;
 
 struct slider *rgb_brightnes_slider;
 struct slider *rgb_speed_slider;
+
+struct prompt *test_prompt;
+void show_p(struct button *self, SDL_Event *event);
+void unshow_p(struct button *self, SDL_Event *event);
 
 /* rgb functions */
 int init_rgb_page(void);
@@ -281,18 +287,18 @@ int init_fan_page(void)
 
 	port_bg = create_button(NULL, 0, 1, 425, WINDOW_H - 211, 300, 191, 0, font, NULL, NULL, WHITE, BLACK, WHITE, fan_speed_page);
 
-	port_box_lines[0] = create_line(port_bg->outer_box.x + port_bg->outer_box.w/3, port_bg->outer_box.y, 
-			port_bg->outer_box.x + port_bg->outer_box.w/3, port_bg->outer_box.y + port_bg->outer_box.h - 31, WHITE, fan_speed_page);
+	port_box_lines[0] = create_line(port_bg->pos.x + port_bg->pos.w/3, port_bg->pos.y, 
+			port_bg->pos.x + port_bg->pos.w/3, port_bg->pos.y + port_bg->pos.h - 31, WHITE, fan_speed_page);
 	port_box_lines[0]->show = 1;
-	port_box_lines[1] = create_line(port_bg->outer_box.x + port_bg->outer_box.w/1.5, port_bg->outer_box.y, 
-			port_bg->outer_box.x + port_bg->outer_box.w/1.5, port_bg->outer_box.y + port_bg->outer_box.h - 31, WHITE, fan_speed_page);
+	port_box_lines[1] = create_line(port_bg->pos.x + port_bg->pos.w/1.5, port_bg->pos.y, 
+			port_bg->pos.x + port_bg->pos.w/1.5, port_bg->pos.y + port_bg->pos.h - 31, WHITE, fan_speed_page);
 	port_box_lines[1]->show = 1;
 
 	port_text = create_text("PORTS", 426, WINDOW_H - 205, 0, 0, 20, 0, WHITE, BLACK, font, fan_speed_page);
 	rpm_text = create_text("RPM", port_box_lines[0]->start.x + 5, WINDOW_H - 205, 0, 0, 20, 0, WHITE, BLACK, font, fan_speed_page);
 	pro_text = create_text("%", port_box_lines[1]->start.x + 5, WINDOW_H - 205, 0, 0, 20, 0, WHITE, BLACK, font, fan_speed_page);
-	port_box_lines[2] = create_line(port_bg->outer_box.x, port_text->dst.y + port_text->dst.h + 1, 
-			port_bg->outer_box.x + port_bg->outer_box.w - 2, port_text->dst.y + port_text->dst.h + 1, WHITE, fan_speed_page);
+	port_box_lines[2] = create_line(port_bg->pos.x, port_text->dst.y + port_text->dst.h + 1, 
+			port_bg->pos.x + port_bg->pos.w - 2, port_text->dst.y + port_text->dst.h + 1, WHITE, fan_speed_page);
 	port_box_lines[2]->show = 1;
 
 
@@ -303,8 +309,8 @@ int init_fan_page(void)
 		port_nummber[i]->dst.y += (port_nummber[i]->dst.h + 5) * i;
 		port_speed_pro[i] = create_text("0", pro_text->dst.x, port_nummber[i]->dst.y, 0, 0, 23, 0, WHITE, port_bg->bg_color, font, fan_speed_page);
 		port_speed_rpm[i] = create_text("0", rpm_text->dst.x, port_nummber[i]->dst.y, 0, 0, 23, 0, WHITE, port_bg->bg_color, font, fan_speed_page);
-		port_box_lines[i + 2] = create_line(port_bg->outer_box.x, port_nummber[i]->dst.y + port_nummber[i]->dst.h + 2, 
-				port_bg->outer_box.x + port_bg->outer_box.w - 2, port_nummber[i]->dst.y + port_nummber[i]->dst.h + 2, WHITE, fan_speed_page);
+		port_box_lines[i + 2] = create_line(port_bg->pos.x, port_nummber[i]->dst.y + port_nummber[i]->dst.h + 2, 
+				port_bg->pos.x + port_bg->pos.w - 2, port_nummber[i]->dst.y + port_nummber[i]->dst.h + 2, WHITE, fan_speed_page);
 	}
 	if (update_speed_str() != 0) {
 		printf("update_speed_str failed");
@@ -312,17 +318,17 @@ int init_fan_page(void)
 	}
 	//speeds = create_text(speeds_str, 425, 250, 0, 0, 0, 0, WHITE, edarkgrey, font, fan_speed_page);
 
-	cpu_temp = create_text("current cpu temp: 0°", port_bg->outer_box.x + 5, port_box_lines[5]->start.y + 3, 0, 0, 20, 0, WHITE, BLACK, font, fan_speed_page);
+	cpu_temp = create_text("current cpu temp: 0°", port_bg->pos.x + 5, port_box_lines[5]->start.y + 3, 0, 0, 20, 0, WHITE, BLACK, font, fan_speed_page);
 	
 	graph_fan_speed_text = create_button("fan speed :", 0, 1, 20, 200, 0, 0, 20, font, NULL, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
-	graph_cpu_temp_text  = create_button("cpu temp :", 0, 1, 20, 205 + graph_fan_speed_text->outer_box.h, 0, 0, 20, font, NULL, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
-	graph_cpu_temp_text->outer_box.w = graph_fan_speed_text->outer_box.w;
+	graph_cpu_temp_text  = create_button("cpu temp :", 0, 1, 20, 205 + graph_fan_speed_text->pos.h, 0, 0, 20, font, NULL, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
+	graph_cpu_temp_text->pos.w = graph_fan_speed_text->pos.w;
 
-	cpu_temp_input = create_input("0", "cpu", 0, 3, 25 + graph_cpu_temp_text->outer_box.w, 205 + graph_cpu_temp_text->outer_box.h, 0, 0, NULL, font, WHITE, edarkgrey, WHITE, fan_speed_page);
+	cpu_temp_input = create_input("0", "cpu", 0, 3, 25 + graph_cpu_temp_text->pos.w, 205 + graph_cpu_temp_text->pos.h, 0, 0, NULL, font, WHITE, edarkgrey, WHITE, fan_speed_page);
 
 	cpu_temp_input->filter = filter_cpu_input;
 
-	fan_speed_input = create_input("0", "fan", 0, 3, 25 + graph_fan_speed_text->outer_box.w, 200, 0, 0, NULL, font, WHITE, edarkgrey, WHITE, fan_speed_page);
+	fan_speed_input = create_input("0", "fan", 0, 3, 25 + graph_fan_speed_text->pos.w, 200, 0, 0, NULL, font, WHITE, edarkgrey, WHITE, fan_speed_page);
 
 	fan_speed_input->filter = filter_cpu_input;
 
@@ -330,25 +336,25 @@ int init_fan_page(void)
 	for (int i = 0; i < 4; i++) {
 		char portstr[7];
 		sprintf(portstr, "Port %d", i+1); 
-		select_port_fan_buttons[i] = create_button(portstr, 0, 1, cpu_temp_input->outer_box.x + cpu_temp_input->outer_box.w + prev_w + 10, 
+		select_port_fan_buttons[i] = create_button(portstr, 0, 1, cpu_temp_input->pos.x + cpu_temp_input->pos.w + prev_w + 10, 
 					200 + prev_h, 0, 0, 0, font, port_select_fan_func, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
 		if ((i + 1) % 2 == 0) {
-			prev_h = select_port_fan_buttons[i]->outer_box.h + 5;
+			prev_h = select_port_fan_buttons[i]->pos.h + 5;
 			prev_w = 0;
 		} else {
-			prev_w = select_port_fan_buttons[i]->outer_box.w + 5;
+			prev_w = select_port_fan_buttons[i]->pos.w + 5;
 		}
 	}
 	select_port_fan_buttons[0]->bg_color = WHITE;
 	render_text_texture(select_port_fan_buttons[0]->text, BLACK, WHITE, font);
-	apply_fan_curve = create_button("Apply", 0, 1, select_port_fan_buttons[1]->outer_box.x + select_port_fan_buttons[1]->outer_box.w + 5, select_port_fan_buttons[1]->outer_box.y, 0, 0, 0, font, apply_fans_func, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
+	apply_fan_curve = create_button("Apply", 0, 1, select_port_fan_buttons[1]->pos.x + select_port_fan_buttons[1]->pos.w + 5, select_port_fan_buttons[1]->pos.y, 0, 0, 0, font, apply_fans_func, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
 
 	char tmp_ddm_str[fan_curve_arr_len][MAX_TEXT_SIZE];
 	for (int i = 0; i < fan_curve_arr_len; i++) {
-		sprintf(tmp_ddm_str[i], "curve %d", i);
+		strcpy(tmp_ddm_str[i], fan_curve_arr[i].name);
 	}
-	fan_curve_ddm = create_drop_down_menu(fan_curve_arr_len, tmp_ddm_str, select_port_fan_buttons[3]->outer_box.x + select_port_fan_buttons[3]->outer_box.w + 5, 
-			select_port_fan_buttons[3]->outer_box.y, 0, select_port_fan_buttons[3]->outer_box.h, 0, 100, select_curve_ddm, font, WHITE, edarkgrey, WHITE, fan_speed_page);
+	fan_curve_ddm = create_drop_down_menu(fan_curve_arr_len, tmp_ddm_str, select_port_fan_buttons[3]->pos.x + select_port_fan_buttons[3]->pos.w + 5, 
+			select_port_fan_buttons[3]->pos.y, 0, select_port_fan_buttons[3]->pos.h, 0, 100, select_curve_ddm, font, WHITE, edarkgrey, WHITE, fan_speed_page);
 
 	fan_curve_graph = create_graph(20, WINDOW_H-220, 100, 100, 4, 2, 10, 10, 10, 10, 0, moving_graph, WHITE, BLACK, BLUE, grey, BLUE, fan_speed_page);
 	change_graph_points(fan_curve_graph, fan_curve_arr[ports[0].curve_i].curve, fan_curve_arr[ports[0].curve_i].used_points);
@@ -357,15 +363,15 @@ int init_fan_page(void)
 	fan_curve_graph->rerender = 1;
 
 	remove_curve_b = create_button("remove", 0, 1, 20, 160, 0, 0, 20, font, remove_curve_bf, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
-	add_curve_b = create_button("add", 0, 1, 25 + remove_curve_b->outer_box.w, 160, 0, 0, 20, font, add_curve_bf, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
+	add_curve_b = create_button("add", 0, 1, 25 + remove_curve_b->pos.w, 160, 0, 0, 20, font, add_curve_bf, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
 
 	setting_page_button_f = create_button("settings", 0, 1, 10, 10, 0, 0, 20, font, change_to_settings_page, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
-	rgb_page_button_f = create_button("rgb", 0, 1, 10, setting_page_button_f->outer_box.y + setting_page_button_f->outer_box.h + 5,
+	rgb_page_button_f = create_button("rgb", 0, 1, 10, setting_page_button_f->pos.y + setting_page_button_f->pos.h + 5,
 			0, 0, 20, font, change_to_rgb_page, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
-	rgb_page_button_f->outer_box.w = setting_page_button_f->outer_box.w;
-	fan_page_button_f = create_button("fan", 0, 1, 10, rgb_page_button_f->outer_box.y + rgb_page_button_f->outer_box.h + 5, 
+	rgb_page_button_f->pos.w = setting_page_button_f->pos.w;
+	fan_page_button_f = create_button("fan", 0, 1, 10, rgb_page_button_f->pos.y + rgb_page_button_f->pos.h + 5, 
 			0, 0, 20, font, change_to_fan_page, NULL, WHITE, grey, BLACK, fan_speed_page);
-	fan_page_button_f->outer_box.w = setting_page_button_f->outer_box.w;
+	fan_page_button_f->pos.w = setting_page_button_f->pos.w;
 	return 0;
 }
 
@@ -422,16 +428,16 @@ int init_rgb_page(void)
 	}
 
 	setting_page_button_r = create_button("settings", 0, 1, 10, 10, 0, 0, 20, font, change_to_settings_page, NULL, WHITE, edarkgrey, WHITE, rgb_page);
-	rgb_page_button_r = create_button("rgb", 0, 1, 10, setting_page_button_r->outer_box.y + setting_page_button_r->outer_box.h + 5,
+	rgb_page_button_r = create_button("rgb", 0, 1, 10, setting_page_button_r->pos.y + setting_page_button_r->pos.h + 5,
 			0, 0, 20, font, change_to_rgb_page, NULL, WHITE, grey, BLACK, rgb_page);
-	rgb_page_button_r->outer_box.w = setting_page_button_r->outer_box.w;
-	fan_page_button_r = create_button("fan", 0, 1, 10, rgb_page_button_r->outer_box.y + rgb_page_button_r->outer_box.h + 5, 
+	rgb_page_button_r->pos.w = setting_page_button_r->pos.w;
+	fan_page_button_r = create_button("fan", 0, 1, 10, rgb_page_button_r->pos.y + rgb_page_button_r->pos.h + 5, 
 			0, 0, 20, font, change_to_fan_page, NULL, WHITE, edarkgrey, WHITE, rgb_page);
-	fan_page_button_r->outer_box.w = setting_page_button_r->outer_box.w;
+	fan_page_button_r->pos.w = setting_page_button_r->pos.w;
 
-	rgb_mode_ddm = create_drop_down_menu(rgb_modes_amount, tmp_str, 45, fan_page_button_r->outer_box.y + fan_page_button_r->outer_box.h + 5, 150, 0, 150, 300, rgb_mode_ddm_select, font, WHITE, edarkgrey, WHITE, rgb_page);
+	rgb_mode_ddm = create_drop_down_menu(rgb_modes_amount, tmp_str, 45, fan_page_button_r->pos.y + fan_page_button_r->pos.h + 5, 150, 0, 150, 300, rgb_mode_ddm_select, font, WHITE, edarkgrey, WHITE, rgb_page);
 	char str[][MAX_TEXT_SIZE] = { "O", "I", "OI" };
-	fan_ring_ddm = create_drop_down_menu(3, str, 10, fan_page_button_r->outer_box.y + fan_page_button_r->outer_box.h + 5, 0, 0, 0, 70, fan_ring_select, font, WHITE, edarkgrey, WHITE, rgb_page);
+	fan_ring_ddm = create_drop_down_menu(3, str, 10, fan_page_button_r->pos.y + fan_page_button_r->pos.h + 5, 0, 0, 0, 70, fan_ring_select, font, WHITE, edarkgrey, WHITE, rgb_page);
 
 	int prev_w = 0, prev_h = 0;
 	for (int i = 0; i < 4; i++) {
@@ -439,24 +445,24 @@ int init_rgb_page(void)
 		sprintf(portstr, "Port %d", i+1); 
 		select_port_rgb_buttons[i] = create_button(portstr, 0, 1, 330 + prev_w, saturation_img->pos.y + saturation_img->pos.h - 73 + prev_h, 0, 0, 0, font, port_select_rgb_func, NULL, WHITE, edarkgrey, WHITE, rgb_page);
 		if ((i + 1) % 2 == 0) {
-			prev_h = select_port_rgb_buttons[i]->outer_box.h + 5;
+			prev_h = select_port_rgb_buttons[i]->pos.h + 5;
 			prev_w = 0;
 		} else {
-			prev_w = select_port_rgb_buttons[i]->outer_box.w + 5;
+			prev_w = select_port_rgb_buttons[i]->pos.w + 5;
 		}
 	}
 	
 	direction_buttons[0] = create_button("<<<", 0, 1, 325, saturation_img->pos.y + saturation_img->pos.h, 0, 0, 40, font, direction_select, NULL, edarkgrey, edarkgrey, WHITE, rgb_page);
-	direction_buttons[1] = create_button(">>>", 0, 1, 325 + direction_buttons[0]->outer_box.w, direction_buttons[0]->outer_box.y, 0, 0, 40, font, direction_select, NULL, edarkgrey, edarkgrey, WHITE, rgb_page);
+	direction_buttons[1] = create_button(">>>", 0, 1, 325 + direction_buttons[0]->pos.w, direction_buttons[0]->pos.y, 0, 0, 40, font, direction_select, NULL, edarkgrey, edarkgrey, WHITE, rgb_page);
 
-	apply_rgb = create_button("Apply", 0, 1, color_img->pos.x, color_buttons[0]->outer_box.y + color_buttons[0]->outer_box.h + 10, 0, 0, 0, font, apply, NULL, WHITE, edarkgrey, WHITE, rgb_page);
-	apply_to_all_rgb = create_button("Apply all", 0, 1, apply_rgb->outer_box.x + apply_rgb->outer_box.w + 5, apply_rgb->outer_box.y, 0, 0, 0, font, apply, NULL, WHITE, edarkgrey, WHITE, rgb_page);
+	apply_rgb = create_button("Apply", 0, 1, color_img->pos.x, color_buttons[0]->pos.y + color_buttons[0]->pos.h + 10, 0, 0, 0, font, apply, NULL, WHITE, edarkgrey, WHITE, rgb_page);
+	apply_to_all_rgb = create_button("Apply all", 0, 1, apply_rgb->pos.x + apply_rgb->pos.w + 5, apply_rgb->pos.y, 0, 0, 0, font, apply, NULL, WHITE, edarkgrey, WHITE, rgb_page);
 
 	rgb_speed_slider = create_slider(1, 330, 200, 200, 10, 20, slider_on_release, rgb_speed_slider_move, WHITE, WHITE, darkgrey, rgb_page);
 	rgb_brightnes_slider = create_slider(1, 330, 240, 200, 10, 20, slider_on_release, rgb_brightnes_slider_move, WHITE, WHITE, darkgrey, rgb_page);
 
-	rgb_speed_text = create_text("0%", rgb_speed_slider->pos.x + 210, rgb_speed_slider->button->outer_box.y - 2, 0, 0, 0, 0, WHITE, edarkgrey, font, rgb_page);
-	rgb_brightnes_text = create_text("0%", rgb_brightnes_slider->pos.x + 210, rgb_brightnes_slider->button->outer_box.y - 2, 0, 0, 0 , 0, WHITE, edarkgrey, font, rgb_page);
+	rgb_speed_text = create_text("0%", rgb_speed_slider->pos.x + 210, rgb_speed_slider->button->pos.y - 2, 0, 0, 0, 0, WHITE, edarkgrey, font, rgb_page);
+	rgb_brightnes_text = create_text("0%", rgb_brightnes_slider->pos.x + 210, rgb_brightnes_slider->button->pos.y - 2, 0, 0, 0 , 0, WHITE, edarkgrey, font, rgb_page);
 
 	float rounded = 0.0;
 	if (rgb_brightnes == 0x08) 
@@ -473,7 +479,7 @@ int init_rgb_page(void)
 	char bs_str[6];
 	sprintf(bs_str, "%3d%%", (int)(rounded * 100));
 	change_text_and_render_texture(rgb_brightnes_text, bs_str, WHITE, edarkgrey, font);
-	rgb_brightnes_slider->button->outer_box.x = rgb_brightnes_slider->pos.x + (rgb_brightnes_slider->pos.w * rounded) - rgb_brightnes_slider->button->outer_box.w/2;
+	rgb_brightnes_slider->button->pos.x = rgb_brightnes_slider->pos.x + (rgb_brightnes_slider->pos.w * rounded) - rgb_brightnes_slider->button->pos.w/2;
 
 	rounded = 0.0;
 	if (rgb_speed == 0x02) 
@@ -489,11 +495,25 @@ int init_rgb_page(void)
 
 	sprintf(bs_str, "%3d%%", (int)(rounded * 100));
 	change_text_and_render_texture(rgb_speed_text, bs_str, WHITE, edarkgrey, font);
-	rgb_speed_slider->button->outer_box.x = rgb_speed_slider->pos.x + (rgb_speed_slider->pos.w * rounded) - rgb_speed_slider->button->outer_box.w/2;
+	rgb_speed_slider->button->pos.x = rgb_speed_slider->pos.x + (rgb_speed_slider->pos.w * rounded) - rgb_speed_slider->button->pos.w/2;
 
-	toggle_merge = create_button("Merge", 0, 1, apply_to_all_rgb->outer_box.x + apply_to_all_rgb->outer_box.w + 5, apply_to_all_rgb->outer_box.y, 0, 0, 20, font, toggle_merge_button, NULL, WHITE, edarkgrey, WHITE, rgb_page);
+	toggle_merge = create_button("Merge", 0, 1, apply_to_all_rgb->pos.x + apply_to_all_rgb->pos.w + 5, apply_to_all_rgb->pos.y, 0, 0, 20, font, toggle_merge_button, NULL, WHITE, edarkgrey, WHITE, rgb_page);
+
+	test_prompt = create_prompt(100, 50, 200, 100, edarkgrey, WHITE, font);
+	create_button("show", 0, 1, 200, 100, 0, 0, 20, font, show_p, NULL, WHITE, edarkgrey, WHITE, rgb_page);
+	struct button *tmp = create_button("unshow", 0, 1, 50, 25, 0, 0, 20, font, unshow_p, NULL, WHITE, edarkgrey, WHITE, NULL);
+	add_button_to_prompt(test_prompt, tmp);
 	
 	return 0;
+}
+
+void show_p(struct button *self, SDL_Event *e)
+{
+	show_prompt(test_prompt);
+}
+void unshow_p(struct button *self, SDL_Event *e) 
+{
+	show_prompt(NULL);
 }
 
 int init_settings_page(void)
@@ -504,18 +524,18 @@ int init_settings_page(void)
 		for (int f = 0; f < 6; f++) {
 			fan_count_buttons[p][f] = create_button(NULL, 0, 1, total_x, total_y, 30, 30, 20, font, fan_count_button_click, NULL, WHITE, BLACK, WHITE, settings_page);
 			if (f < ports[p].fan_count) fan_count_buttons[p][f]->bg_color = WHITE;
-			total_x += fan_count_buttons[p][f]->outer_box.w + 5;
+			total_x += fan_count_buttons[p][f]->pos.w + 5;
 		}
 		total_x = 10;
-		total_y += fan_count_buttons[p][0]->outer_box.h + 5;
+		total_y += fan_count_buttons[p][0]->pos.h + 5;
 	}
 	setting_page_button_s = create_button("settings", 0, 1, 10, 10, 0, 0, 20, font, change_to_settings_page, NULL, WHITE, grey, BLACK, settings_page);
-	rgb_page_button_s = create_button("rgb", 0, 1, 10, setting_page_button_s->outer_box.y + setting_page_button_s->outer_box.h + 5,
+	rgb_page_button_s = create_button("rgb", 0, 1, 10, setting_page_button_s->pos.y + setting_page_button_s->pos.h + 5,
 			0, 0, 20, font, change_to_rgb_page, NULL, WHITE, edarkgrey, WHITE, settings_page);
-	rgb_page_button_s->outer_box.w = setting_page_button_s->outer_box.w;
-	fan_page_button_s = create_button("fan", 0, 1, 10, rgb_page_button_s->outer_box.y + rgb_page_button_s->outer_box.h + 5, 
+	rgb_page_button_s->pos.w = setting_page_button_s->pos.w;
+	fan_page_button_s = create_button("fan", 0, 1, 10, rgb_page_button_s->pos.y + rgb_page_button_s->pos.h + 5, 
 			0, 0, 20, font, change_to_fan_page, NULL, WHITE, edarkgrey, WHITE, settings_page);
-	fan_page_button_s->outer_box.w = setting_page_button_s->outer_box.w;
+	fan_page_button_s->pos.w = setting_page_button_s->pos.w;
 	return 0;
 }
 
@@ -576,7 +596,8 @@ void apply_fans_func(struct button *self, SDL_Event *e)
 
 void save_curve_bf(struct button *self, SDL_Event *e) 
 {
-	save_curve(fan_curve_arr[ports[selected_port].curve_i].curve, fan_curve_arr[ports[selected_port].curve_i].used_points, (char *)ports[selected_port].config_path);
+	int sci = ports[selected_port].curve_i;
+	save_curve(fan_curve_arr[sci].curve, fan_curve_arr[sci].name, fan_curve_arr[sci].used_points, (char *)ports[selected_port].config_path);
 }
 
 void change_to_settings_page(struct button *self, SDL_Event *e)
@@ -704,7 +725,7 @@ void rgb_brightnes_slider_move(struct slider *self, SDL_Event *event)
 		sprintf(tmp_str, "%3d%%", (int)(rounded * 100));
 		change_text_and_render_texture(rgb_brightnes_text, tmp_str, WHITE, edarkgrey, font);
 	}
-	self->button->outer_box.x = self->pos.x + (self->pos.w * rounded) - self->button->outer_box.w/2;
+	self->button->pos.x = self->pos.x + (self->pos.w * rounded) - self->button->pos.w/2;
 	last_p = rounded;
 	self->button->bg_color = darkgrey;
 }
@@ -732,7 +753,7 @@ void rgb_speed_slider_move(struct slider *self, SDL_Event *event)
 		change_text_and_render_texture(rgb_speed_text, tmp_str, WHITE, edarkgrey, font);
 	}
 
-	self->button->outer_box.x = self->pos.x + (self->pos.w * rounded) - self->button->outer_box.w/2;
+	self->button->pos.x = self->pos.x + (self->pos.w * rounded) - self->button->pos.w/2;
 	last_p = rounded;
 	self->button->bg_color = darkgrey;
 }
@@ -1050,23 +1071,23 @@ void rgb_saturation_picker_button(struct button *self, SDL_Event *event)
 {
 	SDL_MouseMotionEvent mouse_data = event->motion;
 
-	self->outer_box.x = mouse_data.x; 
+	self->pos.x = mouse_data.x; 
 
-	if (self->outer_box.x > color_img->pos.x + color_img->pos.w-1) {
-		self->outer_box.x = color_img->pos.x + color_img->pos.w - 1;
+	if (self->pos.x > color_img->pos.x + color_img->pos.w-1) {
+		self->pos.x = color_img->pos.x + color_img->pos.w - 1;
 	} 
-	else if (self->outer_box.x < color_img->pos.x) {
-		self->outer_box.x = color_img->pos.x;
+	else if (self->pos.x < color_img->pos.x) {
+		self->pos.x = color_img->pos.x;
 	} 
 	Uint32 *pixels = (Uint32*)color_img->surface->pixels;
 
-	Uint32 pixel = pixels[((self->outer_box.y - color_img->pos.y)*color_img->surface->h/color_img->pos.h) * 
-					color_img->surface->w + ((self->outer_box.x - color_img->pos.x) * color_img->surface->w/color_img->pos.w)];
+	Uint32 pixel = pixels[((self->pos.y - color_img->pos.y)*color_img->surface->h/color_img->pos.h) * 
+					color_img->surface->w + ((self->pos.x - color_img->pos.x) * color_img->surface->w/color_img->pos.w)];
 
 	self->bg_color.r = pixel >> 16;
 	self->bg_color.g = pixel >> 8;
 	self->bg_color.b = pixel;
-	self->outer_box.x -= self->outer_box.w/2;
+	self->pos.x -= self->pos.w/2;
 
 	change = 1;
 }
@@ -1075,22 +1096,22 @@ void rgb_color_picker_button(struct button *self, SDL_Event *event)
 {
 	SDL_MouseMotionEvent mouse_data = event->motion;
 
-	self->outer_box.x = mouse_data.x; 
-	self->outer_box.y = mouse_data.y; 
+	self->pos.x = mouse_data.x; 
+	self->pos.y = mouse_data.y; 
 
-	if (self->outer_box.x > saturation_img->pos.x + saturation_img->pos.w) {
-		self->outer_box.x = saturation_img->pos.x + saturation_img->pos.w;
-	} else if (self->outer_box.x < saturation_img->pos.x) {
-		self->outer_box.x = saturation_img->pos.x;
+	if (self->pos.x > saturation_img->pos.x + saturation_img->pos.w) {
+		self->pos.x = saturation_img->pos.x + saturation_img->pos.w;
+	} else if (self->pos.x < saturation_img->pos.x) {
+		self->pos.x = saturation_img->pos.x;
 	} 
-	if (self->outer_box.y > saturation_img->pos.y + saturation_img->pos.h) {
-		self->outer_box.y = saturation_img->pos.y + saturation_img->pos.h;
-	} else if (self->outer_box.y < saturation_img->pos.y) {
-		self->outer_box.y = saturation_img->pos.y;
+	if (self->pos.y > saturation_img->pos.y + saturation_img->pos.h) {
+		self->pos.y = saturation_img->pos.y + saturation_img->pos.h;
+	} else if (self->pos.y < saturation_img->pos.y) {
+		self->pos.y = saturation_img->pos.y;
 	} 
-	int index_y = ((self->outer_box.y - saturation_img->pos.y) * saturation_img->surface->h / saturation_img->pos.h)-1;
+	int index_y = ((self->pos.y - saturation_img->pos.y) * saturation_img->surface->h / saturation_img->pos.h)-1;
 	index_y = index_y < 0 ? 0 : index_y;
-	int index_x = ((self->outer_box.x - saturation_img->pos.x) * saturation_img->surface->w / saturation_img->pos.w)-1;
+	int index_x = ((self->pos.x - saturation_img->pos.x) * saturation_img->surface->w / saturation_img->pos.w)-1;
 	index_x = index_x < 0 ? 0 : index_x;
 	other_index = index_y * saturation_img->surface->w + index_x;
 
@@ -1100,8 +1121,8 @@ void rgb_color_picker_button(struct button *self, SDL_Event *event)
 	self->bg_color.r = pixel >> 16;
 	self->bg_color.g = pixel >> 8;
 	self->bg_color.b = pixel;
-	self->outer_box.x -= self->outer_box.w/2;
-	self->outer_box.y -= self->outer_box.h/2;
+	self->pos.x -= self->pos.w/2;
+	self->pos.y -= self->pos.h/2;
 
 	//char new_text[4];
 	//sprintf(new_text, "%d", black_white_selector->bg_color.r);
