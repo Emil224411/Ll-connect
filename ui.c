@@ -19,7 +19,7 @@ SDL_Color BLUE    = {   0,   0, 255, SDL_ALPHA_OPAQUE };
 static int mouse_x, mouse_y;
 
 static struct prompt **prompt_arr;
-static struct prompt *showen_prompt = NULL;
+struct prompt *showen_prompt = NULL;
 static int prompt_arr_len;
 static struct page **page_arr;
 struct page *showen_page;
@@ -28,43 +28,12 @@ static int page_arr_used_len;
 
 static void lmouse_button_down(SDL_Event *event);
 static void lmouse_button_up(SDL_Event *event);
+static void on_backspace_input(struct input *selected);
+static void on_text_input(struct input *selected, SDL_TextInputEvent *e);
 static void rmouse_button_down(SDL_Event *event);
 static void rmouse_button_up(SDL_Event *event);
 static void mouse_wheel(SDL_MouseWheelEvent *event);
 static void mouse_move(SDL_Event *event);
-/*
-int get_default_fontpath(void)
-{
-	FcInit();
-
-	FcConfig *c = FcInitLoadConfigAndFonts();
-	FcPattern *p = FcNameParse((const FcChar8 *)"HackNerdFont");
-	FcConfigSubstitute(c, p, FcMatchPattern);
-	FcDefaultSubstitute(p);
-
-	char *font_p = NULL;
-	FcResult res;
-	FcPattern *font = FcFontMatch(c, p, &res);
-
-	int err = -1;
-	if (font) {
-		FcChar8 *file = NULL;
-		if (FcPatternGetString(font, FC_FILE, 0, &file) == FcResultMatch){
-			font_p = (char *)file;
-			strcpy(font_path, font_p);
-			printf("%s, %s\n", font_p, font_path);
-			err = 0;
-		}
-			
-	}
-
-	FcPatternDestroy(font);
-	FcPatternDestroy(p);
-	FcConfigDestroy(c);
-	FcFini();
-	return err;
-}
-*/
 
 int ui_init(void) 
 {
@@ -78,7 +47,6 @@ int ui_init(void)
 		printf("TTF_Init failed err: %s\n", TTF_GetError());
 		return -1;
 	}
-	//strcpy(font_path, get_default_fontpath(), 128);
 	font = TTF_OpenFont("/usr/local/share/fonts/HackNerdFont-Regular.ttf", 20);
 	if (font == NULL) {
 		printf("TTF_OpenFont failed error: %s\n", TTF_GetError());
@@ -107,6 +75,7 @@ int ui_init(void)
 	showen_prompt = NULL;
 
 	cursor = create_line(0, 0, 0, 0, WHITE, NULL);
+	cursor->parent_p = NULL;
 
 	SDL_StartTextInput();
 	return 0;
@@ -177,14 +146,10 @@ void handle_event(SDL_Event *event)
 				case SDLK_ESCAPE:
 					running = 0;
 					break;
-
 				case SDLK_BACKSPACE:
-					if (showen_page->selected_i != NULL) {
-						size_t len = strlen(showen_page->selected_i->text->str);
-						char tmpstr[MAX_TEXT_SIZE];
-						strcpy(tmpstr, showen_page->selected_i->text->str);
-						tmpstr[len-1] = '\0';
-						change_input_box_text(showen_page->selected_i, tmpstr);
+					if (showen_page->selected_i != NULL || showen_prompt != NULL) {
+						struct input *selected = showen_prompt == NULL ? showen_page->selected_i : showen_prompt->selected_input;
+						on_backspace_input(selected);
 					}
 					break;
 				default:
@@ -192,27 +157,42 @@ void handle_event(SDL_Event *event)
 			}
 			break;
 		case SDL_TEXTINPUT:
-			if (showen_page->selected_i!= NULL) {
-				size_t len = strlen(showen_page->selected_i->text->str);
-				if (len >= showen_page->selected_i->max_len) break;
-				if (showen_page->selected_i->max_len > 0) {
-					char tmpstr[MAX_TEXT_SIZE]; 
-					if (showen_page->selected_i->filter != NULL && showen_page->selected_i->filter(showen_page->selected_i, event->text.text) == 0) {
-						strncpy(tmpstr, showen_page->selected_i->text->str, MAX_TEXT_SIZE);
-						strncat(tmpstr, event->text.text, MAX_TEXT_SIZE - len);
-					} else if (showen_page->selected_i->filter == NULL) {
-						strncpy(tmpstr, showen_page->selected_i->text->str, MAX_TEXT_SIZE);
-						strncat(tmpstr, event->text.text, MAX_TEXT_SIZE - len);
-					} else {
-						strncpy(tmpstr, showen_page->selected_i->text->str, MAX_TEXT_SIZE);
-					}
-					change_input_box_text(showen_page->selected_i, tmpstr);
-				}
+			if ((showen_page->selected_i != NULL || showen_prompt != NULL)){
+				struct input *selected = showen_prompt == NULL ? showen_page->selected_i : showen_prompt->selected_input;
+				on_text_input(selected, &event->text);
 			}
 			break;
 		default:
 			break;
 	}
+}
+
+static void on_backspace_input(struct input *selected)
+{
+	if (selected == NULL) return;
+	size_t len = strlen(selected->text->str);
+	char tmpstr[MAX_TEXT_SIZE];
+	strcpy(tmpstr, selected->text->str);
+	tmpstr[len-1] = '\0';
+	change_input_box_text(selected, tmpstr);
+}
+
+static void on_text_input(struct input *selected, SDL_TextInputEvent *e)
+{
+	if (selected == NULL) return;
+	size_t len = strlen(selected->text->str);
+	if ((len >= selected->max_len && selected->max_len != 0) || len >= MAX_TEXT_SIZE-1) return;
+	char tmpstr[MAX_TEXT_SIZE]; 
+	if (selected->filter != NULL && selected->filter(selected, e->text) == 0) {
+		strncpy(tmpstr, selected->text->str, MAX_TEXT_SIZE);
+		strncat(tmpstr, e->text, MAX_TEXT_SIZE - len);
+	} else if (selected->filter == NULL) {
+		strncpy(tmpstr, selected->text->str, MAX_TEXT_SIZE);
+		strncat(tmpstr, e->text, MAX_TEXT_SIZE - len);
+	} else {
+		strncpy(tmpstr, selected->text->str, MAX_TEXT_SIZE);
+	}
+	change_input_box_text(selected, tmpstr);
 }
 
 static void scroll_ddm(struct drop_down_menu *ddm, int wheely)
@@ -236,7 +216,6 @@ static void scroll_ddm(struct drop_down_menu *ddm, int wheely)
 		ddm->scroll_offset = 0;
 	else if (ddm->scroll_offset < -(lty + lth - dpy - dph)) 
 		ddm->scroll_offset = -(lty + lth - dpy - dph);
-
 }
 
 static void mouse_wheel(SDL_MouseWheelEvent *event)
@@ -309,18 +288,49 @@ static void rmouse_button_up(SDL_Event *event)
 	}
 }
 
-/* LATER: only check if button or input_box is visible mabey create array with all showen things idk */
-static void lmouse_button_up(SDL_Event *event)
+static void lmbu_prompt(SDL_Event *e)
 {
-	SDL_MouseButtonEvent mouse_data = event->button;
-	// TODO change this it looks bad it is just not good give each thing its own function maby
-	if (showen_prompt != NULL && showen_prompt->selected_button != NULL) {
+	SDL_MouseButtonEvent mouse_data = e->button;
+	if (showen_prompt->selected_button != NULL) {
 		struct button *tmp_self = NULL;
 		if (showen_prompt->selected_button->clickable) {
 			tmp_self = showen_prompt->selected_button;
 		}
 		showen_prompt->selected_button = NULL;
-		if (tmp_self != NULL) tmp_self->on_click(tmp_self, event);
+		if (tmp_self != NULL) tmp_self->on_click(tmp_self, e);
+	}
+	int hit = 0;
+	for (int i = 0; i < showen_prompt->input_arr_used; i++) {
+		if (CHECK_RECT(mouse_data, showen_prompt->input_arr[i]->pos))  {
+			hit = 1;
+			showen_prompt->input_arr[i]->selected = 1;
+			showen_prompt->selected_input = showen_prompt->input_arr[i];
+			cursor->show = 1;
+			int text_str_len = strlen(showen_prompt->input_arr[i]->text->str);
+			cursor->start.x = showen_prompt->input_arr[i]->text->dst.x + showen_prompt->input_arr[i]->char_size.w * text_str_len;
+			cursor->start.y = showen_prompt->input_arr[i]->text->dst.y;
+			cursor->too.x = showen_prompt->input_arr[i]->text->dst.x + showen_prompt->input_arr[i]->char_size.w * text_str_len;
+			cursor->too.y = showen_prompt->input_arr[i]->text->dst.y + showen_prompt->input_arr[i]->char_size.h;
+			SDL_StartTextInput();
+		} else if (showen_prompt->input_arr[i]->selected != 0) {
+			showen_prompt->input_arr[i]->selected = 0;
+		}
+	}
+	if (hit == 0) {
+		SDL_StopTextInput();
+		showen_prompt->selected_input = NULL;
+		cursor->show = 0;
+	}
+
+}
+
+/* LATER: only check if button or input_box is visible mabey create array with all showen things idk */
+static void lmouse_button_up(SDL_Event *event)
+{
+	SDL_MouseButtonEvent mouse_data = event->button;
+	if (showen_prompt != NULL) {
+		lmbu_prompt(event);
+		return;
 	}
 	if (showen_page->selected_b != NULL && showen_page->selected_b->clickable == 1) {
 		showen_page->selected_b->on_click(showen_page->selected_b, event);
@@ -390,10 +400,10 @@ static void lmouse_button_up(SDL_Event *event)
 			SDL_StartTextInput();
 		} else if (showen_page->i_arr[i]->selected != 0) {
 			showen_page->i_arr[i]->selected = 0;
-			SDL_StopTextInput();
 		}
 	}
 	if (hit == 0) {
+		SDL_StopTextInput();
 		showen_page->selected_i = NULL;
 		cursor->show = 0;
 	}
@@ -430,23 +440,22 @@ static void lmouse_button_up(SDL_Event *event)
 	}
 }
 
-void select_ddm_item(struct drop_down_menu *ddm, int item)
+
+static void lmbd_prompt(SDL_Event *e)
 {
-	ddm->text[ddm->selected_text_index]->show = 0;
-	ddm->selected_text_index = item;
-	ddm->text[item]->show = 1;
-	ddm->scroll_offset = -(ddm->text[item]->dst.y - ddm->used_pos.y - 2);
+	for (int i = 0; i < showen_prompt->button_arr_used; i++) {
+		if (showen_prompt->button_arr[i]->clickable == 1 && CHECK_RECT(e->button, showen_prompt->button_arr[i]->pos)) {
+			showen_prompt->selected_button = showen_prompt->button_arr[i];
+		}
+	}
 }
 
 static void lmouse_button_down(SDL_Event *event)
 {
 	SDL_MouseButtonEvent mouse_data = event->button;
 	if (showen_prompt != NULL) {
-		for (int i = 0; i < showen_prompt->button_arr_used; i++) {
-			if (showen_prompt->button_arr[i]->clickable == 1 && CHECK_RECT(event->button, showen_prompt->button_arr[i]->pos)) {
-				showen_prompt->selected_button = showen_prompt->button_arr[i];
-			}
-		}
+		lmbd_prompt(event);
+		return;
 	}
 	for (int i = 0; i < showen_page->b_arr_used_len; i++) {
 		if (showen_page->b_arr[i]->clickable == 1 && CHECK_RECT(event->button, showen_page->b_arr[i]->pos)) {
@@ -624,7 +633,6 @@ void render_showen_page(void)
 	for (int i = 0; i < showen_page->i_arr_used_len; i++) {
 		if (showen_page->i_arr[i]->show != 0) render_input_box(showen_page->i_arr[i]);
 	}
-	if (cursor->show != 0) render_line(cursor);
 	for (int i = 0; i < showen_page->s_arr_used_len; i++) {
 		if (showen_page->s_arr[i]->show != 0) render_slider(showen_page->s_arr[i]);
 	}
@@ -641,12 +649,13 @@ void render_showen_page(void)
 	if (showen_prompt != NULL) {
 		render_prompt(showen_prompt);
 	}
+	if (cursor->show != 0) render_line(cursor);
 }
 
-struct text *create_text(char *string, int x, int y, int w, int h, int font_size, int wrap_length, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f, struct page *p)
+struct text *create_text(char *string, int x, int y, int w, int h, int font_size, int wrap_length, SDL_Color fg_color, TTF_Font *f, struct page *p)
 {
 	struct text *return_text = malloc(sizeof(struct text));
-	struct text new_text = { "", 1, 0, 0, 0, wrap_length, fg_color, bg_color, { 0 }, { x, y, 0, 0 }, NULL, 0, p };
+	struct text new_text = { "", 1, 0, 0, 0, wrap_length, fg_color, { 0 }, { x, y, 0, 0 }, NULL, 0, p };
 	
 	strncpy(new_text.str, string, MAX_TEXT_SIZE);
 	if (w != 0) {
@@ -663,7 +672,7 @@ struct text *create_text(char *string, int x, int y, int w, int h, int font_size
 	printf("string len = %ld\n", strlen(string));
 	printf("wrap_length = %d, new_text.font_size = %d, font_size = %d\n\n", wrap_length, new_text.font_size, font_size);
 #endif
-	if (render_text_texture(&new_text, new_text.fg_color, new_text.bg_color, f) != 0) {
+	if (render_text_texture(&new_text, new_text.fg_color, f) != 0) {
 		printf("ui.c render_text_texture failed from create_text\n");
 	}
 	memcpy(return_text, &new_text, sizeof(struct text));
@@ -701,13 +710,13 @@ void destroy_text_texture(struct text *text)
 }
 
 int prev_font_size = 20;
-int render_text_texture(struct text *t, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f)
+int render_text_texture(struct text *t, SDL_Color fg_color, TTF_Font *f)
 {
 	if (prev_font_size != t->font_size) {
 		TTF_SetFontSize(f, t->font_size);
 		prev_font_size = t->font_size;
 	}
-	SDL_Surface *surface = TTF_RenderUTF8_Shaded_Wrapped(f, t->str, fg_color, bg_color, t->wrap_length);
+	SDL_Surface *surface = TTF_RenderText_Blended_Wrapped(f, t->str, fg_color, t->wrap_length);
 	if (surface == NULL) {
 		printf("ui.c render_text_texture failed surface error: %s\n", SDL_GetError());
 		return -1;
@@ -720,17 +729,16 @@ int render_text_texture(struct text *t, SDL_Color fg_color, SDL_Color bg_color, 
 	if (t->static_h == 0) {
 		t->dst.h = surface->h;
 	}
-	t->bg_color = bg_color;
 	t->fg_color = fg_color;
 	SDL_FreeSurface(surface);
 	return 0;
 }
 
-void change_text_and_render_texture(struct text *text, char *new_text, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f)
+void change_text_and_render_texture(struct text *text, char *new_text, SDL_Color fg_color, TTF_Font *f)
 {
 	if (strlen(new_text) < MAX_TEXT_SIZE) {
 		strcpy(text->str, new_text);
-		render_text_texture(text, fg_color, bg_color, f);
+		render_text_texture(text, fg_color, f);
 	}
 }
 
@@ -750,7 +758,7 @@ struct button *create_button(char *string, int movable, int show, int x, int y, 
 		int tmp_w = 0, tmp_h = 0;
 		if (h != 0) tmp_h = h - 10;
 		if (w != 0) tmp_w = w - 10;
-		new_button.text = create_text(string, x + 5, y + 5, tmp_w, tmp_h, font_size, 0, text_color, bg_color, f, NULL);
+		new_button.text = create_text(string, x + 5, y + 5, tmp_w, tmp_h, font_size, 0, text_color, f, NULL);
 		new_button.texture = &new_button.text->texture;
 	} 
 	new_button.pos.w = w == 0 ? new_button.text->dst.w + 10 : w;
@@ -812,25 +820,35 @@ struct input *create_input(char *string, char *def_text, int resize_box, int max
 				tstr[i] = ' ';
 			}
 			tstr[max_len] = '\0';
-			new_input.text = create_text(tstr, x+5, y+5, 0, 0, 20, 0, text_color, bg_color, f, NULL);
+			new_input.text = create_text(tstr, x+5, y+5, 0, 0, 20, 0, text_color, f, NULL);
 			w = new_input.text->dst.w + 10;
 			h = new_input.text->dst.h + 10;
 			tstr[1] = '\0';
-			change_text_and_render_texture(new_input.text, tstr, text_color, bg_color, f);
+			change_text_and_render_texture(new_input.text, tstr, text_color, f);
 			new_input.char_size.w = new_input.text->dst.w;
 			new_input.char_size.h = new_input.text->dst.h;
-			change_text_and_render_texture(new_input.text, string, text_color, bg_color, f);
+			change_text_and_render_texture(new_input.text, string, text_color, f);
 		}
-		else new_input.text = create_text(string, x+5, y+5, 0, 0, 20, 0, text_color, bg_color, f, NULL);
+		else {
+			char tstr[2];
+			for (int i = 0; i < 2; i++) {
+				tstr[i] = ' ';
+			}
+			tstr[1] = '\0';
+			new_input.text = create_text(tstr, x+5, y+5, 0, 0, 20, 0, text_color, f, NULL);
+			new_input.char_size.w = new_input.text->dst.w;
+			new_input.char_size.h = new_input.text->dst.h;
+			change_text_and_render_texture(new_input.text, string, text_color, f);
+		}
 	}
 	if (def_text != NULL) {
-		new_input.default_text = create_text(def_text, x+5, y+5, 0, 0, 20, 0, text_color, bg_color, f, NULL);
+		new_input.default_text = create_text(def_text, x+5, y+5, 0, 0, 20, 0, text_color, f, NULL);
 	}
 
-	if (w == 0) {
+	if (w == 0 || resize_box) {
 		new_input.default_pos.w = new_input.pos.w = new_input.text->dst.w + 10;
 	} else new_input.default_pos.w = new_input.pos.w = w;
-	if (h == 0) {
+	if (h == 0 || resize_box) {
 		new_input.default_pos.h = new_input.pos.h = new_input.text->dst.h + 10;
 	} else new_input.default_pos.h = new_input.pos.h = h;
 
@@ -838,6 +856,11 @@ struct input *create_input(char *string, char *def_text, int resize_box, int max
 		new_input.text->src = new_input.text->dst;
 		new_input.text->src.x = 0;
 		new_input.text->src.y = 0;
+	}
+	new_input.default_text->src = new_input.text->src;
+	if (new_input.text->str[0] == '\0') {
+		new_input.default_text->show = 1;
+		new_input.text->show = 0;
 	}
 
 	memcpy(return_input, &new_input, sizeof(struct input));
@@ -861,18 +884,16 @@ void change_input_box_text(struct input *input_box, char *str)
 	prev_input_margin.h = input_box->pos.h - input_box->text->dst.h;
 
 	size_t old_len = strlen(input_box->text->str), new_len = strlen(str);
-	if (old_len < new_len) {
-		cursor->too.x = cursor->start.x += input_box->char_size.w;
-	} else if (old_len > new_len) {
-		cursor->too.x = cursor->start.x -= input_box->char_size.w;
-	}
 	strncpy(input_box->text->str, str, MAX_TEXT_SIZE);
 	if (str[0] != '\0') {
-		render_text_texture(input_box->text, input_box->text->fg_color, input_box->text->bg_color, font);
+		render_text_texture(input_box->text, input_box->text->fg_color, font);
 		input_box->text->show = 1;
 		input_box->default_text->show = 0;
 	} else {
-		render_text_texture(input_box->default_text, input_box->default_text->fg_color, input_box->default_text->bg_color, font);
+		printf("show default text\n");
+		input_box->default_text->dst.x = input_box->text->dst.x;
+		input_box->default_text->dst.y = input_box->text->dst.y;
+		render_text_texture(input_box->default_text, input_box->default_text->fg_color, font);
 		input_box->text->show = 0;
 		input_box->default_text->show = 1;
 	}
@@ -885,8 +906,21 @@ void change_input_box_text(struct input *input_box, char *str)
 		input_box->pos.w = input_box->text->dst.w + prev_input_margin.w;
 		input_box->pos.h = input_box->text->dst.h + prev_input_margin.h;
 	} else {
-		input_box->text->src.w = input_box->pos.w = input_box->default_pos.w;
-		input_box->text->src.h = input_box->pos.h = input_box->default_pos.h;
+		if (old_len < new_len && input_box->pos.w < input_box->text->dst.w) {
+			input_box->text->src.x += input_box->char_size.w;
+			input_box->text->src.w = input_box->text->dst.w = input_box->default_pos.w - prev_input_margin.w;
+			cursor->too.x = cursor->start.x = input_box->text->dst.x + input_box->text->dst.w - 2;
+		} else if (old_len > new_len && input_box->pos.w < input_box->text->dst.w) {
+			input_box->text->src.x -= input_box->char_size.w;
+			input_box->text->dst.w = input_box->text->src.w = input_box->default_pos.w - prev_input_margin.w;
+			cursor->too.x = cursor->start.x = input_box->text->dst.x + input_box->text->dst.w - 2;
+		} else {
+			input_box->text->src.y = input_box->text->src.x = 0;
+			input_box->text->src.w = input_box->pos.w = input_box->default_pos.w;
+			input_box->text->src.h = input_box->pos.h = input_box->default_pos.h;
+			if (input_box->default_text->show) cursor->too.x = cursor->start.x = input_box->text->dst.x;
+			else cursor->too.x = cursor->start.x = input_box->text->dst.x + input_box->text->dst.w;
+		}
 	}
 }
 
@@ -901,12 +935,14 @@ void render_input_box(struct input *input_box)
 	SDL_RenderFillRect(renderer, &input_box->pos);
 	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(input_box->outer_color));
 	SDL_RenderDrawRect(renderer, &input_box->pos);
-	if (input_box->text->str[0] != '\0') render_text(input_box->text, &input_box->text->src);
+	if (input_box->text->show) render_text(input_box->text, &input_box->text->src);
+	else render_text(input_box->default_text, NULL);
 }
 
 void destroy_input_box(struct input *input_box)
 {
 	destroy_text(input_box->text);
+	destroy_text(input_box->default_text);
 	if (input_box->parent_p != NULL) {
 		for (int i = input_box->index; i < input_box->parent_p->i_arr_used_len-1; i++) {
 			input_box->parent_p->i_arr[i] = input_box->parent_p->i_arr[i+1];
@@ -934,7 +970,7 @@ struct drop_down_menu *create_drop_down_menu(int items, char item_str[][MAX_TEXT
 	int prev_height = 0;
 	int bigest_w = ddm.default_pos.w, bigest_h = ddm.default_pos.h;
 	for (int i = 0; i < items; i++) {
-		ddm.text[i] = create_text(item_str[i], 0, 0, 0, 0, 0, w, tc, bg_color, f, NULL);
+		ddm.text[i] = create_text(item_str[i], 0, 0, 0, 0, 0, w, tc, f, NULL);
 		if (!ddm.static_w && bigest_w < ddm.text[i]->dst.w) bigest_w = ddm.text[i]->dst.w;
 		if (!ddm.static_h && bigest_h < ddm.text[i]->dst.h) bigest_h = ddm.text[i]->dst.h;
 		ddm.text[i]->dst.y = ddm.default_pos.y + prev_height + 2;
@@ -978,7 +1014,7 @@ void change_ddm_text_arr(struct drop_down_menu *ddm, int items, char newstr[][MA
 	int prev_height = 0;
 	int bigest_w = ddm->default_pos.w, bigest_h = ddm->default_pos.h;
 	for (int i = 0; i < items; i++) {
-		ddm->text[i] = create_text(newstr[i], 0, 0, 0, 0, 0, ddm->default_pos.w, tc, ddm->bg_color, f, NULL);
+		ddm->text[i] = create_text(newstr[i], 0, 0, 0, 0, 0, ddm->default_pos.w, tc, f, NULL);
 		if (!ddm->static_w && bigest_w < ddm->text[i]->dst.w) bigest_w = ddm->text[i]->dst.w;
 		if (!ddm->static_h && bigest_h < ddm->text[i]->dst.h) bigest_h = ddm->text[i]->dst.h;
 		ddm->text[i]->dst.y = ddm->default_pos.y + prev_height + 2;
@@ -1012,6 +1048,14 @@ void destroy_ddm(struct drop_down_menu *ddm)
 	free(ddm);
 }
 
+void select_ddm_item(struct drop_down_menu *ddm, int item)
+{
+	ddm->text[ddm->selected_text_index]->show = 0;
+	ddm->selected_text_index = item;
+	ddm->text[item]->show = 1;
+	ddm->scroll_offset = -(ddm->text[item]->dst.y - ddm->used_pos.y - 2);
+}
+
 void add_item_ddm(struct drop_down_menu *ddm, char *newstr, TTF_Font *f) 
 {
 	ddm->text = realloc(ddm->text, sizeof(struct text *) * (++ddm->items));
@@ -1019,7 +1063,7 @@ void add_item_ddm(struct drop_down_menu *ddm, char *newstr, TTF_Font *f)
 	SDL_Color tc = ddm->text[0]->fg_color;
 	int prev_height = 0;
 	int bigest_w = ddm->default_pos.w, bigest_h = ddm->default_pos.h;
-	ddm->text[ddm->items-1] = create_text(newstr, 0, 0, 0, 0, 0, ddm->default_pos.w, tc, ddm->bg_color, f, NULL);
+	ddm->text[ddm->items-1] = create_text(newstr, 0, 0, 0, 0, 0, ddm->default_pos.w, tc, f, NULL);
 	for (int i = 0; i < ddm->items; i++) {
 		if (!ddm->static_w && bigest_w < ddm->text[i]->dst.w) bigest_w = ddm->text[i]->dst.w;
 		if (!ddm->static_h && bigest_h < ddm->text[i]->dst.h) bigest_h = ddm->text[i]->dst.h;
@@ -1436,7 +1480,7 @@ void render_prompt(struct prompt *p)
 		render_input_box(p->input_arr[i]);
 	}
 	for (int i = 0; i < p->text_arr_used; i++) {
-		render_text(p->text_arr[i], &p->text_arr[i]->src);
+		render_text(p->text_arr[i], NULL);
 	}
 }
 
@@ -1475,6 +1519,8 @@ void add_input_to_prompt(struct prompt *p, struct input *i)
 	i->pos.y += p->pos.y;
 	i->text->dst.x += p->pos.x;
 	i->text->dst.y += p->pos.y;
+	i->default_text->dst.x += p->pos.x;
+	i->default_text->dst.y += p->pos.y;
 	i->index = p->input_arr_used;
 	if (p->input_arr_total < p->input_arr_used + 1) {
 		struct input **tmp = realloc(p->input_arr, sizeof(struct input *) * (p->input_arr_total + 5));

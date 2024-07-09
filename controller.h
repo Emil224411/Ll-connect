@@ -82,15 +82,27 @@ extern struct curve *fan_curve_arr;
 extern int fan_curve_arr_len;
 
 int init_controller(void);
-void init_fan_curve_conf(void);
+int init_fan_curve_conf(void);
 void shutdown_controller(void);
+
 /* save/load functions */
 int save_port(struct port *p);
 int load_port(struct port *p);
+
+int get_rgb_from_conf(struct port *p, int in_or_out);
+void save_rgb(struct port *p, int in_or_out);
+
+int get_port_curve_from_conf(struct port *p);
+void save_port_curve(struct port *p);
+
+int get_fan_count_from_conf(struct port *p);
+void save_fan_count(struct port *p);
+
 int save_curve(struct point *p, char *name, int points_used, char *path);
 int load_curve(struct point **p, char *name, int name_len, int *points_used, int *points_total, char *path);
+
 void remove_curve(int index);
-void add_curve(void);
+int add_curve(void);
 struct point *alloc_point_arr(int size);
 
 /* set rgb functions */
@@ -102,12 +114,12 @@ int set_merge(struct port *p, const struct rgb_mode *new_mode, int speed, int di
 /* color functions */
 int write_outer_colors(char *path, struct color *new_colors, int fan_count, float bright, int flags);
 int write_inner_colors(char *path, struct color *new_colors, int fan_count, float bright, int flags);
+int read_colors(char *path, struct color *colors, int fan_count, int in_or_out);
 
 /* set fan speed functions */
 int set_fan_curve(struct port *p);
 int set_fan_speed(struct port *p, int speed);
-int get_fan_speed_rpm(const char *path);
-int get_fan_speed_pro(const char *path);
+int get_fan_speed(const char *path, int *pro, int *rpm);
 
 int set_mb_sync(int state);
 int get_fan_count_from_driver(struct port *p);

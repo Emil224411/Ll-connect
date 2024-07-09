@@ -30,7 +30,7 @@ struct point {
 struct text {
 	char str[MAX_TEXT_SIZE];
 	int show, static_w, static_h, font_size, wrap_length;
-	SDL_Color fg_color, bg_color;
+	SDL_Color fg_color;
 	SDL_Rect src, dst;
 	SDL_Texture *texture;
 	int index; /* private */
@@ -148,6 +148,7 @@ extern SDL_Color GREEN;
 extern SDL_Color BLUE;
 
 extern struct page *showen_page;
+extern struct prompt *showen_prompt;
 extern struct line *cursor;
 extern int running;
 extern char font_path[128];
@@ -185,12 +186,12 @@ void show_page(struct page *page);
 void render_showen_page(void);
 
 /* text functions */
-struct text *create_text(char *string, int x, int y, int w, int h, int font_size, int wrap_length, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f, struct page *p);
+struct text *create_text(char *string, int x, int y, int w, int h, int font_size, int wrap_length, SDL_Color fg_color, TTF_Font *f, struct page *p);
 void destroy_text_texture(struct text *text);
 void destroy_text(struct text *text);
 void render_text(struct text *t, SDL_Rect *src);
-int render_text_texture(struct text *t, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f);
-void change_text_and_render_texture(struct text *text, char *new_text, SDL_Color fg_color, SDL_Color bg_color, TTF_Font *f);
+int render_text_texture(struct text *t, SDL_Color fg_color, TTF_Font *f);
+void change_text_and_render_texture(struct text *text, char *new_text, SDL_Color fg_color, TTF_Font *f);
 
 /* button functions */
 struct button *create_button(char *string, int movable, int show, int x, int y, int w, int h, int font_size, TTF_Font *f, void (*on_click)(struct button *s, SDL_Event *e), void (*on_move)(struct button *b, SDL_Event *e), SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color, struct page *p);

@@ -50,6 +50,7 @@ const struct rgb_mode rgb_modes[] = {
 };
 const int rgb_modes_amount = 46;
 
+const char *home_path;
 int mb_sync = 0;
 
 int prev_inner_set_all[4];
@@ -78,16 +79,14 @@ struct point default_fan_curve[7] = {
 	{ 85, 15 },
 };
 
-
 struct curve *fan_curve_arr;
 int fan_curve_arr_len = 0;
 int fan_curve_arr_total = 0;
 
 int mkconfdir(const char *path) 
 {
-	const char *home = getenv("HOME");
 	char full_path[128];
-	strcpy(full_path, home);
+	strcpy(full_path, home_path);
 	strcat(full_path, path);
 	int err = mkdir(full_path, S_IRWXU | S_IXOTH | S_IROTH | S_IXGRP | S_IRGRP);
 	if (err != 0 && errno != EEXIST) {
@@ -100,7 +99,7 @@ int mkconfdir(const char *path)
 	}
 }
 
-void init_fan_curve_conf(void)
+int init_fan_curve_conf(void)
 {
 	char path[128];
 	int no_more_files = 0, i = 0;
@@ -111,16 +110,25 @@ void init_fan_curve_conf(void)
 		char file_path[164];
 		sprintf(file_path, "%s%d", path, i);
 		if (fan_curve_arr_len + 1 > fan_curve_arr_total) {
-			fan_curve_arr = realloc(fan_curve_arr, sizeof(struct curve) * (fan_curve_arr_total + 5));
+			struct curve *tmp = (struct curve *)realloc(fan_curve_arr, sizeof(struct curve) * (fan_curve_arr_total + 5));
+			if (tmp == NULL) {
+				printf("init_fan_curve_conf: failed to reallocate fan_curve_arr\n");
+				return -1;
+			}
+			fan_curve_arr = tmp;
 			fan_curve_arr_total += 5;
 			memset(&fan_curve_arr[fan_curve_arr_len], 0, sizeof(struct curve) * (fan_curve_arr_total - fan_curve_arr_len));
 		}
 		no_more_files = load_curve(&fan_curve_arr[i].curve, fan_curve_arr[i].name, MAX_TEXT_SIZE, &fan_curve_arr[i].used_points, &fan_curve_arr[i].total_points, file_path);
 		if (no_more_files != -1) {
 			fan_curve_arr_len++;
+		} else {
+			printf("init_fan_curve_conf: failed load_curve\n");
+			return -1;
 		}
 		i++;
 	}
+	return 0;
 }
 
 void shutdown_controller(void)
@@ -136,9 +144,9 @@ void shutdown_controller(void)
 	}
 	free(fan_curve_arr);
 }
-
 int init_controller(void)
 {
+	home_path = getenv("HOME");
 	int err = mkconfdir(CONFIG_PATH);
 	if (err == -1) {
 		printf("init_controller: mkconfdir failed at path %s\n", CONFIG_PATH);
@@ -180,21 +188,26 @@ void remove_curve(int index)
 	fan_curve_arr_len -= 1;
 }
 
-void add_curve(void)
+int add_curve(void)
 {
 	if (fan_curve_arr_len + 1 > fan_curve_arr_total) {
 		struct curve* tmp = realloc(fan_curve_arr, sizeof(struct curve) * (fan_curve_arr_len + 1));
 		if (tmp == NULL) {
-			printf("add_curve: failed to reallocate fan_curve_arr\n");
-			return;
+			printf("add_curve: failed to reallocate fan_curve_arr, errno = %d\n", errno);
+			return -1;
 		}
 		fan_curve_arr = tmp;
 		fan_curve_arr_total += 1;
 	}
-	fan_curve_arr[fan_curve_arr_len].curve = alloc_point_arr(1);
+	fan_curve_arr[fan_curve_arr_len].curve = calloc(1, sizeof(struct point));
+	if (fan_curve_arr[fan_curve_arr_len].curve == NULL) {
+		printf("add_curve: calloc fan_curve_arr[fan_curve_arr_len].curve failed, errno = %d\n", errno);
+		return -1;
+	}
 	fan_curve_arr[fan_curve_arr_len].total_points = 1;
 	fan_curve_arr[fan_curve_arr_len].used_points = 0;
 	fan_curve_arr_len++;
+	return 0;
 }
 
 int set_fan_count(struct port *p, int fc)
@@ -233,203 +246,223 @@ int get_fan_count_from_driver(struct port *p)
 	return fc;
 }
 
-int get_fan_speed_rpm(const char *p)
+int get_fan_speed(const char *p, int *pro, int *rpm)
 {
 	char path[MAX_TEXT_SIZE];
-
 	strcpy(path, p);
 	strcat(path, "/fan_speed");
 	FILE *f = fopen(path, "r");
 	if (f == NULL) {
-		printf("get_fan_speed_rpm: failed to open file at %s\n", path);
+		printf("get_fan_speed: failed to open file at %s\n", path);
 		return -1;
 	}
 	int speed_pro, speed_rpm;
 	fscanf(f, "%d %d", &speed_pro, &speed_rpm);
-	fclose(f);
+	if (pro != NULL) *pro = speed_pro;
+	if (rpm != NULL) *rpm = speed_rpm;
 
-	return speed_rpm;
+	fclose(f);
+	return 0;
 }
 
-int get_fan_speed_pro(const char *p)
+int get_fan_count_from_conf(struct port *p)
 {
 	char path[MAX_TEXT_SIZE];
 
-	strcpy(path, p);
-	strcat(path, "/fan_speed");
+	strcpy(path, home_path);
+	strcat(path, p->config_path);
+	strcat(path, "/fan_count");
 	FILE *f = fopen(path, "r");
 	if (f == NULL) {
-		printf("get_fan_speed_pro: failed to open file at %s\n", path);
+		printf("get_fan_count_from_conf: failed to open file at %s, errno = %d\n", path, errno);
 		return -1;
 	}
-	int speed_pro, speed_rpm;
-	fscanf(f, "%d %d", &speed_pro, &speed_rpm);
+	int fc = 0;
+	fscanf(f, "%d", &fc);
 	fclose(f);
 
-	return speed_pro;
+	return fc;
+}
+
+void save_fan_count(struct port *p)
+{
+	char path[MAX_TEXT_SIZE];
+	strcpy(path, home_path);
+	strcat(path, p->config_path);
+	strcat(path, "/fan_count");
+	FILE *f = fopen(path, "w");
+	if (f == NULL) {
+		printf("save_fan_count: failed to open file at %s, errno = %d\n", path, errno);
+		return;
+	}
+	fprintf(f, "%d", p->fan_count); 
+	fclose(f);
+}
+
+void save_port_curve(struct port *p)
+{
+	char path[MAX_TEXT_SIZE];
+	strcpy(path, home_path);
+	strcat(path, p->config_path);
+	strcat(path, "/fan_curve");
+	FILE *f = fopen(path, "w");
+	if (f == NULL) {
+		printf("save_port_curve: failed to open file at %s, errno = %d", path, errno);
+		return;
+	}
+	fprintf(f, "%d", p->curve_i);
+	fclose(f);
+}
+
+int get_port_curve_from_conf(struct port *p) 
+{
+	char path[MAX_TEXT_SIZE];
+	strcpy(path, home_path);
+	strcat(path, p->config_path);
+	strcat(path, "/fan_curve");
+	FILE *f = fopen(path, "r");
+	if (f == NULL) {
+		printf("get_port_curve_from_conf: failed to open file at %s, errno = %d\n", path, errno);
+		return -1;
+	}
+	int fc = 0;
+	fscanf(f, "%d", &fc);
+	fclose(f);
+
+	return fc;
+}
+
+int get_rgb_from_conf(struct port *p, int in_or_out)
+{
+	char path[MAX_TEXT_SIZE];
+	strcpy(path, home_path);
+	strcat(path, p->config_path); 
+	if (in_or_out) {
+		strcat(path, "/outer_rgb"); 
+	} else {
+		strcat(path, "/inner_rgb"); 
+	}
+	int rgb_mode = 0;
+	FILE *f = fopen(path, "r");
+	if (f == NULL) {
+		printf("get_rgb_from_conf: failed to open file at %s, errno = %d\n", path, errno);
+		return -1;
+	}
+	if (in_or_out) {
+		fscanf(f, "%d %d %d %d", &rgb_mode, &p->rgb.outer_speed, &p->rgb.outer_brightnes, &p->rgb.outer_direction);
+		p->rgb.outer_mode = &rgb_modes[rgb_mode];
+	} else {
+		fscanf(f, "%d %d %d %d", &rgb_mode, &p->rgb.inner_speed, &p->rgb.inner_brightnes, &p->rgb.inner_direction);
+		p->rgb.inner_mode = &rgb_modes[rgb_mode];
+	}
+	fclose(f);
+	return 0;
+}
+
+void save_rgb(struct port *p, int in_or_out)
+{
+	char path[MAX_TEXT_SIZE];
+	strcpy(path, home_path);
+	strcat(path, p->config_path); 
+	if (in_or_out) {
+		strcat(path, "/outer_rgb"); 
+	} else {
+		strcat(path, "/inner_rgb"); 
+	}
+	FILE *f = fopen(path, "w");
+	if (f == NULL) {
+		printf("save_rgb: failed to open file at %s, errno = %d", path, errno);
+		return;
+	}
+	if (in_or_out) fprintf(f, "%d %d %d %d", p->rgb.outer_mode->index, p->rgb.outer_speed, p->rgb.outer_brightnes, p->rgb.outer_direction);
+	else fprintf(f, "%d %d %d %d", p->rgb.inner_mode->index, p->rgb.inner_speed, p->rgb.inner_brightnes, p->rgb.inner_direction);
 }
 
 int load_port(struct port *p)
 {
 	char path[MAX_TEXT_SIZE];
 
-	const char *home_path = getenv("HOME");
-
-	strcpy(path, home_path);
-	strcat(path, p->config_path); 
-	strcat(path, "/fan_count"); 
-
-	FILE *f = fopen(path, "r");
-	p->fan_count = 4;
-	if (f == NULL) {
-		printf("load port failed to open file at path %s, ", path);
+	p->fan_count = get_fan_count_from_conf(p);
+	if (p->fan_count == -1) {
 		if (errno == ENOENT) {
-			printf("creating file now\n");
-			f = fopen(path, "w");
-			fclose(f);
+			printf("load_port: fan_count file does not exist setting fan_count to 6 and saving\n");
+			p->fan_count = 6;
+			save_fan_count(p);
 		} else {
-			printf("error = %d\n", errno);
-			return -1;
+			printf("load_port: failed get_fan_count_from_conf errno = %d\n", errno);
 		}
-	} else {
-		fscanf(f, "%d", &p->fan_count);
-		fclose(f);
 	}
-
-	strcpy(path, home_path);
-	strcat(path, p->config_path); 
-	strcat(path, "/fan_curve"); 
-	f = fopen(path, "r");
-	if (f == NULL) {
-		printf("load port: failed to open file at %s, ", path);
+	p->curve_i = get_port_curve_from_conf(p);
+	if (p->curve_i == -1) {
 		if (errno == ENOENT) {
-			printf("creating file now and setting curve to default\n");
+			printf("load_port: fan_curve file does not exist creating file now and setting curve to default\n");
 			p->curve_i = 0;
-			f = fopen(path, "w");
-			if (f != NULL) {
-				fprintf(f, "%d", 0);
-				fclose(f);
-			}
+			save_port_curve(p);
 		} else {
-			printf("errno = %d\n", errno);
+			printf("load_port: failed get_port_curve_from_conf errno = %d\n", errno);
 			return -1;
 		}
-	} else {
-		fscanf(f, "%d", &p->curve_i);
-		fclose(f);
-	}
+	} 
 
-	strcpy(path, home_path);
-	strcat(path, p->config_path); 
-	strcat(path, "/inner_rgb"); 
-
-	int rgb_mode;
-	f = fopen(path, "r");
-	rgb_mode = 0, p->rgb.inner_speed = 0, p->rgb.inner_brightnes = 0, p->rgb.inner_direction = 0;
-	p->rgb.inner_mode = &rgb_modes[rgb_mode];
-	if (f == NULL) {
-		printf("failed to open file at %s, ", path);
+	if (get_rgb_from_conf(p, 0) != 0) {
 		if (errno == ENOENT) {
-			printf("creating file now\n");
-			f = fopen(path, "w");
-			fclose(f);
+			printf("load_port: inner_rgb file does not exist create file now and setting rgb to default\n");
+			p->rgb.inner_brightnes = 0, p->rgb.inner_direction = 0, p->rgb.inner_mode = &rgb_modes[0], p->rgb.inner_speed = 0;
+			save_rgb(p, 0);
 		} else {
-			printf("error = %d\n", errno);
+			printf("load_port: failed get_rgb_from_conf errno = %d\n", errno);
 			return -1;
 		}
-	} else {
-		fscanf(f, "%d %d %d %d", &rgb_mode, &p->rgb.inner_speed, &p->rgb.inner_brightnes, &p->rgb.inner_direction);
-		p->rgb.inner_mode = &rgb_modes[rgb_mode];
-		fclose(f);
 	}
+
 	strcpy(path, home_path);
 	strcat(path, p->config_path); 
 	strcat(path, "/inner_colors");
-
-	f = fopen(path, "r");
-	for (int i = 0; i < 48; i++) {
-		p->rgb.inner_color[i].r = 0xff;
-		p->rgb.inner_color[i].g = 0x00;
-		p->rgb.inner_color[i].b = 0x00;
-	}
-	if (f == NULL) {
-		printf("load_port: failed to open file at path %s, ", path);
+	if (read_colors(path, p->rgb.inner_color, p->fan_count, 0) == -1) {
 		if (errno == ENOENT) {
-			printf("creating file now\n");
-			f = fopen(path, "w");
-			fclose(f);
+			printf("load_port: inner_colors file does not exist create file now and setting color to default\n");
+			strcpy(path, home_path);
+			strcat(path, p->config_path); 
+			for (int i = 0; i < 48; i++) {
+				p->rgb.inner_color[i].r = 0xff;
+				p->rgb.inner_color[i].g = 0x00;
+				p->rgb.inner_color[i].b = 0x00;
+			}
+			write_inner_colors(path, p->rgb.inner_color, p->fan_count, p->rgb.inner_brightnes, p->rgb.inner_mode->flags);
 		} else {
-			printf("error = %d\n", errno);
+			printf("load_port: failed read_colors inner_colors errno = %d\n", errno);
 			return -1;
 		}
-	} else {
-		char line[351];
-		fread(line, sizeof(char), 351, f);
-		int stri = 0;
-		for (int i = 0; i < 48; i++) {
-			unsigned int tmpr, tmpg, tmpb;
-			sscanf(&line[stri], "%02x%02x%02x", &tmpr, &tmpb, &tmpg);
-			p->rgb.inner_color[i].r = tmpr;
-			p->rgb.inner_color[i].g = tmpg;
-			p->rgb.inner_color[i].b = tmpb;
-			stri += 6;
-		}
-
-		fclose(f);
 	}
-	strcpy(path, home_path);
-	strcat(path, p->config_path); 
-	strcat(path, "/outer_rgb"); 
 
-	f = fopen(path, "r");
-	rgb_mode = 0, p->rgb.outer_speed = 0, p->rgb.outer_brightnes = 0, p->rgb.outer_direction = 0;
-	p->rgb.outer_mode = &rgb_modes[rgb_mode];
-	if (f == NULL) {
-		printf("load_port: failed to open file at path %s, ", path);
+	if (get_rgb_from_conf(p, 1) != 0) {
 		if (errno == ENOENT) {
-			printf("creating file now\n");
-			f = fopen(path, "w");
-			fclose(f);
+			printf("load_port: inner_rgb file does not exist create file now and setting rgb to default\n");
+			p->rgb.outer_brightnes = 0, p->rgb.outer_direction = 0, p->rgb.outer_mode = &rgb_modes[0], p->rgb.outer_speed = 0;
+			save_rgb(p, 1);
 		} else {
-			printf("error = %d\n", errno);
+			printf("load_port: failed get_rgb_from_conf errno = %d\n", errno);
 			return -1;
 		}
-	} else {
-		fprintf(f, "%d %d %d %d", rgb_mode, p->rgb.outer_speed, p->rgb.outer_brightnes, p->rgb.outer_direction);
-		p->rgb.outer_mode = &rgb_modes[rgb_mode];
-		fclose(f);
 	}
+
 	strcpy(path, home_path);
 	strcat(path, p->config_path); 
 	strcat(path, "/outer_colors");
-
-	f = fopen(path, "r");
-	for (int i = 0; i < 72; i++) {
-		p->rgb.outer_color[i].r = 0xff;
-		p->rgb.outer_color[i].g = 0;
-		p->rgb.outer_color[i].b = 0;
-	}
-	if (f == NULL) {
-		printf("load_port: failed to open file at path %s, ", path);
+	if (read_colors(path, p->rgb.outer_color, p->fan_count, 1) == -1) {
 		if (errno == ENOENT) {
-			printf("creating file now\n");
-			f = fopen(path, "w");
-			fclose(f);
+			printf("load_port: outer_colors file does not exist create file now and setting color to default\n");
+			strcpy(path, home_path);
+			strcat(path, p->config_path); 
+			for (int i = 0; i < 72; i++) {
+				p->rgb.outer_color[i].r = 0xff;
+				p->rgb.outer_color[i].g = 0x00;
+				p->rgb.outer_color[i].b = 0x00;
+			}
+			write_outer_colors(path, p->rgb.outer_color, p->fan_count, p->rgb.outer_brightnes, p->rgb.outer_mode->flags);
 		} else {
-			printf("error = %d\n", errno);
+			printf("load_port: failed read_colors outer_colors errno = %d\n", errno);
 			return -1;
-		}
-	} else {
-		char line[351];
-		fread(line, sizeof(char), 351, f);
-		int stri = 0;
-		for (int i = 0; i < 72; i++) {
-			unsigned int tmpr, tmpg, tmpb;
-			sscanf(&line[stri], "%02x%02x%02x", &tmpr, &tmpb, &tmpg);
-			p->rgb.outer_color[i].r = tmpr;
-			p->rgb.outer_color[i].g = tmpg;
-			p->rgb.outer_color[i].b = tmpb;
-			stri += 6;
 		}
 	}
 	return 0;
@@ -437,8 +470,6 @@ int load_port(struct port *p)
 int save_port(struct port *p)
 {
 	char path[MAX_TEXT_SIZE];
-
-	const char *home_path = getenv("HOME");
 
 	strcpy(path, home_path);
 	strcat(path, p->config_path); 
@@ -508,10 +539,9 @@ void reallocate_curve(struct point **curves_points, int *points_used, int *point
 {
 	struct point *new_curve = (struct point *)realloc(*curves_points, (*points_total + additional_points) * sizeof(struct point));
 	if (new_curve == NULL) {
-	    fprintf(stderr, "Failed to reallocate memory for points array\n");
+	    printf("failed to reallocate memory for points array\n");
 	    return;
 	}
-	// Update the pointer and total_points
 	*curves_points = new_curve;
 	*points_total += additional_points;
 
@@ -521,11 +551,6 @@ void reallocate_curve(struct point **curves_points, int *points_used, int *point
 int load_curve(struct point **p, char *name, int name_len, int *points_used, int *points_total, char *path)
 {
 	int ret = 0;
-	const char *home_path = getenv("HOME");
-	if (home_path == NULL) {
-		printf("load_graph failed to get home_path\n");
-		return -1;
-	}
 	if (*p == NULL || *points_total == 0) {
 		*p = alloc_point_arr(7);
 		*points_total = 7;
@@ -533,7 +558,7 @@ int load_curve(struct point **p, char *name, int name_len, int *points_used, int
 	char new_path[100];
 	strcpy(new_path, home_path);
 	strcat(new_path, path);
-	printf("load_curve:\np = %p, *p = %p, points_used = %d, points_total = %d\npath = %s, new_path = %s\n", (void *)p, (void *)*p, *points_used, *points_total, path, new_path);
+	//printf("load_curve:\np = %p, *p = %p, points_used = %d, points_total = %d\npath = %s, new_path = %s\n", (void *)p, (void *)*p, *points_used, *points_total, path, new_path);
 	FILE *f = fopen(new_path, "r");
 	if (f == NULL) {
 		printf("load_curve: failed to open file at path %s, ", new_path);
@@ -554,13 +579,11 @@ int load_curve(struct point **p, char *name, int name_len, int *points_used, int
 
 	int i = 0;
 	getline(&line, &n, f);
-	printf("line = %s, name = %s, name_len = %d\n", line, name, name_len);
 	if (name != NULL && line[0] != '\n') strncpy(name, line, name_len);
 	else if (line[0] == '\n') {
 		name[0] = '0';
 		name[1] = '\0';
 	}
-	printf("name after = %s\n", name);
 	while (getline(&line, &n, f) != -1) {
 		sscanf(line, "%d %d", &fan_speed, &ct);
 		if (*points_used + 1 > *points_total) {
@@ -581,11 +604,6 @@ int save_curve(struct point *p, char *name, int points_used, char *path)
 		printf("save_fan_curve: error p == NULL\n");
 		return -1;
 	}
-	const char *home_path = getenv("HOME");
-	if (home_path == NULL) {
-		printf("save_fan_curve: failed to get home_path\n");
-		return -1;
-	}
 	char new_path[100];
 	strcpy(new_path, home_path);
 	strcat(new_path, path);
@@ -594,7 +612,7 @@ int save_curve(struct point *p, char *name, int points_used, char *path)
 		printf("save_fan_curve: failed to open file at path %s, errno = %d\n", new_path, errno);
 		return -1;
 	}
-	if (name != NULL) fprintf(f, "%s", name);
+	if (name != NULL) fprintf(f, "%s\n", name);
 	else fputc('\n', f);
 	for (int i = 0; i < points_used; i++) {
 		fprintf(f, "%d %d\n", p[i].y, p[i].x);
@@ -605,11 +623,6 @@ int save_curve(struct point *p, char *name, int points_used, char *path)
 
 int load_graph(struct graph *g, char *path)
 {
-	const char *home_path = getenv("HOME");
-	if (home_path == NULL) {
-		printf("load_graph failed to get home_path\n");
-		return -1;
-	}
 	char new_path[100];
 	strcpy(new_path, home_path);
 	strcat(new_path, path);
@@ -643,11 +656,6 @@ int save_graph(struct graph *g, char *path)
 {
 	if (g == NULL) {
 		printf("save_graph: error g == NULL\n");
-		return -1;
-	}
-	const char *home_path = getenv("HOME");
-	if (home_path == NULL) {
-		printf("save_graph failed to get home_path\n");
 		return -1;
 	}
 	char new_path[100];
@@ -750,6 +758,8 @@ int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
  *	100% = 00
  */
 	switch (brightnes) {
+		case 0x00:
+			bright = 1.00;
 		case 0x01:
 			bright = 0.75;
 			break;
@@ -759,11 +769,8 @@ int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 		case 0x03:
 			bright = 0.25;
 			break;
-		case 0x08:
-			bright = 0.0;
-			break;
 		default:
-			bright = 1.0;
+			bright = 0.00;
 			break;
 	}
 
@@ -821,6 +828,9 @@ int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 	char path[MAX_TEXT_SIZE];
 	float bright;
 	switch (brightnes) {
+		case 0x00:
+			bright = 1.00;
+			break;
 		case 0x01:
 			bright = 0.75;
 			break;
@@ -830,11 +840,8 @@ int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 		case 0x03:
 			bright = 0.25;
 			break;
-		case 0x08:
-			bright = 0.0;
-			break;
 		default:
-			bright = 1.0;
+			bright = 0.00;
 			break;
 	}
 	strcpy(path, p->proc_path);
@@ -897,6 +904,9 @@ int set_inner_and_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int
 	printf("set_inner_and_outer_rgb\n");
 	float bright;
 	switch (brightnes) {
+		case 0x00:
+			bright = 1.00;
+			break;
 		case 0x01:
 			bright = 0.75;
 			break;
@@ -906,11 +916,8 @@ int set_inner_and_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int
 		case 0x03:
 			bright = 0.25;
 			break;
-		case 0x08:
-			bright = 0.0;
-			break;
 		default:
-			bright = 1.0;
+			bright = 0.00;
 			break;
 	}
 
@@ -962,6 +969,9 @@ int set_merge(struct port *p, const struct rgb_mode *new_mode, int speed, int di
 	
 	float bright;
 	switch (brightnes) {
+		case 0x00:
+			bright = 1.00;
+			break;
 		case 0x01:
 			bright = 0.75;
 			break;
@@ -971,11 +981,8 @@ int set_merge(struct port *p, const struct rgb_mode *new_mode, int speed, int di
 		case 0x03:
 			bright = 0.25;
 			break;
-		case 0x08:
-			bright = 0.0;
-			break;
 		default:
-			bright = 1.0;
+			bright = 0.00;
 			break;
 	}
 
@@ -1029,6 +1036,21 @@ int write_outer_colors(char *path, struct color *new_colors, int fan_count, floa
 	}
 	fputs(outer_color_str, f);
 	fclose(f);
+	return 0;
+}
+
+int read_colors(char *path, struct color *colors, int fan_count, int in_or_out)
+{
+	FILE *f = fopen(path, "r");
+	if (f == NULL) {
+		printf("read_colors: failed to open file at path %s, errno = %d\n", path, errno);
+		return -1;
+	}
+
+	int led_amount = in_or_out ? 12 : 8;
+	for (int i = 0; i < led_amount * fan_count; i++) {
+		fscanf(f, "%02x%02x%02x", (unsigned int *)&colors[i].r, (unsigned int *)&colors[i].g, (unsigned int *)&colors[i].b);
+	}
 	return 0;
 }
 
