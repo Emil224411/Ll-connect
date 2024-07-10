@@ -136,7 +136,6 @@ struct button *setting_page_button_f;
 struct button *select_port_fan_buttons[4];
 struct button *apply_fan_curve;
 struct button *apply_all_fan_curve;
-struct button *add_curve_button;
 struct button *save_curve_button;
 struct button *remove_curve_b;
 struct button *add_curve_b;
@@ -165,6 +164,8 @@ int filter_cpu_input(struct input *self, char new_text[32]);
 void select_curve_ddm(struct drop_down_menu *self, SDL_Event *e);
 void remove_curve_bf(struct button *self, SDL_Event *e);
 void add_curve_bf(struct button *self, SDL_Event *e);
+void done_prompt(struct button *self, SDL_Event *e);
+void canncel_prompt(struct button *self, SDL_Event *e);
 
 /* end fan page def */
 
@@ -375,12 +376,12 @@ int init_fan_page(void)
 	tmp_in->default_text->fg_color.b *= 0.5;
 	tmp_in->default_text->fg_color.a *= 0.5;
 	render_text_texture(tmp_in->default_text, tmp_in->default_text->fg_color, font);
-	struct button *tmp_b = create_button("done", 0, 1, 10, 200, 0, 0, 20, font, NULL, NULL, WHITE, edarkgrey, WHITE, NULL);
+	struct button *tmp_b = create_button("done", 0, 1, 10, 200, 0, 0, 20, font, done_prompt, NULL, WHITE, edarkgrey, WHITE, NULL);
 	tmp_b->pos.y -= tmp_b->pos.h + 10;
 	tmp_b->text->dst.y -= tmp_b->pos.h + 10;
 	add_button_to_prompt(add_fan_curve_prompt, tmp_b);
 
-	tmp_b = create_button("canncel", 0, 1, 300, 200, 0, 0, 20, font, NULL, NULL, WHITE, edarkgrey, WHITE, NULL);
+	tmp_b = create_button("canncel", 0, 1, 300, 200, 0, 0, 20, font, canncel_prompt, NULL, WHITE, edarkgrey, WHITE, NULL);
 	tmp_b->text->dst.x -= tmp_b->pos.w + 10;
 	tmp_b->text->dst.y -= tmp_b->pos.h + 10;
 	tmp_b->pos.x -= tmp_b->pos.w + 10;
@@ -398,6 +399,31 @@ int init_fan_page(void)
 			0, 0, 20, font, change_to_fan_page, NULL, WHITE, grey, BLACK, fan_speed_page);
 	fan_page_button_f->pos.w = setting_page_button_f->pos.w;
 	return 0;
+}
+
+void done_prompt(struct button *self, SDL_Event *e)
+{
+	struct input *i = add_fan_curve_prompt->input_arr[0];
+	if (i->text->str[0] == '\0') {
+		return;
+	}
+	add_curve();
+	add_item_ddm(fan_curve_ddm, i->text->str, font);
+	strcpy(fan_curve_arr[fan_curve_arr_len-1].name, i->text->str);
+	select_ddm_item(fan_curve_ddm, fan_curve_ddm->items-1);
+	strcpy(i->text->str, "");
+	i->default_text->show = 1;
+	i->text->show = 0;
+	show_prompt(NULL);
+}
+
+void canncel_prompt(struct button *self, SDL_Event *e)
+{
+	struct input *i = add_fan_curve_prompt->input_arr[0];
+	strcpy(i->text->str, "");
+	add_fan_curve_prompt->input_arr[0]->default_text->show = 1;
+	add_fan_curve_prompt->input_arr[0]->text->show = 0;
+	show_prompt(NULL);
 }
 
 void add_curve_bf(struct button *self, SDL_Event *e)

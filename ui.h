@@ -15,6 +15,17 @@
 #define SDL_COLOR_ARG(C) C.r, C.g, C.b, C.a
 #define CHECK_RECT(r1, r2) r1.x < r2.x + r2.w && r1.x > r2.x && r1.y < r2.y + r2.h && r1.y > r2.y
 
+struct callback {
+	void (*function)(void);
+	unsigned int a, b;
+	double timer;
+};
+
+int check_timer(struct callback *cb);
+struct callback *create_callback(void (*function)(void));
+void set_callback_timer(struct callback *cb, double time);
+void remove_callback(struct callback *cb);
+
 struct image {
 	SDL_Texture *texture;
 	SDL_Surface *surface;

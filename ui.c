@@ -18,6 +18,8 @@ SDL_Color BLUE    = {   0,   0, 255, SDL_ALPHA_OPAQUE };
 
 static int mouse_x, mouse_y;
 
+static struct callback *callback_arr;
+static int callback_amount, callback_total;
 static struct prompt **prompt_arr;
 struct prompt *showen_prompt = NULL;
 static int prompt_arr_len;
@@ -34,6 +36,31 @@ static void rmouse_button_down(SDL_Event *event);
 static void rmouse_button_up(SDL_Event *event);
 static void mouse_wheel(SDL_MouseWheelEvent *event);
 static void mouse_move(SDL_Event *event);
+
+struct callback *create_callback(void (*function)(void))
+{
+	if (callback_amount + 1 > callback_total) {
+		struct callback *tmp = realloc(callback_arr, sizeof(struct callback) * callback_total + 5);
+		if (tmp == NULL) {
+			printf("failed to reallocate callback_arr\n");
+			return NULL;
+		}
+		callback_arr = tmp;
+		callback_total += 5;
+	}
+	callback_arr[callback_amount].function = function;
+	callback_arr[callback_amount].a = SDL_GetTicks();
+	callback_arr[callback_amount].b = SDL_GetTicks();
+	callback_arr[callback_amount].timer = 0.0;
+	callback_amount++;
+	return &callback_arr[callback_amount - 1];
+}
+void set_callback_timer(struct callback *cb, double time)
+{
+	cb->timer = time;
+
+}
+void remove_callback(struct callback *cb);
 
 int ui_init(void) 
 {
@@ -298,6 +325,7 @@ static void lmbu_prompt(SDL_Event *e)
 		}
 		showen_prompt->selected_button = NULL;
 		if (tmp_self != NULL) tmp_self->on_click(tmp_self, e);
+		return;
 	}
 	int hit = 0;
 	for (int i = 0; i < showen_prompt->input_arr_used; i++) {
