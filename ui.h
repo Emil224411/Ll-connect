@@ -19,12 +19,9 @@ struct callback {
 	void (*function)(void);
 	unsigned int a, b;
 	double timer;
+	int index, que_index, is_qued;
+	int times_called_back;
 };
-
-int check_timer(struct callback *cb);
-struct callback *create_callback(void (*function)(void));
-void set_callback_timer(struct callback *cb, double time);
-void remove_callback(struct callback *cb);
 
 struct image {
 	SDL_Texture *texture;
@@ -174,6 +171,16 @@ void handle_event(SDL_Event *event);
 void show_screen(void);
 void clear_screen(SDL_Color color);
 int get_default_fontpath(void);
+
+/* callback functions */
+double get_time_till_cb(struct callback *cb);
+void set_callback_timer(struct callback *cb, double time);
+struct callback *create_callback(void (*function)(void), double time);
+void destroy_callback(struct callback *cb);
+void check_next_callback(void);
+void remove_from_que(struct callback *cb);
+void check_callbacks(void);
+void add_callback_to_que(struct callback *cb);
 
 /* prompt functions */
 struct prompt *create_prompt(int x, int y, int w, int h, SDL_Color bg_color, SDL_Color outer_color, TTF_Font *f);

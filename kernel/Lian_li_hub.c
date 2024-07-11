@@ -785,13 +785,11 @@ static ssize_t read_fan_count(struct file *f, char *ubuf, size_t count, loff_t *
 	return copied;
 }
 
-
 #define ERROR(str, i) { printk(KERN_ERR "Lian Li Hub: %s, %d\n", str, i); return -1; }
 static int dev_probe(struct usb_interface *intf, const struct usb_device_id *id)
 {
 	dev = interface_to_usbdev(intf);
 	if (dev == NULL) ERROR("error getting dev from intf", 0);
-	
 	proc_dir = proc_mkdir("Lian_li_hub", NULL);
 	if (proc_dir == NULL) ERROR("proc_mkdir Lian li hub failed", 0);
 
@@ -807,17 +805,17 @@ static int dev_probe(struct usb_interface *intf, const struct usb_device_id *id)
 	if (ports[3].proc_port == NULL) ERROR("proc_mkdir port_four failed", 3);
 	for (int i = 0; i < 4; i++) {
 		ports[i].proc_fan_count = proc_create("fan_count", 0666, ports[i].proc_port, &pops_fan_count);
-		if (ports[i].proc_fan_count == NULL) ERROR("proc_create fan_count_one failed", i);
+		if (ports[i].proc_fan_count == NULL) ERROR("proc_create fan_count failed", i);
 		ports[i].proc_inner_and_outer_rgb = proc_create("inner_and_outer_rgb", 0666, ports[i].proc_port, &pops_rgb);
-		if (ports[i].proc_inner_and_outer_rgb == NULL) ERROR("proc_create inner_and_outer_rgb_one failed", i);
+		if (ports[i].proc_inner_and_outer_rgb == NULL) ERROR("proc_create inner_and_outer_rgb failed", i);
 		ports[i].proc_inner_rgb = proc_create("inner_rgb", 0666, ports[i].proc_port, &pops_rgb);
-		if (ports[i].proc_inner_rgb == NULL) ERROR("proc_create inner_rgb_one failed", i);
+		if (ports[i].proc_inner_rgb == NULL) ERROR("proc_create inner_rgb failed", i);
 		ports[i].proc_outer_rgb = proc_create("outer_rgb", 0666, ports[i].proc_port, &pops_rgb);
-		if (ports[i].proc_outer_rgb == NULL) ERROR("proc_create outer_rgb_one failed", i);
+		if (ports[i].proc_outer_rgb == NULL) ERROR("proc_create outer_rgb failed", i);
 		ports[i].proc_inner_colors = proc_create("inner_colors", 0666, ports[i].proc_port, &pops_colors);
-		if (ports[i].proc_inner_colors == NULL) ERROR("proc_create inner_colors_one failed", i);
+		if (ports[i].proc_inner_colors == NULL) ERROR("proc_create inner_colors failed", i);
 		ports[i].proc_outer_colors = proc_create("outer_colors", 0666, ports[i].proc_port, &pops_colors);
-		if (ports[i].proc_outer_colors == NULL) ERROR("proc_create outer_colors_one failed", i);
+		if (ports[i].proc_outer_colors == NULL) ERROR("proc_create outer_colors failed", i);
 		ports[i].proc_fan_curve = proc_create("fan_curve", 0666, ports[i].proc_port, &pops_fan_curve);
 		if (ports[i].proc_fan_curve == NULL) ERROR("proc_create fan_curve failed", i);
 		ports[i].proc_fan_speed = proc_create("fan_speed", 0666, ports[i].proc_port, &pops_fan_speed);
@@ -849,16 +847,9 @@ static void dev_disconnect(struct usb_interface *intf)
 {
   	del_timer(&speed_timer);
 	flush_work(&speed_wq);
+	proc_remove(proc_dir);
 	for (int i = 0; i < 4; i++) {
 		kfree(ports[i].points);
-		proc_remove(ports[i].proc_fan_count);
-		proc_remove(ports[i].proc_fan_curve);
-		proc_remove(ports[i].proc_inner_and_outer_rgb);
-		proc_remove(ports[i].proc_inner_rgb);
-		proc_remove(ports[i].proc_inner_colors);
-		proc_remove(ports[i].proc_outer_rgb);
-		proc_remove(ports[i].proc_outer_colors);
-		proc_remove(ports[i].proc_port);
 	}
 	printk(KERN_INFO "Lian Li Hub: driver disconnect\n");
 }
@@ -884,7 +875,6 @@ static int __init controller_init(void)
 
 static void __exit controller_exit(void)
 {
-	proc_remove(proc_dir);
 	usb_deregister(&driver);
 	printk(KERN_INFO "Lian Li Hub: driver exit\n");
 }

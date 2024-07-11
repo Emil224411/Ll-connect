@@ -2,15 +2,17 @@
  |					 	   TODO 							|
  |--------------------------------------------------------------------------------------------------------------|
  |														|
- | 		1.  finish prompts(add_fan_curve_prompt almost done just need to make done and 			|
+ | 		1.  free callbacks on shutdown since i didnt feel like doing it to day 				|
+ | 		2.  crashing on shutdown when destroying text has some thing to do with prompts 		|
+ |			but sometimes it happens when destroy_page is called					|
+ | 		3.  finish prompts(add_fan_curve_prompt almost done just need to make done and 			|
  |			canncel functions should only take a minut or two)					|
- | 		2.  create save button for fan curves 								|
- |		3.  finish fan speed control page apply to port apply to all.					|
- | 		4.  getting seemingly random segfaults on shutdown why idk but from now on every time 		|
- |			i run ill use gdb(ran it with htop open and mem usage was double the normal amount 	|
- |			so look in to that). 									|
- | 		5.  kernel module crashing on wake from suspend. (error /proc/Lian_li_hub all ready created) 	|
- | 		6.  finish settings page. 									|
+ | 		4.  create save button for fan curves 								|
+ |		5.  finish fan speed control page apply to port apply to all.					|
+ | 		6.  getting seemingly random segfaults on shutdown(this does not seem to happen anymore 	|
+ |			it propely had something to do with saving which works now) 				|
+ | 		7.  kernel module crashing on wake from suspend. (error /proc/Lian_li_hub all ready created) 	|
+ | 		8.  finish settings page. 									|
  | 														|
  |--------------------------------------------------------------------------------------------------------------|
  |														|
@@ -50,6 +52,7 @@ int other_index;
 /* functions */
 int init(void);
 void add_fan_curve(struct point *p);
+void blink_input(void);
 
 /* start rgb page def */
 int rgb_mode_i;
@@ -117,7 +120,6 @@ void port_select_rgb_func(struct button *self, SDL_Event *event);
 struct page *fan_speed_page;
 
 struct text *cpu_temp;
-struct text *speeds;
 struct text *port_speed_pro[4];
 struct text *port_speed_rpm[4];
 struct text *port_text;
@@ -149,6 +151,8 @@ struct input *cpu_temp_input;
 struct input *fan_speed_input;
 
 struct prompt *add_fan_curve_prompt;
+struct prompt *remove_curve_prompt;
+struct callback *blink_cb;
 
 /* fan functions */
 int init_fan_page(void);
@@ -165,7 +169,9 @@ void select_curve_ddm(struct drop_down_menu *self, SDL_Event *e);
 void remove_curve_bf(struct button *self, SDL_Event *e);
 void add_curve_bf(struct button *self, SDL_Event *e);
 void done_prompt(struct button *self, SDL_Event *e);
-void canncel_prompt(struct button *self, SDL_Event *e);
+void canncel_addc_prompt(struct button *self, SDL_Event *e);
+void yes_remove_prompt(struct button *self, SDL_Event *e);
+void canncel_remove_prompt(struct button *self, SDL_Event *e);
 
 /* end fan page def */
 
@@ -204,6 +210,7 @@ int main(void)
 		delta = a - b;
 		delta2 = a - b2;
 
+		check_next_callback();
 		while (SDL_PollEvent(&event)) {
 			handle_event(&event);
 		}
@@ -364,7 +371,7 @@ int init_fan_page(void)
 
 	remove_curve_b = create_button("remove", 0, 1, 20, 160, 0, 0, 20, font, remove_curve_bf, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
 	add_curve_b = create_button("add", 0, 1, 25 + remove_curve_b->pos.w, 160, 0, 0, 20, font, add_curve_bf, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
-
+	remove_curve_prompt = create_prompt(WINDOW_W/2-150, WINDOW_H/2-100, 300, 200, edarkgrey, WHITE, font);
 	add_fan_curve_prompt = create_prompt(WINDOW_W/2-150, WINDOW_H/2-100, 300, 200, edarkgrey, WHITE, font);
 	struct text *tmp = create_text("enter name of new fan curve", 0, 0, 0, 0, 17, 0, WHITE, font, NULL);
 	tmp->dst.x = 150 - tmp->dst.w/2;
@@ -380,13 +387,24 @@ int init_fan_page(void)
 	tmp_b->pos.y -= tmp_b->pos.h + 10;
 	tmp_b->text->dst.y -= tmp_b->pos.h + 10;
 	add_button_to_prompt(add_fan_curve_prompt, tmp_b);
+	tmp_b = create_button("yes", 0, 1, 10, 200, 0, 0, 20, font, yes_remove_prompt, NULL, WHITE, edarkgrey, WHITE, NULL);
+	tmp_b->pos.y -= tmp_b->pos.h + 10;
+	tmp_b->text->dst.y -= tmp_b->pos.h + 10;
+	add_button_to_prompt(remove_curve_prompt, tmp_b);
 
-	tmp_b = create_button("canncel", 0, 1, 300, 200, 0, 0, 20, font, canncel_prompt, NULL, WHITE, edarkgrey, WHITE, NULL);
+	tmp_b = create_button("canncel", 0, 1, 300, 200, 0, 0, 20, font, canncel_addc_prompt, NULL, WHITE, edarkgrey, WHITE, NULL);
 	tmp_b->text->dst.x -= tmp_b->pos.w + 10;
 	tmp_b->text->dst.y -= tmp_b->pos.h + 10;
 	tmp_b->pos.x -= tmp_b->pos.w + 10;
 	tmp_b->pos.y -= tmp_b->pos.h + 10;
 	add_button_to_prompt(add_fan_curve_prompt, tmp_b);
+
+	tmp_b = create_button("no", 0, 1, 300, 200, 0, 0, 20, font, canncel_remove_prompt, NULL, WHITE, edarkgrey, WHITE, NULL);
+	tmp_b->text->dst.x -= tmp_b->pos.w + 10;
+	tmp_b->text->dst.y -= tmp_b->pos.h + 10;
+	tmp_b->pos.x -= tmp_b->pos.w + 10;
+	tmp_b->pos.y -= tmp_b->pos.h + 10;
+	add_button_to_prompt(remove_curve_prompt, tmp_b);
 
 	add_input_to_prompt(add_fan_curve_prompt, tmp_in);
 	add_text_to_prompt(add_fan_curve_prompt, tmp);
@@ -398,13 +416,30 @@ int init_fan_page(void)
 	fan_page_button_f = create_button("fan", 0, 1, 10, rgb_page_button_f->pos.y + rgb_page_button_f->pos.h + 5, 
 			0, 0, 20, font, change_to_fan_page, NULL, WHITE, grey, BLACK, fan_speed_page);
 	fan_page_button_f->pos.w = setting_page_button_f->pos.w;
+	blink_cb = create_callback(blink_input, 100.0);
 	return 0;
 }
-
+void blink_input(void)
+{
+	SDL_Color tmp = { 128, 128, 128, 128 };
+	if (blink_cb->times_called_back == 0 || blink_cb->times_called_back == 2) {
+		tmp.g = 0; 
+		tmp.b = 0;
+		render_text_texture(add_fan_curve_prompt->input_arr[0]->default_text, RED, font);
+		set_callback_timer(blink_cb, 100.0);
+	}
+	if (blink_cb->times_called_back == 1 || blink_cb->times_called_back == 3) {
+		render_text_texture(add_fan_curve_prompt->input_arr[0]->default_text, tmp, font);
+		set_callback_timer(blink_cb, 100.0);
+	}
+}
 void done_prompt(struct button *self, SDL_Event *e)
 {
 	struct input *i = add_fan_curve_prompt->input_arr[0];
 	if (i->text->str[0] == '\0') {
+		if (!blink_cb->is_qued) {
+			add_callback_to_que(blink_cb);
+		}
 		return;
 	}
 	add_curve();
@@ -417,7 +452,7 @@ void done_prompt(struct button *self, SDL_Event *e)
 	show_prompt(NULL);
 }
 
-void canncel_prompt(struct button *self, SDL_Event *e)
+void canncel_addc_prompt(struct button *self, SDL_Event *e)
 {
 	struct input *i = add_fan_curve_prompt->input_arr[0];
 	strcpy(i->text->str, "");
@@ -440,13 +475,23 @@ void add_curve_bf(struct button *self, SDL_Event *e)
 	*/
 }
 
-void remove_curve_bf(struct button *self, SDL_Event *e)
+void yes_remove_prompt(struct button *self, SDL_Event *e)
 {
 	int si = ports[selected_port].curve_i;
-	printf("si = %d\n", si);
 	remove_curve(si);
 	remove_item_ddm(fan_curve_ddm, si);
 	ports[selected_port].curve_i = 0;
+	show_prompt(NULL);
+}
+
+void remove_curve_bf(struct button *self, SDL_Event *e)
+{
+	show_prompt(remove_curve_prompt);
+}
+
+void canncel_remove_prompt(struct button *self, SDL_Event *e)
+{
+	show_prompt(NULL);
 }
 
 void select_curve_ddm(struct drop_down_menu *self, SDL_Event *e)
@@ -979,7 +1024,7 @@ void fan_ring_select(struct drop_down_menu *d, SDL_Event *event)
 int update_speed_str(void)
 {
 	for (int i = 0; i < 4; i++) {
-		speeds_pro[i] = get_fan_speed(ports[i].proc_path, &speeds_pro[i], &speeds_rpm[i]);
+		get_fan_speed(ports[i].proc_path, &speeds_pro[i], &speeds_rpm[i]);
 		sprintf(port_speed_pro[i]->str, "%d%%", speeds_pro[i]);
 		sprintf(port_speed_rpm[i]->str, "%d", speeds_rpm[i]);
 		change_text_and_render_texture(port_speed_pro[i], port_speed_pro[i]->str, port_speed_pro[i]->fg_color, font);

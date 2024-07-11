@@ -15,11 +15,12 @@ SDL_Color RED     = { 255,   0,   0, SDL_ALPHA_OPAQUE };
 SDL_Color GREEN   = {   0, 255,   0, SDL_ALPHA_OPAQUE };
 SDL_Color BLUE    = {   0,   0, 255, SDL_ALPHA_OPAQUE };
 
-
 static int mouse_x, mouse_y;
 
 static struct callback *callback_arr;
-static int callback_amount, callback_total;
+static int callback_amount = 0, callback_total = 0;
+static struct callback **callback_que;
+static int que_len = 0, que_total = 0;
 static struct prompt **prompt_arr;
 struct prompt *showen_prompt = NULL;
 static int prompt_arr_len;
@@ -37,10 +38,13 @@ static void rmouse_button_up(SDL_Event *event);
 static void mouse_wheel(SDL_MouseWheelEvent *event);
 static void mouse_move(SDL_Event *event);
 
-struct callback *create_callback(void (*function)(void))
+static struct callback *next_cb;
+
+struct callback *create_callback(void (*function)(void), double time)
 {
+	printf("create_callback\n");
 	if (callback_amount + 1 > callback_total) {
-		struct callback *tmp = realloc(callback_arr, sizeof(struct callback) * callback_total + 5);
+		struct callback *tmp = realloc(callback_arr, sizeof(struct callback) * (callback_total + 5));
 		if (tmp == NULL) {
 			printf("failed to reallocate callback_arr\n");
 			return NULL;
@@ -51,16 +55,120 @@ struct callback *create_callback(void (*function)(void))
 	callback_arr[callback_amount].function = function;
 	callback_arr[callback_amount].a = SDL_GetTicks();
 	callback_arr[callback_amount].b = SDL_GetTicks();
-	callback_arr[callback_amount].timer = 0.0;
+	callback_arr[callback_amount].timer = time;
+	callback_arr[callback_amount].index = callback_amount;
+	callback_arr[callback_amount].is_qued = 0;
 	callback_amount++;
 	return &callback_arr[callback_amount - 1];
 }
+
+void add_callback_to_que(struct callback *cb)
+{
+	if (!cb->is_qued) {
+		if (que_len + 1 > que_total) {
+			cb->times_called_back = 0;
+			struct callback **tmp = realloc(callback_que, sizeof(struct callback *) * (que_total + 5));
+			if (tmp == NULL) {
+				printf("add_callback_to_que: failed to reallocate callback_que\n");
+				return;
+			}
+			callback_que = tmp;
+			que_total += 5;
+		}
+		cb->is_qued = 1;
+		callback_que[que_len] = cb;
+		if (next_cb == NULL || get_time_till_cb(callback_que[que_len]) < get_time_till_cb(next_cb)) {
+			next_cb = callback_que[que_len];
+		}
+		que_len++;
+	}
+}
+
+double get_time_till_cb(struct callback *cb)
+{
+	cb->a = SDL_GetTicks();
+	return cb->timer - cb->a - cb->b;
+}
+
 void set_callback_timer(struct callback *cb, double time)
 {
 	cb->timer = time;
+	if (next_cb == NULL || (cb != next_cb &&  get_time_till_cb(cb) < get_time_till_cb(next_cb))) {
+		next_cb = cb;
+	}
 
 }
-void remove_callback(struct callback *cb);
+
+void destroy_callback(struct callback *cb)
+{
+	for (int i = cb->index; i < callback_amount - 1; i++) {
+		callback_arr[i] = callback_arr[i+1];
+	}
+	if (callback_amount < callback_total - 5 && callback_total - 5 > 0) {
+		struct callback *tmp = realloc(callback_arr, sizeof(callback_total - 5));
+		if (tmp == NULL) {
+			printf("remove_callback: failed to reallocate callback_arr\n");
+			return;
+		}
+		callback_arr = tmp;
+		callback_total -= 5;
+	}
+	cb->is_qued = 0;
+	callback_amount -= 1;
+}
+
+void remove_from_que(struct callback *cb)
+{
+	cb->times_called_back = 0;
+	for (int i = cb->que_index; i < que_len - 1; i++) {
+		callback_que[i] = callback_que[i+1];
+		callback_que[i]->que_index = i;
+	}
+	if (que_len < que_total - 5 && que_total - 5 > 0) {
+		struct callback **tmp = realloc(callback_que, sizeof(que_total - 5));
+		if (tmp == NULL) {
+			printf("remove_callback: failed to reallocate callback_arr\n");
+			return;
+		}
+		callback_que = tmp;
+		que_total -= 5;
+	}
+	cb->is_qued = 0;
+	que_len -= 1;
+}
+
+void check_next_callback(void)
+{
+	if (next_cb == NULL) return;
+	double delta = 0.0;
+	next_cb->a = SDL_GetTicks();
+	delta = next_cb->a - next_cb->b;
+	if (delta > next_cb->timer) {
+		next_cb->b = next_cb->a;
+		next_cb->timer = 0.0;
+		next_cb->function();
+		if (next_cb->timer == 0.0) 
+			remove_from_que(next_cb);
+		else
+			next_cb->times_called_back += 1;
+		check_callbacks();
+	}
+}
+
+void check_callbacks(void)
+{
+	int next_index = -1;
+	double next_time = 0.0, delta = 0.0;
+	for (int i = 0; i < que_len; i++) {
+		delta = get_time_till_cb(callback_que[i]);
+		if (delta < next_time) {
+			next_time = delta;
+			next_index = i;
+		}
+	}
+	if (next_index != -1) next_cb = callback_que[next_index];
+	else next_cb = NULL;
+}
 
 int ui_init(void) 
 {
@@ -91,6 +199,8 @@ int ui_init(void)
 	}
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 	TTF_SetFontWrappedAlign(font, TTF_WRAPPED_ALIGN_LEFT);
+
+	next_cb = NULL;
 
 	page_arr = malloc(sizeof(struct page *) * 5);
 	page_arr_total_len = 5;
@@ -131,7 +241,9 @@ void ui_shutdown(void)
 		font = NULL;
 	}
 	free(page_arr);
+	printf("page\n");
 	free(prompt_arr);
+	printf("prompt\n");
 	TTF_Quit();
 	SDL_Quit();
 }
@@ -1586,16 +1698,16 @@ void destroy_prompt(struct prompt *p)
 	if (p == NULL) return;
 	printf("destroy_prompt:\n");
 	while (p->button_arr_used > 0) {
-		destroy_button(p->button_arr[p->button_arr_used-1]);
 		p->button_arr_used -= 1;
+		destroy_button(p->button_arr[p->button_arr_used]);
 	}
 	while (p->input_arr_used > 0) {
-		destroy_input_box(p->input_arr[p->input_arr_used-1]);
 		p->input_arr_used -= 1;
+		destroy_input_box(p->input_arr[p->input_arr_used]);
 	}
 	while (p->text_arr_used > 0) {
-		destroy_text(p->text_arr[p->text_arr_used-1]);
 		p->text_arr_used -= 1;
+		destroy_text(p->text_arr[p->text_arr_used]);
 	}
 	for (int i = p->index; i < prompt_arr_len-1; i++) {
 		prompt_arr[i] = prompt_arr[i + 1];
@@ -1605,8 +1717,8 @@ void destroy_prompt(struct prompt *p)
 	free(p->input_arr);
 	free(p->text_arr);
 	free(p);
-	prompt_arr[prompt_arr_len] = NULL;
 	prompt_arr_len -= 1;
+	prompt_arr[prompt_arr_len] = NULL;
 }
 
 struct prompt *create_prompt(int x, int y, int w, int h, SDL_Color bg_color, SDL_Color outer_color, TTF_Font *font)

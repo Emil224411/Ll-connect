@@ -585,7 +585,7 @@ int load_curve(struct point **p, char *name, int name_len, int *points_used, int
 		name[1] = '\0';
 	}
 	while (getline(&line, &n, f) != -1) {
-		sscanf(line, "%d %d", &fan_speed, &ct);
+		sscanf(line, "%d %d\n", &fan_speed, &ct);
 		if (*points_used + 1 > *points_total) {
 			reallocate_curve(p, points_used, points_total, 5);
 		}
@@ -612,8 +612,14 @@ int save_curve(struct point *p, char *name, int points_used, char *path)
 		printf("save_fan_curve: failed to open file at path %s, errno = %d\n", new_path, errno);
 		return -1;
 	}
-	if (name != NULL) fprintf(f, "%s\n", name);
-	else fputc('\n', f);
+	if (name != NULL) {
+		unsigned long len = strlen(name);
+		if (name[len-1] == '\n') 
+			fprintf(f, "%s", name);
+		else 
+			fprintf(f, "%s\n", name);
+	} else 
+		fputc('\n', f);
 	for (int i = 0; i < points_used; i++) {
 		fprintf(f, "%d %d\n", p[i].y, p[i].x);
 	}
