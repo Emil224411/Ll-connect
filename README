@@ -1,4 +1,4 @@
-it's not done yet but i'm working on it and it works pretty well(if your only using things that im not currently working on like rn adding and removing fan curves is kind of broken)
+it's not done yet but i'm working on it and it works pretty well(if your only using things that im not currently working on like rn adding and removing fan curves is kind of broken commit b1916d6 worked pretty well if i recall correctly)
 
 you can set fan curves for each port and your fan speeds will update every 2 seconds
 when you reboot your pc you will have to run Ll-connect again and apply the fan curve to each port but it will save the fan curves so it takes 5 clicks
