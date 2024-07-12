@@ -1,14 +1,11 @@
-it's not done yet but i'm working on it and it works pretty well(if your only using things that im not currently working on like rn adding and removing fan curves is kind of broken commit b1916d6 worked pretty well if i recall correctly)
+it's not done yet but i'm working on it and 
+it can do more or less the same as L-connect but its just on linux(adding more fan curves doesnt work rn but ill fix it soon)
 
-you can set fan curves for each port and your fan speeds will update every 2 seconds
-when you reboot your pc you will have to run Ll-connect again and apply the fan curve to each port but it will save the fan curves so it takes 5 clicks
-
-you can also set the rgb
+it currently only supports the AL V2 UNI HUB but i would be happy to add support for other hubs i just need some usb packets
 
 dependencies: SDL2, SDL2_ttf(for the ui)
 
 install:
-if you dont want to use the ui skip 3 and 8.
    1.  clone the repo
 
    2.  cd to the repo
@@ -19,10 +16,9 @@ if you dont want to use the ui skip 3 and 8.
 
    5.  run "make"
 
-   6.  (not recommended currently since the driver is not done and it might cause some issues) run "make install"
-
-   7.  run "sudo insmod Lian_li_hub.ko"(currently you should do this every time you boot your pc)
+   6.  run "make install" and then run "sudo modprobe Lian_li_hub"
+if you skipped step 6. run "sudo insmod Lian_li_hub.ko" instead of "sudo modprobe Lian_li_hub"
 
    8.  run "Ll-connect" from the terminal or how ever you run programs
 
-if you want to use it without the ui you can by using the proc files but i would not recommend it
+if you want to use it without the ui skip step 3 you can use the proc files at "/proc/Lian_li_hub/" but i would not recommend it
