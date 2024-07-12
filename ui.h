@@ -129,7 +129,7 @@ struct prompt {
 };
 
 struct page {
-	int show;
+	int show, index;
 	struct text **t_arr;
 	int t_arr_total_len, t_arr_used_len;
 	struct button **b_arr, *selected_b;

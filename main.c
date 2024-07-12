@@ -1,18 +1,16 @@
  /**************************************************************************************************************\
  |					 	   TODO 							|
  |--------------------------------------------------------------------------------------------------------------|
- |														|
- | 		1.  free callbacks on shutdown since i didnt feel like doing it to day 				|
- | 		2.  crashing on shutdown when destroying text has some thing to do with prompts 		|
- |			but sometimes it happens when destroy_page is called					|
- | 		3.  finish prompts(add_fan_curve_prompt almost done just need to make done and 			|
- |			canncel functions should only take a minut or two)					|
- | 		4.  create save button for fan curves 								|
- |		5.  finish fan speed control page apply to port apply to all.					|
- | 		6.  getting seemingly random segfaults on shutdown(this does not seem to happen anymore 	|
+ | 														|
+ |		1.  need to copy fan_curve_graph points to fan_curve_arr[selected_curve] points 		|
+ |			since currently you can add new fan curves but when you add points they 		|
+ |			dont save 										|
+ | 		2.  create save button for fan curves 								|
+ |		3.  finish fan speed control page apply to port apply to all.					|
+ | 		4.  getting seemingly random segfaults on shutdown(this does not seem to happen anymore 	|
  |			it propely had something to do with saving which works now) 				|
- | 		7.  kernel module crashing on wake from suspend. (error /proc/Lian_li_hub all ready created) 	|
- | 		8.  finish settings page. 									|
+ | 		5.  kernel module crashing on wake from suspend. (error /proc/Lian_li_hub all ready created) 	|
+ | 		6.  finish settings page. 									|
  | 														|
  |--------------------------------------------------------------------------------------------------------------|
  |														|
@@ -88,10 +86,6 @@ struct drop_down_menu *fan_ring_ddm;
 struct slider *rgb_brightnes_slider;
 struct slider *rgb_speed_slider;
 
-struct prompt *test_prompt;
-void show_p(struct button *self, SDL_Event *event);
-void unshow_p(struct button *self, SDL_Event *event);
-
 /* rgb functions */
 int init_rgb_page(void);
 void port_select_fan_func(struct button *self, SDL_Event *event);
@@ -156,6 +150,7 @@ struct callback *blink_cb;
 
 /* fan functions */
 int init_fan_page(void);
+int destroy_fan_page(void);
 void change_to_rgb_page(struct button *self, SDL_Event *e);
 void moving_graph(struct graph *self, SDL_Event *e);
 int update_speed_str(void);
@@ -291,7 +286,6 @@ int init_fan_page(void)
 	fan_speed_page = create_page();
 	for (int i = 0; i < 4; i++) load_port(&ports[i]);
 
-
 	port_bg = create_button(NULL, 0, 1, 425, WINDOW_H - 211, 300, 191, 0, font, NULL, NULL, WHITE, BLACK, WHITE, fan_speed_page);
 
 	port_box_lines[0] = create_line(port_bg->pos.x + port_bg->pos.w/3, port_bg->pos.y, 
@@ -368,6 +362,7 @@ int init_fan_page(void)
 	fan_curve_graph->on_click = moving_graph;
 	fan_curve_graph->show = 1;
 	fan_curve_graph->rerender = 1;
+	select_ddm_item(fan_curve_ddm, ports[0].curve_i);
 
 	remove_curve_b = create_button("remove", 0, 1, 20, 160, 0, 0, 20, font, remove_curve_bf, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
 	add_curve_b = create_button("add", 0, 1, 25 + remove_curve_b->pos.w, 160, 0, 0, 20, font, add_curve_bf, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
@@ -408,7 +403,9 @@ int init_fan_page(void)
 
 	add_input_to_prompt(add_fan_curve_prompt, tmp_in);
 	add_text_to_prompt(add_fan_curve_prompt, tmp);
-
+	tmp = create_text("are you sure you want to delete the selected fan curve", 10, 0, 0, 0, 20, remove_curve_prompt->pos.w - 10, WHITE, font, NULL);
+	tmp->dst.y = remove_curve_prompt->pos.h/2 - tmp->dst.h/2 - 10;
+	add_text_to_prompt(remove_curve_prompt, tmp);
 	setting_page_button_f = create_button("settings", 0, 1, 10, 10, 0, 0, 20, font, change_to_settings_page, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
 	rgb_page_button_f = create_button("rgb", 0, 1, 10, setting_page_button_f->pos.y + setting_page_button_f->pos.h + 5,
 			0, 0, 20, font, change_to_rgb_page, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
@@ -449,6 +446,8 @@ void done_prompt(struct button *self, SDL_Event *e)
 	strcpy(i->text->str, "");
 	i->default_text->show = 1;
 	i->text->show = 0;
+	cursor->show = 0;
+	change_graph_points(fan_curve_graph, fan_curve_arr[fan_curve_ddm->items-1].curve, fan_curve_arr[fan_curve_ddm->items-1].used_points);
 	show_prompt(NULL);
 }
 
@@ -458,6 +457,7 @@ void canncel_addc_prompt(struct button *self, SDL_Event *e)
 	strcpy(i->text->str, "");
 	add_fan_curve_prompt->input_arr[0]->default_text->show = 1;
 	add_fan_curve_prompt->input_arr[0]->text->show = 0;
+	cursor->show = 0;
 	show_prompt(NULL);
 }
 
@@ -466,18 +466,14 @@ void add_curve_bf(struct button *self, SDL_Event *e)
 	printf("text = %d, %d\n", add_fan_curve_prompt->text_arr[0]->dst.x, add_fan_curve_prompt->text_arr[0]->dst.y);
 	add_fan_curve_prompt->text_arr[0]->show = 1;
 	show_prompt(add_fan_curve_prompt);
-	/*add_curve();
-	char tmp_str[20];
-	sprintf(tmp_str, "curve %d", fan_curve_arr_len-1);
-	add_item_ddm(fan_curve_ddm, tmp_str, font);
-	select_ddm_item(fan_curve_ddm, fan_curve_ddm->items-1);
-	change_graph_points(fan_curve_graph, fan_curve_arr[fan_curve_arr_len-1].curve, fan_curve_arr[fan_curve_arr_len-1].used_points);
-	*/
 }
 
 void yes_remove_prompt(struct button *self, SDL_Event *e)
 {
 	int si = ports[selected_port].curve_i;
+	char path[MAX_TEXT_SIZE];
+	sprintf(path, "%s%s%d", getenv("HOME"), FAN_CURVE_CONFIG_PATH, si);
+	remove(path);
 	remove_curve(si);
 	remove_item_ddm(fan_curve_ddm, si);
 	ports[selected_port].curve_i = 0;
@@ -599,27 +595,14 @@ int init_rgb_page(void)
 
 	toggle_merge = create_button("Merge", 0, 1, apply_to_all_rgb->pos.x + apply_to_all_rgb->pos.w + 5, apply_to_all_rgb->pos.y, 0, 0, 20, font, toggle_merge_button, NULL, WHITE, edarkgrey, WHITE, rgb_page);
 
-	test_prompt = create_prompt(100, 50, 200, 100, edarkgrey, WHITE, font);
-	create_button("show", 0, 1, 200, 100, 0, 0, 20, font, show_p, NULL, WHITE, edarkgrey, WHITE, rgb_page);
-	struct button *tmp = create_button("unshow", 0, 1, 50, 25, 0, 0, 20, font, unshow_p, NULL, WHITE, edarkgrey, WHITE, NULL);
-	add_button_to_prompt(test_prompt, tmp);
-	
 	return 0;
 }
 
-void show_p(struct button *self, SDL_Event *e)
-{
-	show_prompt(test_prompt);
-}
-void unshow_p(struct button *self, SDL_Event *e) 
-{
-	show_prompt(NULL);
-}
-
+struct text *set_fan_count_setting;
 int init_settings_page(void)
 {
 	settings_page = create_page();
-	int total_y = 150, total_x = 10;
+	int total_y = 250, total_x = 10;
 	for (int p = 0; p < 4; p++) {
 		for (int f = 0; f < 6; f++) {
 			fan_count_buttons[p][f] = create_button(NULL, 0, 1, total_x, total_y, 30, 30, 20, font, fan_count_button_click, NULL, WHITE, BLACK, WHITE, settings_page);
@@ -629,6 +612,7 @@ int init_settings_page(void)
 		total_x = 10;
 		total_y += fan_count_buttons[p][0]->pos.h + 5;
 	}
+	set_fan_count_setting = create_text("select the amount of fans", 10, 200, 0, 0, 20, 0, WHITE, font, settings_page);
 	setting_page_button_s = create_button("settings", 0, 1, 10, 10, 0, 0, 20, font, change_to_settings_page, NULL, WHITE, grey, BLACK, settings_page);
 	rgb_page_button_s = create_button("rgb", 0, 1, 10, setting_page_button_s->pos.y + setting_page_button_s->pos.h + 5,
 			0, 0, 20, font, change_to_rgb_page, NULL, WHITE, edarkgrey, WHITE, settings_page);

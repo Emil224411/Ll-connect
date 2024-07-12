@@ -130,7 +130,6 @@ int init_fan_curve_conf(void)
 	}
 	return 0;
 }
-
 void shutdown_controller(void)
 {
 	for (int i = 0; i < 4; i++) {
@@ -563,7 +562,7 @@ int load_curve(struct point **p, char *name, int name_len, int *points_used, int
 	if (f == NULL) {
 		printf("load_curve: failed to open file at path %s, ", new_path);
 		if (fan_curve_arr_len < 1 && errno == ENOENT) {
-			printf("save_curve called\n");
+			printf("no curves in config creating default curve\n");
 			save_curve(default_fan_curve, "default", 7, path);
 			f = fopen(new_path, "r");
 			ret = 1;

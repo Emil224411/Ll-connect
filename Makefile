@@ -3,11 +3,10 @@ PREFIX = /usr/local
 
 # libs
 SDLLIBS = -lSDL2 -lSDL2_ttf
-FONTCONFLIB = -lfontconfig
 
 CFLAGS   = -g -std=c99 -pedantic -Wall -O0
 #CFLAGS   = -std=c99 -pedantic -Wall -Wno-deprecated-declarations -Os
-LDFLAGS  = ${SDLLIBS} ${FONTCONFLIB}
+LDFLAGS  = ${SDLLIBS}
 
 # compiler and linker
 CC = gcc

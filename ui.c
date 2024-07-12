@@ -222,6 +222,7 @@ void ui_shutdown(void)
 {
 	SDL_StopTextInput();
 	destroy_line(cursor);
+
 	while (page_arr_used_len > 0) {
 		destroy_page(page_arr[page_arr_used_len-1]);
 	}
@@ -240,10 +241,10 @@ void ui_shutdown(void)
 		TTF_CloseFont(font);
 		font = NULL;
 	}
+	free(callback_arr);
+	free(callback_que);
 	free(page_arr);
-	printf("page\n");
 	free(prompt_arr);
-	printf("prompt\n");
 	TTF_Quit();
 	SDL_Quit();
 }
@@ -657,7 +658,6 @@ SDL_Texture *create_texture_from_surface(SDL_Surface *sur)
 
 struct page *create_page(void)
 {
-	
 	struct page *return_page = malloc(sizeof(struct page));
 	return_page->t_arr = malloc(sizeof(struct text *) * 40);
 	return_page->t_arr_total_len = 10;
@@ -700,6 +700,8 @@ struct page *create_page(void)
 		page_arr = realloc(page_arr, sizeof(struct page *) * (page_arr_total_len + 1));
 		page_arr_total_len += 1;
 	}
+	return_page->index = page_arr_used_len;
+
 	page_arr[page_arr_used_len] = return_page;
 	page_arr_used_len += 1;
 
@@ -738,6 +740,10 @@ void destroy_page(struct page *page)
 	while (page->line_arr_used_len > 0) {
 		destroy_line(page->line_arr[page->line_arr_used_len-1]);
 	}
+	for (int i = page->index; i < page_arr_used_len - 1; i++) {
+		page_arr[i] = page_arr[i + 1];
+		page_arr[i]->index = i;
+	}
 	page_arr_used_len -= 1;
 	free(page->i_arr);
 	free(page->b_arr);
@@ -750,7 +756,9 @@ void destroy_page(struct page *page)
 }
 void show_page(struct page *page)
 {
-	if (showen_page != NULL) showen_page->show = 0;
+	if (showen_page != NULL)
+		showen_page->show = 0;
+
 	page->show = 1;
 	showen_page = page;
 }
@@ -846,6 +854,11 @@ void destroy_text(struct text *text)
 
 void destroy_text_texture(struct text *text)
 {
+#ifdef INFO
+	printf("destroy text texture:\n");
+	printf("text->str = \"%s\", ", text->str);
+	printf("text->index = %d\n", text->index);
+#endif
 	SDL_DestroyTexture(text->texture);
 }
 
@@ -919,6 +932,9 @@ struct button *create_button(char *string, int movable, int show, int x, int y, 
 
 void destroy_button(struct button *button)
 {
+#ifdef INFO
+	printf("destroying button:\nindex = %d, str = %s\nparent = %p\n", button->index,  button->text->str, (void *)button->parent_p);
+#endif
 	if (button->text != NULL) destroy_text(button->text);
 
 	if (button->parent_p != NULL) {
@@ -1220,12 +1236,10 @@ void add_item_ddm(struct drop_down_menu *ddm, char *newstr, TTF_Font *f)
 void remove_item_ddm(struct drop_down_menu *ddm, int item)
 {
 	if (ddm->items <= 1) return;
-	if (ddm->selected_text_index == item) {
-		ddm->selected_text_index = 0;
-	}
 	destroy_text(ddm->text[item]);
 	for (int i = item; i < ddm->items-1; i++) {
 		ddm->text[i] = ddm->text[i+1];
+		ddm->text[i]->index = i;
 	}
 	int prev_height = 0;
 	int bigest_w = ddm->default_pos.w, bigest_h = ddm->default_pos.h;
@@ -1237,9 +1251,8 @@ void remove_item_ddm(struct drop_down_menu *ddm, int item)
 		prev_height += ddm->text[i]->dst.h;
 		ddm->text[i]->show = 0;
 	}
-	ddm->text[ddm->items] = NULL;
 	ddm->items -= 1;
-	scroll_ddm(ddm, 0);
+	select_ddm_item(ddm, 0);
 }
 
 /* 	mabey split up in to a few functions but idk 	*/
