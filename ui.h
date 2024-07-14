@@ -118,6 +118,7 @@ struct line {
 struct prompt {
 	SDL_Rect pos;
 	int show, index;
+	void (*on_show)(void);
 	struct text **text_arr;
 	int text_arr_total, text_arr_used;
 	struct input **input_arr, *selected_input;
@@ -167,6 +168,7 @@ extern SDL_Renderer *renderer;
 /* functions */
 int  ui_init(void);
 void ui_shutdown(void);
+void check_events_and_callbacks(SDL_Event *event);
 void handle_event(SDL_Event *event);
 void show_screen(void);
 void clear_screen(SDL_Color color);
@@ -244,6 +246,7 @@ void destroy_graph(struct graph *graph);
 void render_graph(struct graph *graph);
 void change_graph_point(struct graph *graph);
 int change_graph_points(struct graph *g, struct point *new_points, int new_size);
+int copy_points(struct point *points, int *total_size, int *size, struct point *new_points, int new_size);
 
 /* line functions */
 struct line *create_line(int x1, int y1, int x2, int y2, SDL_Color color, struct page *p);

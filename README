@@ -1,5 +1,5 @@
 it's not done yet but i'm working on it and 
-it can do more or less the same as L-connect but its just on linux(adding more fan curves doesnt work rn but ill fix it soon)
+it can do more or less the same as L-connect but its just on linux(start up and shutdown are kinda broken sometimes)
 
 it currently only supports the AL V2 UNI HUB but i would be happy to add support for other hubs i just need some usb packets
 

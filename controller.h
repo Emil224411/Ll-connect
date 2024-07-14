@@ -58,9 +58,7 @@ struct port {
 	const char config_path[MAX_TEXT_SIZE];
 	struct rgb_data rgb;
 	int fan_count, fan_speed, number;
-	struct point *curve;
 	int curve_i;
-	int points_used, points_total;
 };
 
 struct curve {

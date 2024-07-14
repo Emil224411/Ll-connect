@@ -784,10 +784,12 @@ static ssize_t read_fan_count(struct file *f, char *ubuf, size_t count, loff_t *
 
 	return copied;
 }
-
+static int probed = 0;
 #define ERROR(str, i) { printk(KERN_ERR "Lian Li Hub: %s, %d\n", str, i); return -1; }
 static int dev_probe(struct usb_interface *intf, const struct usb_device_id *id)
 {
+	/* tmp fix for some reason dev_probe gets call twice on boot i dont really know why but this should fix it for now */
+	if (probed == 1) return 0;
 	dev = interface_to_usbdev(intf);
 	if (dev == NULL) ERROR("error getting dev from intf", 0);
 	proc_dir = proc_mkdir("Lian_li_hub", NULL);
@@ -839,6 +841,7 @@ static int dev_probe(struct usb_interface *intf, const struct usb_device_id *id)
 
  	timer_setup(&speed_timer, timer_callback_handler, 0);
  	mod_timer(&speed_timer, jiffies + msecs_to_jiffies(2000));
+	probed = 1;
 	printk(KERN_INFO"Lian Li Hub: driver probed\n");
 	return 0;
 }
@@ -848,10 +851,11 @@ static void dev_disconnect(struct usb_interface *intf)
   	del_timer(&speed_timer);
 	flush_work(&speed_wq);
 	proc_remove(proc_dir);
+	probed = 0;
 	for (int i = 0; i < 4; i++) {
 		kfree(ports[i].points);
 	}
-	printk(KERN_INFO "Lian Li Hub: driver disconnect\n");
+	printk(KERN_INFO "Lian Li Hub: driver disconnect done\n");
 }
 
 static struct usb_driver driver = {
@@ -864,12 +868,12 @@ static struct usb_driver driver = {
 static int __init controller_init(void)
 {
 	int res;
-	printk(KERN_INFO "Lian Li Hub: driver init\n");
 	res = usb_register(&driver);
 	if (res) {
 		printk(KERN_ERR "Lian Li Hub: Error during register\n");
 		return -res;
 	}
+	printk(KERN_INFO "Lian Li Hub: driver init done\n");
 	return 0;
 }
 

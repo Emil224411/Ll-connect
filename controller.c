@@ -621,6 +621,7 @@ int save_curve(struct point *p, char *name, int points_used, char *path)
 		fputc('\n', f);
 	for (int i = 0; i < points_used; i++) {
 		fprintf(f, "%d %d\n", p[i].y, p[i].x);
+		printf("%d %d\n", p[i].y, p[i].x);
 	}
 	fclose(f);
 	return 0;
@@ -697,6 +698,7 @@ int set_fan_curve(struct port *p)
 
 	char tmp_str[100];
 	int str_i = 0;
+	printf("fan_curve_arr[p->curve_i].used_points = %d\n", fan_curve_arr[p->curve_i].used_points);
 	for (int i = 0; i < fan_curve_arr[p->curve_i].used_points; i++) {
 		sprintf(&tmp_str[str_i], "%03d %03d\n", fan_curve_arr[p->curve_i].curve[i].y, fan_curve_arr[p->curve_i].curve[i].x);
 		str_i += 8;

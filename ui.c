@@ -58,6 +58,7 @@ struct callback *create_callback(void (*function)(void), double time)
 	callback_arr[callback_amount].timer = time;
 	callback_arr[callback_amount].index = callback_amount;
 	callback_arr[callback_amount].is_qued = 0;
+	callback_arr[callback_amount].times_called_back = 0;
 	callback_amount++;
 	return &callback_arr[callback_amount - 1];
 }
@@ -76,10 +77,10 @@ void add_callback_to_que(struct callback *cb)
 			que_total += 5;
 		}
 		cb->is_qued = 1;
+		cb->b = SDL_GetTicks();
 		callback_que[que_len] = cb;
-		if (next_cb == NULL || get_time_till_cb(callback_que[que_len]) < get_time_till_cb(next_cb)) {
+		if (next_cb == NULL || get_time_till_cb(callback_que[que_len]) < get_time_till_cb(next_cb))
 			next_cb = callback_que[que_len];
-		}
 		que_len++;
 	}
 }
@@ -87,13 +88,13 @@ void add_callback_to_que(struct callback *cb)
 double get_time_till_cb(struct callback *cb)
 {
 	cb->a = SDL_GetTicks();
-	return cb->timer - cb->a - cb->b;
+	return cb->timer - (cb->a - cb->b);
 }
 
 void set_callback_timer(struct callback *cb, double time)
 {
 	cb->timer = time;
-	if (next_cb == NULL || (cb != next_cb &&  get_time_till_cb(cb) < get_time_till_cb(next_cb))) {
+	if (next_cb == NULL || get_time_till_cb(cb) < get_time_till_cb(next_cb)) {
 		next_cb = cb;
 	}
 
@@ -147,9 +148,10 @@ void check_next_callback(void)
 		next_cb->b = next_cb->a;
 		next_cb->timer = 0.0;
 		next_cb->function();
-		if (next_cb->timer == 0.0) 
+		if (next_cb->timer == 0.0) {
 			remove_from_que(next_cb);
-		else
+		}
+		else 
 			next_cb->times_called_back += 1;
 		check_callbacks();
 	}
@@ -158,10 +160,10 @@ void check_next_callback(void)
 void check_callbacks(void)
 {
 	int next_index = -1;
-	double next_time = 0.0, delta = 0.0;
+	double next_time = get_time_till_cb(callback_que[0]), delta = 0.0;
 	for (int i = 0; i < que_len; i++) {
 		delta = get_time_till_cb(callback_que[i]);
-		if (delta < next_time) {
+		if (delta <= next_time) {
 			next_time = delta;
 			next_index = i;
 		}
@@ -213,6 +215,7 @@ int ui_init(void)
 
 	cursor = create_line(0, 0, 0, 0, WHITE, NULL);
 	cursor->parent_p = NULL;
+	cursor->show = 0;
 
 	SDL_StartTextInput();
 	return 0;
@@ -258,6 +261,14 @@ void clear_screen(SDL_Color color)
 {
 	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(color));
 	SDL_RenderClear(renderer);
+}
+
+void check_events_and_callbacks(SDL_Event *event)
+{
+	check_next_callback();
+	while (SDL_PollEvent(event)) {
+		handle_event(event);
+	}
 }
 
 void handle_event(SDL_Event *event)
@@ -1514,6 +1525,22 @@ void render_graph(struct graph *graph)
 
 }
 
+int copy_points(struct point *points, int *total_size, int *size, struct point *new_points, int new_size)
+{
+	if (*total_size < new_size) {
+		struct point *tmp = realloc(points, sizeof(struct point) * new_size);
+		if (tmp == NULL) {
+			printf("change_graph_points: failed to reallocate points new_size = %d\n", new_size);
+			return -1;
+		}
+		points = tmp;
+		*total_size = new_size;
+	}
+	memcpy(points, new_points, sizeof(struct point) * new_size);
+	*size = new_size;
+	return 0;
+}
+
 int change_graph_points(struct graph *g, struct point *new_points, int new_size)
 {
 	if (g->total_points < new_size) {
@@ -1642,6 +1669,7 @@ void show_prompt(struct prompt *p)
 	if (showen_prompt != NULL) showen_prompt->show = 0;
 	showen_prompt = p;
 	if (showen_prompt != NULL) showen_prompt->show = 1;
+	if (showen_prompt != NULL && showen_prompt->on_show != NULL) showen_prompt->on_show();
 }
 
 void add_button_to_prompt(struct prompt *p, struct button *b)
@@ -1737,7 +1765,7 @@ void destroy_prompt(struct prompt *p)
 struct prompt *create_prompt(int x, int y, int w, int h, SDL_Color bg_color, SDL_Color outer_color, TTF_Font *font)
 {
 	struct prompt *ret_prompt = malloc(sizeof(struct prompt));
-	struct prompt tmp_prompt = { { x, y, w, h }, 0, prompt_arr_len, NULL, 0, 0, NULL, NULL, 0, 0, NULL, NULL, 0, 0, bg_color, outer_color, font };
+	struct prompt tmp_prompt = { { x, y, w, h }, 0, prompt_arr_len, NULL, NULL, 0, 0, NULL, NULL, 0, 0, NULL, NULL, 0, 0, bg_color, outer_color, font };
 	tmp_prompt.text_arr = malloc(sizeof(struct button *) * 5);
 	tmp_prompt.text_arr_total = 5;
 	tmp_prompt.input_arr = malloc(sizeof(struct button *) * 5);
