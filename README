@@ -17,8 +17,11 @@ install:
    5.  run "make"
 
    6.  run "make install" and then run "sudo modprobe Lian_li_hub"
-if you skipped step 6. run "sudo insmod Lian_li_hub.ko" instead of "sudo modprobe Lian_li_hub"
 
-   8.  run "Ll-connect" from the terminal or how ever you run programs
+   7.  run "Ll-connect" from the terminal or how ever you run programs
+
+you can skip step 6 if you want to since installing the module could cause some issues i have it installed and it work well
+if you skip step 6 you have to go to the directory where the "Lian_Li_UNI_HUB_ALv2.ko" is located and then 
+run "sudo insmod Lian_Li_UNI_HUB_ALv2.ko" every time you want to change the fan settings
 
 if you want to use it without the ui skip step 3 you can use the proc files at "/proc/Lian_li_hub/" but i would not recommend it
