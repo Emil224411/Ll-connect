@@ -1,4 +1,4 @@
-obj-m += Lian_li_hub.o
+obj-m += Lian_Li_UNI_HUB_ALv2.o
 
 PWD := $(CURDIR)
 

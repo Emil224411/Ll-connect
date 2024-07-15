@@ -10,12 +10,12 @@
 
 #include "ui.h"
 
-#define HUB_PATH "/proc/Lian_li_hub/"
-#define MBSYNC_PATH "/proc/Lian_li_hub/mb_sync"
-#define PORT_ONE_PATH "/proc/Lian_li_hub/Port_one"
-#define PORT_TWO_PATH "/proc/Lian_li_hub/Port_two"
-#define PORT_THREE_PATH "/proc/Lian_li_hub/Port_three"
-#define PORT_FOUR_PATH "/proc/Lian_li_hub/Port_four"
+#define HUB_PATH "/proc/Lian_li_UNI_HUB_ALv2/"
+#define MBSYNC_PATH "/proc/Lian_li_UNI_HUB_ALv2/mb_sync"
+#define PORT_ONE_PATH "/proc/Lian_li_UNI_HUB_ALv2/Port_one"
+#define PORT_TWO_PATH "/proc/Lian_li_UNI_HUB_ALv2/Port_two"
+#define PORT_THREE_PATH "/proc/Lian_li_UNI_HUB_ALv2/Port_three"
+#define PORT_FOUR_PATH "/proc/Lian_li_UNI_HUB_ALv2/Port_four"
 
 #define CONFIG_PATH "/.config/Ll-connect-config"
 #define FAN_CURVE_CONFIG_PATH "/.config/Ll-connect-config/fan_curve_"

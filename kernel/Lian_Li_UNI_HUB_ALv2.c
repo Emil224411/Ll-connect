@@ -8,8 +8,6 @@
 #include <linux/usb.h>
 #include <linux/string.h>
 
-MODULE_LICENSE("GPL");
-
 #define VENDOR_ID 0x0cf2
 #define PRODUCT_ID 0xa104
 
@@ -150,7 +148,7 @@ void speed_wq_function(struct work_struct *work)
 {
 	int new_temp = get_cpu_temp()/1000;
 	if (new_temp == -1) {
-		printk(KERN_ERR"Lian Li Hub: speed_wq_function failed get_cpu_temp\n");
+		printk(KERN_ERR"Lian li ALv2 hub: speed_wq_function failed get_cpu_temp\n");
 		return;
 	}
 	if (prev_temp != new_temp) {
@@ -190,12 +188,12 @@ static int get_cpu_temp(void)
 
 	thermal_dev = thermal_zone_get_zone_by_name("x86_pkg_temp");
 	if (IS_ERR(thermal_dev)) {
-		printk(KERN_ERR"Lian Li Hub: failed thermal_zone_get_zone_by_name\n");
+		printk(KERN_ERR"Lian li ALv2 hub: failed thermal_zone_get_zone_by_name\n");
 		return -1;
 	}
 
 	if (thermal_zone_get_temp(thermal_dev, &temp)) {
-		printk(KERN_ERR"Lian Li Hub: failed thermal_zone_get_temp\n");
+		printk(KERN_ERR"Lian li ALv2 hub: failed thermal_zone_get_temp\n");
 		return -1;
 	}
 	return temp;
@@ -210,7 +208,7 @@ static int send_rgb_header(int port, int fan_count)
 	buffer[3] = port; buffer[4] = fan_count;
 	ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0x0), 0x09, 0x21, 0x02e0, 0x01, buffer, PACKET_SIZE, 100);
 	if (ret != PACKET_SIZE) {
-		printk(KERN_ERR"Lian Li Hub: send_rgb_header failed ret = %d\n", ret);
+		printk(KERN_ERR"Lian li ALv2 hub: send_rgb_header failed ret = %d\n", ret);
 		return ret;
 	}
 	kfree(buffer);
@@ -226,7 +224,7 @@ static int send_rgb_colors(int port, int in_or_out, struct rgb_data *colors)
 	memcpy(&buffer[2], colors->colors, PACKET_SIZE - 2);
 	ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0x0), 0x09, 0x21, 0x02e0, 0x01, buffer, PACKET_SIZE, 100);
 	if (ret != PACKET_SIZE) {
-		printk(KERN_ERR"Lian Li Hub: send_rgb_header failed ret = %d\n", ret);
+		printk(KERN_ERR"Lian li ALv2 hub: send_rgb_header failed ret = %d\n", ret);
 		return ret;
 	}
 	kfree(buffer);
@@ -242,7 +240,7 @@ static int send_rgb_mode(int port, int in_or_out, struct rgb_data *data)
 	buffer[2] = data->mode; buffer[3] = data->speed; buffer[4] = data->direction; buffer[5] = data->brightness;
 	ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0x0), 0x09, 0x21, 0x02e0, 0x01, buffer, PACKET_SIZE, 100);
 	if (ret != PACKET_SIZE) {
-		printk(KERN_ERR"Lian Li Hub: send_rgb_header failed ret = %d\n", ret);
+		printk(KERN_ERR"Lian li ALv2 hub: send_rgb_header failed ret = %d\n", ret);
 		return ret;
 	}
 	kfree(buffer);
@@ -538,7 +536,7 @@ static void get_speed_in_rpm(void)
 	unsigned char *response = kcalloc(size, sizeof(*response), GFP_KERNEL);
 	int ret = usb_control_msg(dev, usb_rcvctrlpipe(dev, 0x80), 0x01, 0xa1, 0x01e0, 1, response, size, 1000);
 	if (ret != size) {
-		printk(KERN_ERR "Lian Li Hub: get_speed failed error %d\n", ret);
+		printk(KERN_ERR "Lian li ALv2 hub: get_speed failed error %d\n", ret);
 	} else {
 		ports[0].fan_speed_rpm = (response[2] << 8) + response[3];
 		ports[1].fan_speed_rpm = (response[4] << 8) + response[5];
@@ -562,7 +560,7 @@ static void set_speeds(int port_one, int port_two, int port_three, int port_four
 		memcpy(mbuff, data[i], 353);
 		int ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0), 0x09, 0x21, 0x02e0, 1, mbuff, datalen, 100);
 		if (ret != datalen) {
-			printk(KERN_ERR "Lian Li Hub: failed to send usb_control_msg with data[%d] error %d", i, ret);
+			printk(KERN_ERR "Lian li ALv2 hub: failed to send usb_control_msg with data[%d] error %d", i, ret);
 		} else if (i >= 1) {
 			ports[i-1].fan_speed = new_speeds[i-1];
 		}
@@ -584,7 +582,7 @@ static void set_speed(int port, int new_speed)
 		int ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0), 0x09, 0x21, 0x02e0, 1, buffer, PACKET_SIZE, 100);
 
 		if (ret != PACKET_SIZE) {
-			printk(KERN_ERR "Lian Li Hub: failed to send usb_control_msg with data[%d] error %d", i, ret);
+			printk(KERN_ERR "Lian li ALv2 hub: failed to send usb_control_msg with data[%d] error %d", i, ret);
 		}
 	}
 	ports[port-1].fan_speed = new_speed;
@@ -598,7 +596,7 @@ static void mb_sync(int enable)
 
 	int ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0), 0x09, 0x21, 0x02e0, 1, buffer, PACKET_SIZE, 100);
 	if (ret != PACKET_SIZE) {
-		printk(KERN_ERR "Lian Li Hub: failed to send mb sync error %d", ret);
+		printk(KERN_ERR "Lian li ALv2 hub: failed to send mb sync error %d", ret);
 		return;
 	}
 	mb_sync_state = enable;
@@ -785,14 +783,14 @@ static ssize_t read_fan_count(struct file *f, char *ubuf, size_t count, loff_t *
 	return copied;
 }
 static int probed = 0;
-#define ERROR(str, i) { printk(KERN_ERR "Lian Li Hub: %s, %d\n", str, i); return -1; }
+#define ERROR(str, i) { printk(KERN_ERR "Lian li ALv2 hub: %s, %d\n", str, i); return -1; }
 static int dev_probe(struct usb_interface *intf, const struct usb_device_id *id)
 {
 	/* tmp fix for some reason dev_probe gets call twice on boot i dont really know why but this should fix it for now */
 	if (probed == 1) return 0;
 	dev = interface_to_usbdev(intf);
 	if (dev == NULL) ERROR("error getting dev from intf", 0);
-	proc_dir = proc_mkdir("Lian_li_hub", NULL);
+	proc_dir = proc_mkdir("Lian_li_UNI_HUB_ALv2", NULL);
 	if (proc_dir == NULL) ERROR("proc_mkdir Lian li hub failed", 0);
 
 	proc_mbsync = proc_create("mb_sync", 0666, proc_dir, &pops_mb_sync);
@@ -842,7 +840,7 @@ static int dev_probe(struct usb_interface *intf, const struct usb_device_id *id)
  	timer_setup(&speed_timer, timer_callback_handler, 0);
  	mod_timer(&speed_timer, jiffies + msecs_to_jiffies(2000));
 	probed = 1;
-	printk(KERN_INFO"Lian Li Hub: driver probed\n");
+	printk(KERN_INFO"Lian li ALv2 hub: driver probed\n");
 	return 0;
 }
 
@@ -855,11 +853,11 @@ static void dev_disconnect(struct usb_interface *intf)
 	for (int i = 0; i < 4; i++) {
 		kfree(ports[i].points);
 	}
-	printk(KERN_INFO "Lian Li Hub: driver disconnect done\n");
+	printk(KERN_INFO "Lian li ALv2 hub: driver disconnect done\n");
 }
 
 static struct usb_driver driver = {
-	.name = "lianli AL120",
+	.name = "lian_li_UNI_HUB_ALv2",
 	.id_table = dev_table,
 	.disconnect = dev_disconnect,
 	.probe = dev_probe,
@@ -870,16 +868,19 @@ static int __init controller_init(void)
 	int res;
 	res = usb_register(&driver);
 	if (res) {
-		printk(KERN_ERR "Lian Li Hub: Error during register\n");
+		printk(KERN_ERR "Lian li ALv2 hub: Error during register\n");
 		return -res;
 	}
-	printk(KERN_INFO "Lian Li Hub: driver init done\n");
+	printk(KERN_INFO "Lian li ALv2 hub: driver init done\n");
 	return 0;
 }
 
 static void __exit controller_exit(void)
 {
 	usb_deregister(&driver);
-	printk(KERN_INFO "Lian Li Hub: driver exit\n");
+	printk(KERN_INFO "Lian li ALv2 hub: driver exit\n");
 }
 
+MODULE_AUTHOR("Emil <emilsnielsen123@gmail.com>");
+MODULE_DESCRIPTION("a usb driver for UNI HUB ALv2");
+MODULE_LICENSE("GPL");

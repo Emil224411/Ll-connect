@@ -119,6 +119,7 @@ int init_fan_curve_conf(void)
 			fan_curve_arr_total += 5;
 			memset(&fan_curve_arr[fan_curve_arr_len], 0, sizeof(struct curve) * (fan_curve_arr_total - fan_curve_arr_len));
 		}
+		fan_curve_arr[i].total_points = fan_curve_arr[i].used_points = 0;
 		no_more_files = load_curve(&fan_curve_arr[i].curve, fan_curve_arr[i].name, MAX_TEXT_SIZE, &fan_curve_arr[i].used_points, &fan_curve_arr[i].total_points, file_path);
 		if (no_more_files != -1) {
 			fan_curve_arr_len++;
@@ -476,7 +477,7 @@ int save_port(struct port *p)
 
 	FILE *f = fopen(path, "w");
 	if (f == NULL) {
-		printf("save_port failed to open file at path %s\n", path);
+		printf("save_port: failed to open file at path %s\n", path);
 		return -1;
 	}
 	fprintf(f, "%d", p->fan_count);
@@ -538,7 +539,7 @@ void reallocate_curve(struct point **curves_points, int *points_used, int *point
 {
 	struct point *new_curve = (struct point *)realloc(*curves_points, (*points_total + additional_points) * sizeof(struct point));
 	if (new_curve == NULL) {
-	    printf("failed to reallocate memory for points array\n");
+	    printf("reallocate_curve: failed to reallocate curves_points\n");
 	    return;
 	}
 	*curves_points = new_curve;
@@ -621,7 +622,6 @@ int save_curve(struct point *p, char *name, int points_used, char *path)
 		fputc('\n', f);
 	for (int i = 0; i < points_used; i++) {
 		fprintf(f, "%d %d\n", p[i].y, p[i].x);
-		printf("%d %d\n", p[i].y, p[i].x);
 	}
 	fclose(f);
 	return 0;
@@ -634,7 +634,7 @@ int load_graph(struct graph *g, char *path)
 	strcat(new_path, path);
 	FILE *f = fopen(new_path, "r");
 	if (f == NULL) {
-		printf("load_graph failed to open file at path %s\n", new_path);
+		printf("load_graph: failed to open file at path %s\n", new_path);
 		return -1;
 	}
 	char *line = malloc(sizeof(char)*100);
@@ -698,7 +698,6 @@ int set_fan_curve(struct port *p)
 
 	char tmp_str[100];
 	int str_i = 0;
-	printf("fan_curve_arr[p->curve_i].used_points = %d\n", fan_curve_arr[p->curve_i].used_points);
 	for (int i = 0; i < fan_curve_arr[p->curve_i].used_points; i++) {
 		sprintf(&tmp_str[str_i], "%03d %03d\n", fan_curve_arr[p->curve_i].curve[i].y, fan_curve_arr[p->curve_i].curve[i].x);
 		str_i += 8;
@@ -730,7 +729,7 @@ int set_fan_speed(struct port *p, int speed)
 	strcat(path, "/fan_speed");
 	FILE *f = fopen(path, "w");
 	if (f == NULL) {
-		printf("set_fan_speed failed\n");
+		printf("set_fan_speed: failed to open file at path %s\n", path);
 		return -1;
 	}
 	fprintf(f, "%d", speed); 
@@ -743,7 +742,7 @@ int set_mb_sync(int state)
 {
 	FILE *f = fopen(MBSYNC_PATH, "w");
 	if (f == NULL) {
-		printf("set mb sync failed\n");
+		printf("set_mb_sync: failed to open file at path %s\n", MBSYNC_PATH);
 		return -1;
 	}
 	fprintf(f, "%d", state); 
@@ -801,7 +800,7 @@ int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 
 	FILE *f = fopen(path, "w");
 	if (f == NULL) {
-		printf("set_inner_rgb failed to open file at path %s\n", path);
+		printf("set_inner_rgb: failed to open file at path %s\n", path);
 		return -1;
 	}
 	fprintf(f, "%d %d %d %d %d %d", new_mode->mode, speed, direction, brightnes, new_mode->flags, set_all);
@@ -877,7 +876,7 @@ int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 	strcat(path, "/outer_rgb");
 	FILE *f = fopen(path, "w");
 	if (f == NULL) {
-		printf("set_outer_rgb failed to open file at path %s\n", path);
+		printf("set_outer_rgb: failed to open file at path %s\n", path);
 		return -1;
 	}
 	fprintf(f, "%d %d %d %d %d %d", new_mode->mode, speed, direction, brightnes, new_mode->flags, set_all);
@@ -943,7 +942,7 @@ int set_inner_and_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int
 	strcat(path, "/inner_and_outer_rgb");
 	FILE *f = fopen(path, "w");
 	if (f == NULL) {
-		printf("set_inner_and_outer_color failed to open file at path %s\n", path);
+		printf("set_inner_and_outer_color: failed to open file at path %s\n", path);
 		return -1;
 	}
 
@@ -1001,7 +1000,7 @@ int set_merge(struct port *p, const struct rgb_mode *new_mode, int speed, int di
 	strcat(path, "/inner_and_outer_rgb");
 	FILE *f = fopen(path, "w");
 	if (f == NULL) {
-		printf("set_merge failed to open file at path %s\n", path);
+		printf("set_merge: failed to open file at path %s\n", path);
 		return -1;
 	}
 	fprintf(f, "%d %d %d %d %d %d", new_mode->merge_mode, speed, direction, brightnes, new_mode->flags, 1); 
@@ -1023,7 +1022,7 @@ int write_outer_colors(char *path, struct color *new_colors, int fan_count, floa
 
 	FILE *f = fopen(path, "w");
 	if (f == NULL) {
-		printf("write_outer_colors failed to open file at path %s\n", path);
+		printf("write_outer_colors: failed to open file at path %s\n", path);
 		return -1;
 	}
 
@@ -1068,7 +1067,7 @@ int write_inner_colors(char *path, struct color *new_colors, int fan_count, floa
 
 	FILE *f = fopen(path, "w");
 	if (f == NULL) {
-		printf("write_inner_colors failed to open file at path %s\n", path);
+		printf("write_inner_colors: failed to open file at path %s\n", path);
 		return -1;
 	}
 

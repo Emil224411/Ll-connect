@@ -2,25 +2,23 @@
  |					 	   TODO 							|
  |--------------------------------------------------------------------------------------------------------------|
  | 														|
- | 		1.  getting "corrupted double-linked list" on shutdown happens when saving curves 		|
- |			and segfault on startup sometimes in reallocate_curve gdb says: 			|
- |			 __GI___libc_realloc (oldmem=0x696c67756265645f, bytes=61043536) at malloc.c:3440 	|
- |			in reallocate_curve(additional_points=5) at controller.c:539 				|
- | 			in load_curve("port 1\n", "/.config/Ll-connect-config/fan_curve_0") at controller.c:589 |
- |			in init_fan_curve_conf () at controller.c:122 						|
- |			in init_controller () at controller.c:174 						|
- | 														|
- |		2.  finish fan speed control page apply to port apply to all.					|
- | 		3.  finish settings page. 									|
+ | 		1.  if you add a new curve and add some points and then select a diffrent curve the new curve 	|
+ |			isnt saved so when you go back to the previous curve its empty 				|
+ | 		2.  made a clean install and set some color etc. then closed it and reopen it and for 		|
+ |			some reason it saved the wrong colors 							|
+ |		3.  finish fan speed control page apply to all button.						|
  | 														|
  |--------------------------------------------------------------------------------------------------------------|
  |														|
  |				    not very important but do at some point					|
  |														|
- | 		1.  when you turn on you pc the dev_probe function gets called twice which is why i got 	|
+ | 		1.  getting errors on shutdown happens when saving/loading curves seems to be fixed 		|
+ |			i think it happend because init_fan_curve_conf didnt set points_used and  		|
+ |			points_total so they where random 							|
+ | 		2.  when you turn on you pc the dev_probe function gets called twice which is why i got 	|
  |			the error proc entry "/proc/Lian_li_hub" all ready exists i have created a tmp fix 	|
  |			but i should figure out a better solution. 						|
- | 		2.  when a rgb_mode with only INNER_AND_OUTER flag set is applied you try to change 		|
+ | 		3.  when a rgb_mode with only INNER_AND_OUTER flag set is applied you try to change 		|
  |		 	inner or outer mode it glithes is basicly fixed but the fix is not perfect so 		|
  |			refactor that since i dont feel like it rn and it works so yk 				|
  |														|
@@ -70,6 +68,8 @@ struct page *rgb_page;
 
 struct text *rgb_speed_text;
 struct text *rgb_brightnes_text;
+struct text *rgb_speed_num_text;
+struct text *rgb_brightnes_num_text;
 
 struct button *fan_page_button_r;
 struct button *rgb_page_button_r;
@@ -245,12 +245,12 @@ int init(void)
 	size_t n;
 	int mod_loaded = 0;
 	while (getline(&line, &n, f) != -1 && mod_loaded == 0) {
-		if (strncmp("Lian_li_hub", line, strlen("Lian_li_hub")) == 0) {
+		if (strncmp("Lian_Li_UNI_HUB_ALv2", line, strlen("Lian_Li_UNI_HUB_ALv2")) == 0) {
 			mod_loaded = 1;
 		}
 	}
 	if (!mod_loaded) {
-		printf("load kernel module Lian_li_hub and try again\n");
+		printf("load kernel module Lian_li_UNI_HUB_ALv2 and try again\n");
 		free(line);
 		fclose(f);
 		return -1;
@@ -269,6 +269,12 @@ int init(void)
 	init_settings_page();
 
 	port_select_fan_func(select_port_fan_buttons[0], NULL);
+	port_select_rgb_func(select_port_rgb_buttons[0], NULL);
+	fan_ring_select(fan_ring_ddm, NULL);
+	select_ddm_item(rgb_mode_ddm, ports[0].rgb.outer_mode->index);
+	rgb_mode_ddm->selected = 1;
+	rgb_mode_ddm_select(rgb_mode_ddm, NULL);
+	rgb_mode_ddm->selected = 0;
 	show_page(rgb_page);
 
 	return 0;
@@ -486,8 +492,12 @@ int init_rgb_page(void)
 	rgb_speed_slider = create_slider(1, 330, 200, 200, 10, 20, slider_on_release, rgb_speed_slider_move, WHITE, WHITE, darkgrey, rgb_page);
 	rgb_brightnes_slider = create_slider(1, 330, 240, 200, 10, 20, slider_on_release, rgb_brightnes_slider_move, WHITE, WHITE, darkgrey, rgb_page);
 
-	rgb_speed_text = create_text("0%", rgb_speed_slider->pos.x + 210, rgb_speed_slider->button->pos.y - 2, 0, 0, 0, 0, WHITE, font, rgb_page);
-	rgb_brightnes_text = create_text("0%", rgb_brightnes_slider->pos.x + 210, rgb_brightnes_slider->button->pos.y - 2, 0, 0, 0 , 0, WHITE, font, rgb_page);
+	rgb_speed_num_text = create_text("0%", rgb_speed_slider->pos.x + 210, rgb_speed_slider->button->pos.y - 2, 0, 0, 0, 0, WHITE, font, rgb_page);
+	rgb_speed_text = create_text("speed:", rgb_speed_slider->pos.x, rgb_speed_slider->button->pos.y, 0, 0, 16, 0, WHITE, font, rgb_page);
+	rgb_speed_text->dst.y -= rgb_speed_text->dst.h;
+	rgb_brightnes_num_text = create_text("0%", rgb_brightnes_slider->pos.x + 210, rgb_brightnes_slider->button->pos.y - 2, 0, 0, 0 , 0, WHITE, font, rgb_page);
+	rgb_brightnes_text = create_text("brightnes:", rgb_brightnes_slider->pos.x, rgb_brightnes_slider->button->pos.y, 0, 0, 16, 0, WHITE, font, rgb_page);
+	rgb_brightnes_text->dst.y -= rgb_brightnes_text->dst.h;
 
 	float rounded = 0.0;
 	if (rgb_brightnes == 0x08) 
@@ -503,7 +513,7 @@ int init_rgb_page(void)
 			
 	char bs_str[6];
 	sprintf(bs_str, "%3d%%", (int)(rounded * 100));
-	change_text_and_render_texture(rgb_brightnes_text, bs_str, WHITE, font);
+	change_text_and_render_texture(rgb_brightnes_num_text, bs_str, WHITE, font);
 	rgb_brightnes_slider->button->pos.x = rgb_brightnes_slider->pos.x + (rgb_brightnes_slider->pos.w * rounded) - rgb_brightnes_slider->button->pos.w/2;
 
 	rounded = 0.0;
@@ -519,7 +529,7 @@ int init_rgb_page(void)
 		rounded = rgb_speed_slider->p = 1.00;
 
 	sprintf(bs_str, "%3d%%", (int)(rounded * 100));
-	change_text_and_render_texture(rgb_speed_text, bs_str, WHITE, font);
+	change_text_and_render_texture(rgb_speed_num_text, bs_str, WHITE, font);
 	rgb_speed_slider->button->pos.x = rgb_speed_slider->pos.x + (rgb_speed_slider->pos.w * rounded) - rgb_speed_slider->button->pos.w/2;
 
 	toggle_merge = create_button("Merge", 0, 1, apply_to_all_rgb->pos.x + apply_to_all_rgb->pos.w + 5, apply_to_all_rgb->pos.y, 0, 0, 20, font, toggle_merge_button, NULL, WHITE, edarkgrey, WHITE, rgb_page);
@@ -836,7 +846,7 @@ void rgb_brightnes_slider_move(struct slider *self, SDL_Event *event)
 	if (rounded != last_p) {
 		char tmp_str[6];
 		sprintf(tmp_str, "%3d%%", (int)(rounded * 100));
-		change_text_and_render_texture(rgb_brightnes_text, tmp_str, WHITE, font);
+		change_text_and_render_texture(rgb_brightnes_num_text, tmp_str, WHITE, font);
 	}
 	self->button->pos.x = self->pos.x + (self->pos.w * rounded) - self->button->pos.w/2;
 	last_p = rounded;
@@ -863,7 +873,7 @@ void rgb_speed_slider_move(struct slider *self, SDL_Event *event)
 	if (rounded != last_p) {
 		char tmp_str[6];
 		sprintf(tmp_str, "%3d%%", (int)(rounded * 100));
-		change_text_and_render_texture(rgb_speed_text, tmp_str, WHITE, font);
+		change_text_and_render_texture(rgb_speed_num_text, tmp_str, WHITE, font);
 	}
 
 	self->button->pos.x = self->pos.x + (self->pos.w * rounded) - self->button->pos.w/2;
@@ -995,11 +1005,11 @@ void rgb_mode_ddm_select(struct drop_down_menu *d, SDL_Event *event)
 			if (strcmp(rgb_modes[i].name, d->text[d->selected_text_index]->str) == 0 
 					&& (rgb_modes[i].flags & rgb_mode_mask) == rgb_mode_mask) {
 				rgb_mode_i = i;
-				rgb_brightnes_text->show = rgb_brightnes_slider->show = (rgb_modes[i].flags & BRIGHTNESS) ? 1 : 0;
+				rgb_brightnes_text->show = rgb_brightnes_num_text->show = rgb_brightnes_slider->show = (rgb_modes[i].flags & BRIGHTNESS) ? 1 : 0;
 				if (rgb_brightnes_text->show == 0) rgb_brightnes = 0;
 				else if (rgb_mode_ring_type == 0 || rgb_mode_ring_type == 2) rgb_brightnes = ports[selected_port].rgb.inner_brightnes;
 				else if (rgb_mode_ring_type == 1) rgb_brightnes = ports[selected_port].rgb.outer_brightnes;
-				rgb_speed_text->show = rgb_speed_slider->show = (rgb_modes[i].flags & SPEED) ? 1 : 0;
+				rgb_speed_text->show = rgb_speed_num_text->show = rgb_speed_slider->show = (rgb_modes[i].flags & SPEED) ? 1 : 0;
 				if (rgb_speed_text->show == 0) rgb_speed = 0;
 				else if (rgb_mode_ring_type == 0 || rgb_mode_ring_type == 2) rgb_speed = ports[selected_port].rgb.inner_speed;
 				else if (rgb_mode_ring_type == 1) rgb_speed = ports[selected_port].rgb.outer_speed;
@@ -1031,6 +1041,9 @@ void fan_ring_select(struct drop_down_menu *d, SDL_Event *event)
 		}
 	}
 	change_ddm_text_arr(rgb_mode_ddm, strings_added, newstr, font);
+	rgb_mode_ddm->selected = 1;
+	rgb_mode_ddm_select(rgb_mode_ddm, event);
+	rgb_mode_ddm->selected = 0;
 }
 
 

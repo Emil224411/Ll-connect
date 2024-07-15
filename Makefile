@@ -4,8 +4,8 @@ PREFIX = /usr/local
 # libs
 SDLLIBS = -lSDL2 -lSDL2_ttf
 
-CFLAGS   = -g -std=c99 -pedantic -Wall -O0
-#CFLAGS   = -std=c99 -pedantic -Wall -Wno-deprecated-declarations -Os
+#CFLAGS   = -g -std=c99 -pedantic -Wall -O0
+CFLAGS   = -std=c99 -pedantic -Wall -Wno-deprecated-declarations -Os
 LDFLAGS  = ${SDLLIBS}
 
 # compiler and linker
@@ -29,6 +29,7 @@ clean:
 
 install: all
 	mkdir -p ${DESTDIR}${PREFIX}/bin
+	mkdir -p ${DESTDIR}${PREFIX}/share/fonts/
 	cp -f ./HackNerdFont-Regular.ttf ${DESTDIR}${PREFIX}/share/fonts/
 	cp -f Ll-connect ${DESTDIR}${PREFIX}/bin
 	chmod 755 ${DESTDIR}${PREFIX}/bin/Ll-connect
