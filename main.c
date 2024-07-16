@@ -4,8 +4,6 @@
  | 														|
  | 		1.  if you add a new curve and add some points and then select a diffrent curve the new curve 	|
  |			isnt saved so when you go back to the previous curve its empty 				|
- | 		2.  made a clean install and set some color etc. then closed it and reopen it and for 		|
- |			some reason it saved the wrong colors 							|
  |		3.  finish fan speed control page apply to all button.						|
  | 														|
  |--------------------------------------------------------------------------------------------------------------|
@@ -267,11 +265,22 @@ int init(void)
 	init_fan_page();
 	init_rgb_page();
 	init_settings_page();
+	printf("init stuff done\n");
 
 	port_select_fan_func(select_port_fan_buttons[0], NULL);
 	port_select_rgb_func(select_port_rgb_buttons[0], NULL);
 	fan_ring_select(fan_ring_ddm, NULL);
-	select_ddm_item(rgb_mode_ddm, ports[0].rgb.outer_mode->index);
+	int select_i = 0;
+	for (int i = 0; i < 46; i++) {
+		for (int j = 0; j < rgb_mode_ddm->items; j++) {
+			if (strcmp(rgb_mode_ddm->text[j]->str, ports[0].rgb.inner_mode->name) == 0 && (ports[0].rgb.inner_mode->flags & INNER || ports[0].rgb.inner_mode->flags & INNER_AND_OUTER)) {
+				select_i = j;
+			} else if (strcmp(rgb_mode_ddm->text[j]->str, ports[0].rgb.outer_mode->name) == 0 && ports[0].rgb.outer_mode->flags & OUTER) {
+				select_i = j;
+			} 
+		}
+	}
+	select_ddm_item(rgb_mode_ddm, select_i);
 	rgb_mode_ddm->selected = 1;
 	rgb_mode_ddm_select(rgb_mode_ddm, NULL);
 	rgb_mode_ddm->selected = 0;

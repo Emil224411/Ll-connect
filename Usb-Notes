@@ -69,6 +69,7 @@ apply all:
 	e0 17 01 02
 	e0 16 01 02
 
+UNI HUB uses rbg not rgb
 set rgb mode:
 	e0 10 60 0X(port) 0X(amount of fans) 
 
@@ -183,8 +184,8 @@ color stuff:
 static color:
 60 10 04 01
 
-e0 36(inner) 8  rgb hex values * fancount in this case we have one fan so its 8 rgb values
-e0 37(outer) 12 rgb hex values * fancount in this case we have one fan so its 12 rgb values
+e0 36(inner) 8  rbg hex values * fancount in this case we have one fan so its 8 rbg values
+e0 37(outer) 12 rbg hex values * fancount in this case we have one fan so its 12 rbg values
 
 e0 17 01 02
 e0 16 01 02
@@ -193,5 +194,5 @@ color Cycle:
 
 60 10 04 01
 
-e0 36 16 rgb values
+e0 36 16 rbg values
 

@@ -1053,9 +1053,15 @@ int read_colors(char *path, struct color *colors, int fan_count, int in_or_out)
 		return -1;
 	}
 
-	int led_amount = in_or_out ? 12 : 8;
+	int led_amount = in_or_out == 1 ? 12 : 8;
 	for (int i = 0; i < led_amount * fan_count; i++) {
-		fscanf(f, "%02x%02x%02x", (unsigned int *)&colors[i].r, (unsigned int *)&colors[i].g, (unsigned int *)&colors[i].b);
+		unsigned int r = 0;
+		unsigned int g = 0;
+		unsigned int b = 0;
+		fscanf(f, "%02x%02x%02x", &r, &b, &g);
+		colors[i].r = r;
+                colors[i].g = g;
+                colors[i].b = b;
 	}
 	return 0;
 }
