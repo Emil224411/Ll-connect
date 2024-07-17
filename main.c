@@ -1,10 +1,17 @@
+#define _GNU_SOURCE
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <SDL2/SDL.h>
+
+#include "ui.h"
+#include "controller.h"
+
  /**************************************************************************************************************\
  |					 	   TODO 							|
  |--------------------------------------------------------------------------------------------------------------|
  | 														|
- | 		1.  if you add a new curve and add some points and then select a diffrent curve the new curve 	|
- |			isnt saved so when you go back to the previous curve its empty 				|
- |		3.  finish fan speed control page apply to all button.						|
+ | 		1.  improve ui renderering and mem usage 							|
  | 														|
  |--------------------------------------------------------------------------------------------------------------|
  |														|
@@ -21,14 +28,6 @@
  |			refactor that since i dont feel like it rn and it works so yk 				|
  |														|
  \**************************************************************************************************************/
-#define _GNU_SOURCE
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <SDL2/SDL.h>
-
-#include "ui.h"
-#include "controller.h"
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
@@ -41,12 +40,9 @@ SDL_Color edarkgrey = { 23, 23, 23, 255 };
 int change;
 int selected_port;
 float cpu_temp_num;
-char speeds_str[MAX_TEXT_SIZE];
 int speeds_pro[4] = { 0 };
 int speeds_rpm[4] = { 0 };
-int selected_color_button;
 int other_index;
-struct text *remove_curve_text;
 
 /* functions */
 int init(void);
@@ -124,6 +120,8 @@ struct text *port_text;
 struct text *rpm_text;
 struct text *pro_text;
 struct text *port_nummber[4];
+struct text *curve_ddm_text;
+struct text *remove_curve_text;
 
 struct line *port_box_lines[6];
 
@@ -163,6 +161,7 @@ void change_to_fan_page(struct button *self, SDL_Event *e);
 void update_temp(void);
 float get_fan_speed_from_graph(struct graph *g, float temp);
 void apply_fans_func(struct button *self, SDL_Event *e);
+void apply_all_fans_func(struct button *self, SDL_Event *e);
 void save_curve_bf(struct button *self, SDL_Event *e);
 int filter_cpu_input(struct input *self, char new_text[32]);
 void select_curve_ddm(struct drop_down_menu *self, SDL_Event *e);
@@ -265,7 +264,6 @@ int init(void)
 	init_fan_page();
 	init_rgb_page();
 	init_settings_page();
-	printf("init stuff done\n");
 
 	port_select_fan_func(select_port_fan_buttons[0], NULL);
 	port_select_rgb_func(select_port_rgb_buttons[0], NULL);
@@ -292,6 +290,7 @@ int init(void)
 int init_fan_page(void)
 {
 	fan_speed_page = create_page();
+	strcpy(fan_speed_page->test_name, "fan_speed_page");
 	for (int i = 0; i < 4; i++) load_port(&ports[i]);
 
 	port_bg = create_button(NULL, 0, 1, 425, WINDOW_H - 211, 300, 191, 0, font, NULL, NULL, WHITE, BLACK, WHITE, fan_speed_page);
@@ -321,23 +320,23 @@ int init_fan_page(void)
 		port_box_lines[i + 2] = create_line(port_bg->pos.x, port_nummber[i]->dst.y + port_nummber[i]->dst.h + 2, 
 				port_bg->pos.x + port_bg->pos.w - 2, port_nummber[i]->dst.y + port_nummber[i]->dst.h + 2, WHITE, fan_speed_page);
 	}
+	for (int i = 0; i < 6; i++) port_box_lines[i]->show = 1;
+
 	if (update_speed_str() != 0) {
 		printf("update_speed_str failed");
 		return -1;
 	}
-	//speeds = create_text(speeds_str, 425, 250, 0, 0, 0, 0, WHITE, edarkgrey, font, fan_speed_page);
-
 	cpu_temp = create_text("current cpu temp: 0°", port_bg->pos.x + 5, port_box_lines[5]->start.y + 3, 0, 0, 20, 0, WHITE, font, fan_speed_page);
 	
-	graph_fan_speed_text = create_button("fan speed :", 0, 1, 20, 200, 0, 0, 20, font, NULL, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
-	graph_cpu_temp_text  = create_button("cpu temp :", 0, 1, 20, 205 + graph_fan_speed_text->pos.h, 0, 0, 20, font, NULL, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
+	graph_fan_speed_text = create_button("fan speed:", 0, 1, 10, 200, 0, 0, 20, font, NULL, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
+	graph_cpu_temp_text  = create_button("cpu temp :", 0, 1, 10, 205 + graph_fan_speed_text->pos.h, 0, 0, 20, font, NULL, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
 	graph_cpu_temp_text->pos.w = graph_fan_speed_text->pos.w;
 
-	cpu_temp_input = create_input("0", "cpu", 0, 3, 25 + graph_cpu_temp_text->pos.w, 205 + graph_cpu_temp_text->pos.h, 0, 0, NULL, font, WHITE, edarkgrey, WHITE, fan_speed_page);
+	cpu_temp_input = create_input("0", "cpu", 0, 3, 15 + graph_cpu_temp_text->pos.w, 205 + graph_cpu_temp_text->pos.h, 0, 0, NULL, font, WHITE, edarkgrey, WHITE, fan_speed_page);
 
 	cpu_temp_input->filter = filter_cpu_input;
 
-	fan_speed_input = create_input("0", "fan", 0, 3, 25 + graph_fan_speed_text->pos.w, 200, 0, 0, NULL, font, WHITE, edarkgrey, WHITE, fan_speed_page);
+	fan_speed_input = create_input("0", "fan", 0, 3, 15 + graph_fan_speed_text->pos.w, 200, 0, 0, NULL, font, WHITE, edarkgrey, WHITE, fan_speed_page);
 
 	fan_speed_input->filter = filter_cpu_input;
 
@@ -357,25 +356,28 @@ int init_fan_page(void)
 	select_port_fan_buttons[0]->bg_color = WHITE;
 	render_text_texture(select_port_fan_buttons[0]->text, BLACK, font);
 	apply_fan_curve = create_button("Apply", 0, 1, select_port_fan_buttons[1]->pos.x + select_port_fan_buttons[1]->pos.w + 5, select_port_fan_buttons[1]->pos.y, 0, 0, 0, font, apply_fans_func, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
+	apply_all_fan_curve = create_button("Apply all", 0, 1, select_port_fan_buttons[3]->pos.x + select_port_fan_buttons[3]->pos.w + 5, select_port_fan_buttons[3]->pos.y, 0, 0, 20, font, apply_all_fans_func, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
 
 	char tmp_ddm_str[fan_curve_arr_len][MAX_TEXT_SIZE];
 	for (int i = 0; i < fan_curve_arr_len; i++) {
 		strcpy(tmp_ddm_str[i], fan_curve_arr[i].name);
 	}
-	fan_curve_ddm = create_drop_down_menu(fan_curve_arr_len, tmp_ddm_str, select_port_fan_buttons[3]->pos.x + select_port_fan_buttons[3]->pos.w + 5, 
-			select_port_fan_buttons[3]->pos.y, 0, select_port_fan_buttons[3]->pos.h, 0, 100, select_curve_ddm, font, WHITE, edarkgrey, WHITE, fan_speed_page);
-	save_curve_button = create_button("Save", 0, 1, apply_fan_curve->pos.x + fan_curve_ddm->default_pos.w + 5, fan_curve_ddm->default_pos.y,
+	curve_ddm_text = create_text("select curve:", 10, select_port_fan_buttons[1]->pos.y - select_port_fan_buttons[1]->pos.h - 5, 0, 0, 16, 0, WHITE, font, fan_speed_page);
+	fan_curve_ddm = create_drop_down_menu(fan_curve_arr_len, tmp_ddm_str, curve_ddm_text->dst.x + curve_ddm_text->dst.w + 5, 
+			curve_ddm_text->dst.y, 0, select_port_fan_buttons[1]->pos.h, 0, 100, select_curve_ddm, font, WHITE, edarkgrey, WHITE, fan_speed_page);
+	curve_ddm_text->dst.y += 5;
+	save_curve_button = create_button("Save", 0, 1, fan_curve_ddm->default_pos.x + fan_curve_ddm->default_pos.w + 5, fan_curve_ddm->default_pos.y,
 			0, 0, 20, font, save_curve_bf, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
 
-	fan_curve_graph = create_graph(20, WINDOW_H-220, 100, 100, 4, 2, 10, 10, 10, 10, 0, moving_graph, WHITE, BLACK, BLUE, grey, BLUE, fan_speed_page);
+	fan_curve_graph = create_graph(10, WINDOW_H-220, 100, 100, 4, 2, 10, 10, 10, 10, 0, moving_graph, WHITE, BLACK, BLUE, grey, BLUE, fan_speed_page);
 	change_graph_points(fan_curve_graph, fan_curve_arr[ports[0].curve_i].curve, fan_curve_arr[ports[0].curve_i].used_points);
 	fan_curve_graph->on_click = moving_graph;
 	fan_curve_graph->show = 1;
 	fan_curve_graph->rerender = 1;
 	select_ddm_item(fan_curve_ddm, ports[0].curve_i);
 
-	remove_curve_b = create_button("remove", 0, 1, 20, 160, 0, 0, 20, font, remove_curve_bf, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
-	add_curve_b = create_button("add", 0, 1, 25 + remove_curve_b->pos.w, 160, 0, 0, 20, font, add_curve_bf, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
+	add_curve_b = create_button("add", 0, 1, save_curve_button->pos.x + save_curve_button->pos.w + 5, save_curve_button->pos.y, 0, 0, 20, font, add_curve_bf, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
+	remove_curve_b = create_button("remove", 0, 1, add_curve_b->pos.x + add_curve_b->pos.w + 5, add_curve_b->pos.y, 0, 0, 20, font, remove_curve_bf, NULL, WHITE, edarkgrey, WHITE, fan_speed_page);
 	remove_curve_prompt = create_prompt(WINDOW_W/2-150, WINDOW_H/2-100, 300, 200, edarkgrey, WHITE, font);
 	remove_curve_prompt->on_show = on_remove_prompt_show;
 	add_fan_curve_prompt = create_prompt(WINDOW_W/2-150, WINDOW_H/2-100, 300, 200, edarkgrey, WHITE, font);
@@ -443,6 +445,7 @@ void on_remove_prompt_show(void)
 int init_rgb_page(void)
 {
 	rgb_page = create_page();
+	strcpy(rgb_page->test_name, "rgb_page");
 	rgb_brightnes = ports[0].rgb.inner_brightnes;
 
 	rgb_speed = ports[0].rgb.inner_speed;
@@ -551,6 +554,7 @@ struct text *ports_t[4];
 int init_settings_page(void)
 {
 	settings_page = create_page();
+	strcpy(settings_page->test_name, "settings_page");
 	int total_y = 170, total_x = 40;
 	for (int p = 0; p < 4; p++) {
 		char tmp_str[32];
@@ -574,6 +578,14 @@ int init_settings_page(void)
 	fan_page_button_s->pos.w = setting_page_button_s->pos.w;
 	set_fan_count_setting->dst.y = fan_page_button_s->pos.y + fan_page_button_s->pos.h + 20;
 	return 0;
+}
+
+void apply_all_fans_func(struct button *self, SDL_Event *e)
+{
+	for (int i = 0; i < 4; i++) {
+		ports[i].curve_i = fan_curve_ddm->selected_text_index;
+		set_fan_curve(&ports[i]);
+	}
 }
 
 void update_stuff(void)
@@ -665,7 +677,13 @@ void canncel_remove_prompt(struct button *self, SDL_Event *e)
 void select_curve_ddm(struct drop_down_menu *self, SDL_Event *e)
 {
 	int selected_curve_i = ports[selected_port].curve_i = self->selected_text_index;
+	printf("selected_text_index = %d\n", selected_curve_i);
 	change_graph_points(fan_curve_graph, fan_curve_arr[selected_curve_i].curve, fan_curve_arr[selected_curve_i].used_points);
+	char tmp_str[25];
+	sprintf(tmp_str, "%d", 100-fan_curve_graph->points[0].y);
+	change_input_box_text(fan_speed_input, tmp_str);
+	sprintf(tmp_str, "%d", fan_curve_graph->points[0].x); 
+	change_input_box_text(cpu_temp_input, tmp_str);
 }
 
 void fan_count_button_click(struct button *self, SDL_Event *e)
@@ -792,11 +810,11 @@ void port_select_fan_func(struct button *self, SDL_Event *event)
 			select_ddm_item(fan_curve_ddm, ports[i].curve_i);
 			select_port_fan_buttons[i]->bg_color = WHITE;
 			render_text_texture(select_port_fan_buttons[i]->text, BLACK, font);
-			char tmp_str[4];
-			sprintf(tmp_str, "%d", selected_curve->curve[0].x);
+			char tmp_str[32];
+			sprintf(tmp_str, "%03d", selected_curve->curve[0].x);
 			change_input_box_text(cpu_temp_input, tmp_str);
 			uint8_t tmp_speed = 100 - selected_curve->curve[0].y;
-			sprintf(tmp_str, "%d", tmp_speed);
+			sprintf(tmp_str, "%03d", tmp_speed);
 			change_input_box_text(fan_speed_input, tmp_str);
 		} else {
 			select_port_fan_buttons[i]->bg_color = edarkgrey;
@@ -989,7 +1007,6 @@ void color_buttons_click(struct button *self, SDL_Event *e)
 {
 	for (int i = 0; i < 6; i++){
 		if (color_buttons[i] == self) {
-			selected_color_button = i;
 			color_buttons[i]->bg_color.r = black_white_selector->bg_color.r;
 			color_buttons[i]->bg_color.g = black_white_selector->bg_color.g;
 			color_buttons[i]->bg_color.b = black_white_selector->bg_color.b;
@@ -1267,3 +1284,4 @@ void rgb_color_picker_button(struct button *self, SDL_Event *event)
 	//change_input_box_text(color_input_b, new_text);
 	
 }
+

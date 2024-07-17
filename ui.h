@@ -1,11 +1,22 @@
 #ifndef UI_H
 #define UI_H
 #define _GNU_SOURCE
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
+
+//#define INFO
+
+#ifdef INFO
+#define PRINTINFO_VA(fmt, ...) printf(fmt, __VA_ARGS__)
+#define PRINTINFO(fmt) printf(fmt)
+#else
+#define PRINTINFO_VA(fmt, ...)
+#define PRINTINFO(fmt)
+#endif
 
 #define WINDOW_W 800
 #define WINDOW_H 500
@@ -130,6 +141,7 @@ struct prompt {
 };
 
 struct page {
+	char test_name[32];
 	int show, index;
 	struct text **t_arr;
 	int t_arr_total_len, t_arr_used_len;

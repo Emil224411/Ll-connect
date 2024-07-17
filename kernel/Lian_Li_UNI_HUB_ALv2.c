@@ -549,17 +549,16 @@ static void get_speed_in_rpm(void)
 static void set_speeds(int port_one, int port_two, int port_three, int port_four)
 {
 	int new_speeds[] = { port_one, port_two, port_three, port_four };
-	int datalen = 353;
-	unsigned char *mbuff = kcalloc(datalen, sizeof(*mbuff), GFP_KERNEL);
-	unsigned char data[5][353] =  { { 0xe0, 0x50, }, 
+	unsigned char *mbuff = kcalloc(PACKET_SIZE, sizeof(*mbuff), GFP_KERNEL);
+	unsigned char data[5][PACKET_SIZE] =  { { 0xe0, 0x50, }, 
 					{ 0xe0, 0x20, 0x00, new_speeds[0], }, 
 					{ 0xe0, 0x21, 0x00, new_speeds[1], }, 
 					{ 0xe0, 0x22, 0x00, new_speeds[2], }, 
 					{ 0xe0, 0x23, 0x00, new_speeds[3], } };
 	for (int i = 0; i < 5; i++) {
-		memcpy(mbuff, data[i], 353);
-		int ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0), 0x09, 0x21, 0x02e0, 1, mbuff, datalen, 100);
-		if (ret != datalen) {
+		memcpy(mbuff, data[i], PACKET_SIZE);
+		int ret = usb_control_msg(dev, usb_sndctrlpipe(dev, 0), 0x09, 0x21, 0x02e0, 1, mbuff, PACKET_SIZE, 100);
+		if (ret != PACKET_SIZE) {
 			printk(KERN_ERR "Lian li ALv2 hub: failed to send usb_control_msg with data[%d] error %d", i, ret);
 		} else if (i >= 1) {
 			ports[i-1].fan_speed = new_speeds[i-1];
@@ -573,7 +572,7 @@ static void set_speed(int port, int new_speed)
 {
 	unsigned char (*buffer)[PACKET_SIZE] = kcalloc(PACKET_SIZE * 2, sizeof(unsigned char), GFP_KERNEL);
 	
-	unsigned char data[2][353] =  { { 0xe0, 0x50, }, 
+	unsigned char data[2][PACKET_SIZE] =  { { 0xe0, 0x50, }, 
 					{ 0xe0, 0x20 +  (port - 1), 0x00, new_speed, }, };
 	
 	for (int i = 0; i < 2; i++) {

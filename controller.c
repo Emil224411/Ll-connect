@@ -385,7 +385,7 @@ int load_port(struct port *p)
 	p->fan_count = get_fan_count_from_conf(p);
 	if (p->fan_count == -1) {
 		if (errno == ENOENT) {
-			printf("load_port: fan_count file does not exist setting fan_count to 6 and saving\n");
+			PRINTINFO("load_port: fan_count file does not exist setting fan_count to 6 and saving\n");
 			p->fan_count = 6;
 			save_fan_count(p);
 		} else {
@@ -395,7 +395,7 @@ int load_port(struct port *p)
 	p->curve_i = get_port_curve_from_conf(p);
 	if (p->curve_i == -1) {
 		if (errno == ENOENT) {
-			printf("load_port: fan_curve file does not exist creating file now and setting curve to default\n");
+			PRINTINFO("load_port: fan_curve file does not exist creating file now and setting curve to default\n");
 			p->curve_i = 0;
 			save_port_curve(p);
 		} else {
@@ -406,7 +406,7 @@ int load_port(struct port *p)
 
 	if (get_rgb_from_conf(p, 0) != 0) {
 		if (errno == ENOENT) {
-			printf("load_port: inner_rgb file does not exist create file now and setting rgb to default\n");
+			PRINTINFO("load_port: inner_rgb file does not exist create file now and setting rgb to default\n");
 			p->rgb.inner_brightnes = 0, p->rgb.inner_direction = 0, p->rgb.inner_mode = &rgb_modes[0], p->rgb.inner_speed = 0;
 			save_rgb(p, 0);
 		} else {
@@ -420,7 +420,7 @@ int load_port(struct port *p)
 	strcat(path, "/inner_colors");
 	if (read_colors(path, p->rgb.inner_color, p->fan_count, 0) == -1) {
 		if (errno == ENOENT) {
-			printf("load_port: inner_colors file does not exist create file now and setting color to default\n");
+			PRINTINFO("load_port: inner_colors file does not exist create file now and setting color to default\n");
 			strcpy(path, home_path);
 			strcat(path, p->config_path); 
 			for (int i = 0; i < 48; i++) {
@@ -437,7 +437,7 @@ int load_port(struct port *p)
 
 	if (get_rgb_from_conf(p, 1) != 0) {
 		if (errno == ENOENT) {
-			printf("load_port: inner_rgb file does not exist create file now and setting rgb to default\n");
+			PRINTINFO("load_port: inner_rgb file does not exist create file now and setting rgb to default\n");
 			p->rgb.outer_brightnes = 0, p->rgb.outer_direction = 0, p->rgb.outer_mode = &rgb_modes[0], p->rgb.outer_speed = 0;
 			save_rgb(p, 1);
 		} else {
@@ -451,7 +451,7 @@ int load_port(struct port *p)
 	strcat(path, "/outer_colors");
 	if (read_colors(path, p->rgb.outer_color, p->fan_count, 1) == -1) {
 		if (errno == ENOENT) {
-			printf("load_port: outer_colors file does not exist create file now and setting color to default\n");
+			PRINTINFO("load_port: outer_colors file does not exist create file now and setting color to default\n");
 			strcpy(path, home_path);
 			strcat(path, p->config_path); 
 			for (int i = 0; i < 72; i++) {
@@ -496,7 +496,7 @@ int save_port(struct port *p)
 
 	f = fopen(path, "w");
 	fprintf(f, "%d %d %d %d", p->rgb.inner_mode->index, p->rgb.inner_speed, p->rgb.inner_brightnes, p->rgb.inner_direction);
-	printf("save_port: saved p->rgb inner %d %d %d etc.\n", p->rgb.inner_speed, p->rgb.inner_direction, p->rgb.inner_brightnes);
+	PRINTINFO_VA("save_port: saved p->rgb inner %d %d %d etc.\n", p->rgb.inner_speed, p->rgb.inner_direction, p->rgb.inner_brightnes);
 
 	fclose(f);
 	strcpy(path, home_path);
@@ -510,14 +510,14 @@ int save_port(struct port *p)
 
 	f = fopen(path, "w");
 	fprintf(f, "%d %d %d %d", p->rgb.outer_mode->index, p->rgb.outer_speed, p->rgb.outer_brightnes, p->rgb.outer_direction);
-	printf("save_port: saved p->rgb outer %d %d %d etc.\n", p->rgb.inner_speed, p->rgb.inner_direction, p->rgb.inner_brightnes);
+	PRINTINFO_VA("save_port: saved p->rgb outer %d %d %d etc.\n", p->rgb.inner_speed, p->rgb.inner_direction, p->rgb.inner_brightnes);
 
 	fclose(f);
 	strcpy(path, home_path);
 	strcat(path, p->config_path); 
 	
 	write_outer_colors(path, p->rgb.outer_color, p->fan_count, 1, 0);
-	printf("save_port: saved p->rgb.outer_color\n");
+	PRINTINFO("save_port: saved p->rgb.outer_color\n");
 
 	return 0;
 }
@@ -558,7 +558,7 @@ int load_curve(struct point **p, char *name, int name_len, int *points_used, int
 	char new_path[100];
 	strcpy(new_path, home_path);
 	strcat(new_path, path);
-	//printf("load_curve:\np = %p, *p = %p, points_used = %d, points_total = %d\npath = %s, new_path = %s\n", (void *)p, (void *)*p, *points_used, *points_total, path, new_path);
+	PRINTINFO_VA("load_curve:\np = %p, *p = %p, points_used = %d, points_total = %d\npath = %s, new_path = %s\n", (void *)p, (void *)*p, *points_used, *points_total, path, new_path);
 	FILE *f = fopen(new_path, "r");
 	if (f == NULL) {
 		printf("load_curve: failed to open file at path %s, ", new_path);
@@ -694,7 +694,7 @@ int set_fan_curve(struct port *p)
 		printf("set_fan_curve: failed to open file at path %s\n", new_path);
 		return -1;
 	}
-	printf("set_fan_curve: open file at path %s\n", new_path);
+	PRINTINFO_VA("set_fan_curve: open file at path %s\n", new_path);
 
 	char tmp_str[100];
 	int str_i = 0;
@@ -753,7 +753,7 @@ int set_mb_sync(int state)
 
 int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_colors, int do_check)
 {
-	printf("set_inner_rgb\n");
+	PRINTINFO("set_inner_rgb\n");
 	char path[MAX_TEXT_SIZE];
 	float bright;
 /*
@@ -830,7 +830,7 @@ int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 /* TODO better remove do_check since its just a tmp fix */
 int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_colors, int do_check)
 {
-	printf("set_outer_rgb:\n");
+	PRINTINFO("set_outer_rgb:\n");
 	char path[MAX_TEXT_SIZE];
 	float bright;
 	switch (brightnes) {
@@ -907,7 +907,7 @@ int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, in
 int set_inner_and_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_outer_colors, struct color *new_inner_colors)
 {
 
-	printf("set_inner_and_outer_rgb\n");
+	PRINTINFO("set_inner_and_outer_rgb\n");
 	float bright;
 	switch (brightnes) {
 		case 0x00:

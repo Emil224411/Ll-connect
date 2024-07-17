@@ -3,10 +3,11 @@ PREFIX = /usr/local
 
 # libs
 SDLLIBS = -lSDL2 -lSDL2_ttf
+LIBS = ${SDLLIBS}
 
-#CFLAGS   = -g -std=c99 -pedantic -Wall -O0
-CFLAGS   = -std=c99 -pedantic -Wall -Wno-deprecated-declarations -Os
-LDFLAGS  = ${SDLLIBS}
+CFLAGS   = -g -std=c99 -pedantic -Wall -O0
+#CFLAGS   = -std=c99 -pedantic -Wall -Wno-deprecated-declarations -Os
+LDFLAGS  = ${LIBS}
 
 # compiler and linker
 CC = gcc

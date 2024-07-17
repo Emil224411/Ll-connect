@@ -42,7 +42,7 @@ static struct callback *next_cb;
 
 struct callback *create_callback(void (*function)(void), double time)
 {
-	printf("create_callback\n");
+	PRINTINFO("create_callback\n");
 	if (callback_amount + 1 > callback_total) {
 		struct callback *tmp = realloc(callback_arr, sizeof(struct callback) * (callback_total + 5));
 		if (tmp == NULL) {
@@ -721,32 +721,34 @@ struct page *create_page(void)
 
 void destroy_page(struct page *page)
 {
+	/*
 	struct input **tmp_iarr = page->i_arr;
 	struct button **tmp_barr = page->b_arr;
 	struct drop_down_menu **tmp_darr = page->d_arr;
 	struct slider **tmp_sarr = page->s_arr;
 	struct text **tmp_tarr = page->t_arr;
 	struct graph **tmp_garr = page->g_arr;
+	*/
 	for (int i = 0; i < page->img_arr_used_len; i++) {
 		destroy_image(page->img_arr[page->img_arr_used_len-1]);
 	}
 	while (page->i_arr_used_len > 0) {
-		destroy_input_box(tmp_iarr[page->i_arr_used_len-1]);
+		destroy_input_box(page->i_arr[page->i_arr_used_len-1]);
 	}
 	while (page->b_arr_used_len > 0) {
-		destroy_button(tmp_barr[page->b_arr_used_len-1]);
+		destroy_button(page->b_arr[page->b_arr_used_len-1]);
 	}
 	while (page->d_arr_used_len > 0) {
-		destroy_ddm(tmp_darr[page->d_arr_used_len-1]);
+		destroy_ddm(page->d_arr[page->d_arr_used_len-1]);
 	}
 	while (page->s_arr_used_len > 0) {
-		destroy_slider(tmp_sarr[page->s_arr_used_len-1]);
+		destroy_slider(page->s_arr[page->s_arr_used_len-1]);
 	}
 	while (page->t_arr_used_len > 0) {
-		destroy_text(tmp_tarr[page->t_arr_used_len-1]);
+		destroy_text(page->t_arr[page->t_arr_used_len-1]);
 	}
 	while (page->g_arr_used_len > 0) {
-		destroy_graph(tmp_garr[page->g_arr_used_len-1]);
+		destroy_graph(page->g_arr[page->g_arr_used_len-1]);
 	}
 	while (page->line_arr_used_len > 0) {
 		destroy_line(page->line_arr[page->line_arr_used_len-1]);
@@ -850,9 +852,13 @@ struct text *create_text(char *string, int x, int y, int w, int h, int font_size
 
 void destroy_text(struct text *text)
 {
+	//printf("destroy text start\ntext->str = %s\ntext->parent_p = %p\n", text->str, (void *)text->parent_p);
 	if (text == NULL) return;
+	//strcpy(text->str, "good");
 	destroy_text_texture(text);
+	//printf("destroy text %s\n", text->str);
 	if (text->parent_p != NULL) {
+		//printf("change_parent arr\n");
 		for (int i = text->index; i < text->parent_p->t_arr_used_len-1; i++) {
 			text->parent_p->t_arr[i] = text->parent_p->t_arr[i+1];
 			text->parent_p->t_arr[i]->index = i;
@@ -860,7 +866,9 @@ void destroy_text(struct text *text)
 		text->parent_p->t_arr[text->parent_p->t_arr_used_len] = NULL;
 		text->parent_p->t_arr_used_len -= 1;
 	}
+	//printf("free text start, text->str = %s, text %p\n", text->str, (void *)text);
 	free(text);
+	//printf("free text done, errno = %d\n", errno);
 }
 
 void destroy_text_texture(struct text *text)
@@ -943,20 +951,20 @@ struct button *create_button(char *string, int movable, int show, int x, int y, 
 
 void destroy_button(struct button *button)
 {
-#ifdef INFO
-	printf("destroying button:\nindex = %d, str = %s\nparent = %p\n", button->index,  button->text->str, (void *)button->parent_p);
-#endif
+	PRINTINFO_VA("destroying button:\nindex = %d, str = %s\nparrent addr = %p\n", button->index,  button->text->str, (void *)button->parent_p);
 	if (button->text != NULL) destroy_text(button->text);
+	PRINTINFO("destroy text done\n");
 
 	if (button->parent_p != NULL) {
 		for (int i = button->index; i < button->parent_p->b_arr_used_len-1; i++) {
 			button->parent_p->b_arr[i] = button->parent_p->b_arr[i+1];
 			button->parent_p->b_arr[i]->index = i;
 		}
-		button->parent_p->b_arr[button->parent_p->b_arr_used_len] = NULL;
 		button->parent_p->b_arr_used_len -= 1;
 	}
+	PRINTINFO_VA("start free, button at %p, index = %d\n", (void *)button, button->index);
 	free(button);
+	PRINTINFO("done free\n");
 }
 void render_button(struct button *button)
 {
@@ -1057,7 +1065,6 @@ void change_input_box_text(struct input *input_box, char *str)
 		input_box->text->show = 1;
 		input_box->default_text->show = 0;
 	} else {
-		printf("show default text\n");
 		input_box->default_text->dst.x = input_box->text->dst.x;
 		input_box->default_text->dst.y = input_box->text->dst.y;
 		render_text_texture(input_box->default_text, input_box->default_text->fg_color, font);
@@ -1152,9 +1159,9 @@ struct drop_down_menu *create_drop_down_menu(int items, char item_str[][MAX_TEXT
 	if (!ddm.static_h) ddm.used_pos.h = ddm.default_pos.h = ddm.text[0]->dst.h + 4;
 	if (dpos.h == 0) ddm.drop_pos.h = ddm.text[0]->dst.h + 4;
 
-	//printf("create dmm\nddm.default_pos = { %d, %d, %d, %d }, ddm.used_pos = { %d, %d, %d, %d }, ddm.drop_pos = { %d, %d, %d, %d }\n", 
-	//		ddm.default_pos.x, ddm.default_pos.y, ddm.default_pos.w, ddm.default_pos.h, ddm.used_pos.x, ddm.used_pos.y, ddm.used_pos.w, ddm.used_pos.h,
-	//		ddm.drop_pos.x, ddm.drop_pos.y, ddm.drop_pos.w, ddm.drop_pos.h);
+	PRINTINFO_VA("create dmm\nddm.default_pos = { %d, %d, %d, %d }, ddm.used_pos = { %d, %d, %d, %d }, ddm.drop_pos = { %d, %d, %d, %d }\n", 
+			ddm.default_pos.x, ddm.default_pos.y, ddm.default_pos.w, ddm.default_pos.h, ddm.used_pos.x, ddm.used_pos.y, ddm.used_pos.w, ddm.used_pos.h,
+			ddm.drop_pos.x, ddm.drop_pos.y, ddm.drop_pos.w, ddm.drop_pos.h);
 
 	memcpy(ddm_heap, &ddm, sizeof(struct drop_down_menu));
 	if (p != NULL) {
@@ -1193,10 +1200,10 @@ void change_ddm_text_arr(struct drop_down_menu *ddm, int items, char newstr[][MA
 	ddm->selected_text_index = 0;
 	ddm->scroll_offset = 0;
 	ddm->text[0]->show = 1;
-	/*printf("create dmm\nddm.default_pos = { %d, %d, %d, %d }, ddm.used_pos = { %d, %d, %d, %d }, ddm.drop_pos = { %d, %d, %d, %d }\n", 
+	PRINTINFO_VA("create dmm\nddm.default_pos = { %d, %d, %d, %d }, ddm.used_pos = { %d, %d, %d, %d }, ddm.drop_pos = { %d, %d, %d, %d }\n", 
 			ddm->default_pos.x, ddm->default_pos.y, ddm->default_pos.w, ddm->default_pos.h, ddm->used_pos.x, ddm->used_pos.y, ddm->used_pos.w, ddm->used_pos.h,
 			ddm->drop_pos.x, ddm->drop_pos.y, ddm->drop_pos.w, ddm->drop_pos.h);
-			*/
+			
 }
 
 void destroy_ddm(struct drop_down_menu *ddm) 
@@ -1527,6 +1534,7 @@ void render_graph(struct graph *graph)
 
 int copy_points(struct point *points, int *total_size, int *size, struct point *new_points, int new_size)
 {
+	PRINTINFO("copy_points\n");
 	if (*total_size < new_size) {
 		struct point *tmp = realloc(points, sizeof(struct point) * new_size);
 		if (tmp == NULL) {
@@ -1737,7 +1745,7 @@ void add_text_to_prompt(struct prompt *p, struct text *t)
 void destroy_prompt(struct prompt *p)
 {
 	if (p == NULL) return;
-	printf("destroy_prompt:\n");
+	PRINTINFO("destroy_prompt:\n");
 	while (p->button_arr_used > 0) {
 		p->button_arr_used -= 1;
 		destroy_button(p->button_arr[p->button_arr_used]);
