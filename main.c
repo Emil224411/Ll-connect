@@ -11,7 +11,9 @@
  |					 	   TODO 							|
  |--------------------------------------------------------------------------------------------------------------|
  | 														|
- | 		1.  improve ui renderering and mem usage 							|
+ | 		1.  implement switching the order of ports 							|
+ | 		2.  implement on hover, on click and on release for buttons 					|
+ | 		3.  improve ui renderering and mem usage 							|
  | 														|
  |--------------------------------------------------------------------------------------------------------------|
  |														|
