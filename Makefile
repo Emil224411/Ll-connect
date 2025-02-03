@@ -18,7 +18,7 @@ OBJ = ${SRC:.c=.o}
 all: Ll-connect
 
 .c.o:
-	${CC} -c ${CFLAGS} $<
+	${CC} -c ${CFLAGS} ${LIBS} $<
 
 ${OBJ}: controller.h ui.h
 
