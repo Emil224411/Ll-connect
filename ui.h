@@ -12,10 +12,10 @@
 
 #ifdef INFO
 #define PRINTINFO_VA(fmt, ...) printf(fmt, __VA_ARGS__)
-#define PRINTINFO(fmt) printf(fmt)
+#define PRINTINFO(str) printf(str)
 #else
 #define PRINTINFO_VA(fmt, ...)
-#define PRINTINFO(fmt)
+#define PRINTINFO(str)
 #endif
 
 #define WINDOW_W 800
@@ -26,6 +26,12 @@
 #define SDL_COLOR_ARG(C) C.r, C.g, C.b, C.a
 #define CHECK_RECT(r1, r2) r1.x < r2.x + r2.w && r1.x > r2.x && r1.y < r2.y + r2.h && r1.y > r2.y
 
+typedef SDL_Color color;
+typedef SDL_Texture texture_s;
+typedef SDL_Surface surface_s;
+typedef SDL_Rect rect_s;
+typedef SDL_Event Event;
+
 struct callback {
 	void (*function)(void);
 	unsigned int a, b;
@@ -35,9 +41,9 @@ struct callback {
 };
 
 struct image {
-	SDL_Texture *texture;
-	SDL_Surface *surface;
-	SDL_Rect pos;
+	texture_s *texture;
+	surface_s *surface;
+	rect_s pos;
 	int index, show;
 	struct page *parent_p;
 };
@@ -49,33 +55,34 @@ struct point {
 struct text {
 	char str[MAX_TEXT_SIZE];
 	int show, static_w, static_h, font_size, wrap_length;
-	SDL_Color fg_color;
-	SDL_Rect src, dst;
-	SDL_Texture *texture;
+	color fg_color;
+	rect_s src, dst;
+	texture_s *texture;
 	int index; /* private */
 	struct page *parent_p;
 };
 
 struct button {
 	struct text *text;
-	SDL_Texture **texture;
-	void (*on_click) (struct button *self, SDL_Event *event);
-	void (*on_move) (struct button *self, SDL_Event *event);
-	int clickable, movable, show;
+	texture_s **texture;
+	void (*on_click) (struct button *self, Event *event);
+	void (*on_move) (struct button *self, Event *event);
+	void (*on_hover) (struct button *self, Event *event);
+	int clickable, movable, hoverable, hovering, show;
 	int index; /* private */
-	SDL_Rect pos;
-	SDL_Color outer_color, bg_color;
+	rect_s pos;
+	color outer_color, bg_color;
 	struct page *parent_p;
 };
 
 struct slider {
 	struct button *button;
-	SDL_Rect pos;
+	rect_s pos;
 	float p;
 	int show;
 	int index; /* private */
-	SDL_Color bar_color;
-	void (*on_move)(struct slider *self, SDL_Event *event);
+	color bar_color;
+	void (*on_move)(struct slider *self, Event *event);
 	struct page *parent_p;
 };
 
@@ -83,11 +90,11 @@ struct input {
 	int index, selected, max_len, show;
 	struct text *text, *default_text;
 	int resize_box;
-	void (*on_type)(struct input *self, SDL_Event *event);
+	void (*on_type)(struct input *self, Event *event);
 	int (*filter)(struct input *self, char new_text[32]);
-	SDL_Rect default_pos, pos;
-	SDL_Color outer_color, bg_color;
-	SDL_Rect char_size;
+	rect_s default_pos, pos;
+	color outer_color, bg_color;
+	rect_s char_size;
 	struct page *parent_p;
 };
 
@@ -96,16 +103,16 @@ struct drop_down_menu {
 	int index, static_w, static_h; /* private */
 	int items;
 	struct text **text;
-	void (*function)(struct drop_down_menu *self, SDL_Event *event);
+	void (*function)(struct drop_down_menu *self, Event *event);
 	int scroll_offset;
-	SDL_Rect default_pos, used_pos, drop_pos, highlight_pos;
-	SDL_Color outer_color, bg_color;
+	rect_s default_pos, used_pos, drop_pos, highlight_pos;
+	color outer_color, bg_color;
 	struct page *parent_p;
 };
 
 struct graph {
-	SDL_Rect real_pos, scaled_pos;
-	SDL_Rect points_size, points_selected_size;
+	rect_s real_pos, scaled_pos;
+	rect_s points_size, points_selected_size;
 	int scale_w, scale_h;
 	int selected, selected_point_index;
 	struct point *selected_point;
@@ -113,21 +120,21 @@ struct graph {
 	int point_amount, total_points;
 	struct point *points;
 	struct point x;
-	void (*on_move)(struct graph *self, SDL_Event *e);
-	void (*on_click)(struct graph *self, SDL_Event *e);
-	SDL_Color outer_color, bg_color, fg_color, point_colors, selected_point_color;
+	void (*on_move)(struct graph *self, Event *e);
+	void (*on_click)(struct graph *self, Event *e);
+	color  outer_color, bg_color, fg_color, point_colors, selected_point_color;
 	struct page *parent_p;
 };
 
 struct line {
-	SDL_Color color;
+	color  color;
 	int show, index;
 	struct point start, too;
 	struct page *parent_p;
 };
 
 struct prompt {
-	SDL_Rect pos;
+	rect_s pos;
 	int show, index;
 	void (*on_show)(void);
 	struct text **text_arr;
@@ -136,7 +143,7 @@ struct prompt {
 	int input_arr_total, input_arr_used;
 	struct button **button_arr, *selected_button;
 	int button_arr_total, button_arr_used;
-	SDL_Color bg_color, outer_color;
+	color  bg_color, outer_color;
 	TTF_Font *font;
 };
 
@@ -162,11 +169,11 @@ struct page {
 };
 
 /* global variables */
-extern SDL_Color BLACK;
-extern SDL_Color WHITE;
-extern SDL_Color RED;
-extern SDL_Color GREEN;
-extern SDL_Color BLUE;
+extern color BLACK;
+extern color WHITE;
+extern color RED;
+extern color GREEN;
+extern color BLUE;
 
 extern struct page *showen_page;
 extern struct prompt *showen_prompt;
@@ -178,12 +185,16 @@ extern SDL_Window   *window;
 extern SDL_Renderer *renderer;
 
 /* functions */
+Uint32 get_ticks(void);
+void destroy_texture_s(texture_s *t);
+surface_s *create_RGB_surface(Uint32 flags, int width, int height, int depth, Uint32 Rmask, Uint32 Gmask, Uint32 Bmask, Uint32 Amask);
+void delay(Uint32 ms);
 int  ui_init(void);
 void ui_shutdown(void);
-void check_events_and_callbacks(SDL_Event *event);
-void handle_event(SDL_Event *event);
+void check_events_and_callbacks(Event *event);
+void handle_event(Event *event);
 void show_screen(void);
-void clear_screen(SDL_Color color);
+void clear_screen(color  color);
 int get_default_fontpath(void);
 
 /* callback functions */
@@ -197,7 +208,7 @@ void check_callbacks(void);
 void add_callback_to_que(struct callback *cb);
 
 /* prompt functions */
-struct prompt *create_prompt(int x, int y, int w, int h, SDL_Color bg_color, SDL_Color outer_color, TTF_Font *f);
+struct prompt *create_prompt(int x, int y, int w, int h, color  bg_color, color  outer_color, TTF_Font *f);
 void destroy_prompt(struct prompt *p);
 void render_prompt(struct prompt *p);
 void show_prompt(struct prompt *p);
@@ -209,7 +220,7 @@ void add_text_to_prompt(struct prompt *p, struct text *t);
 struct image *create_image(int x, int y, int w, int h, int sur_w, int sur_h, int sur_depth, struct page *p);
 void destroy_image(struct image *img);
 void show_image(struct image *img);
-SDL_Texture *create_texture_from_surface(SDL_Surface *sur);
+texture_s *create_texture_from_surface(surface_s *sur);
 
 /* page functions */
 struct page *create_page(void);
@@ -218,32 +229,32 @@ void show_page(struct page *page);
 void render_showen_page(void);
 
 /* text functions */
-struct text *create_text(char *string, int x, int y, int w, int h, int font_size, int wrap_length, SDL_Color fg_color, TTF_Font *f, struct page *p);
+struct text *create_text(char *string, int x, int y, int w, int h, int font_size, int wrap_length, color  fg_color, TTF_Font *f, struct page *p);
 void destroy_text_texture(struct text *text);
 void destroy_text(struct text *text);
-void render_text(struct text *t, SDL_Rect *src);
-int render_text_texture(struct text *t, SDL_Color fg_color, TTF_Font *f);
-void change_text_and_render_texture(struct text *text, char *new_text, SDL_Color fg_color, TTF_Font *f);
+void render_text(struct text *t, rect_s *src);
+int render_text_texture(struct text *t, color  fg_color, TTF_Font *f);
+void change_text_and_render_texture(struct text *text, char *new_text, color  fg_color, TTF_Font *f);
 
 /* button functions */
-struct button *create_button(char *string, int movable, int show, int x, int y, int w, int h, int font_size, TTF_Font *f, void (*on_click)(struct button *s, SDL_Event *e), void (*on_move)(struct button *b, SDL_Event *e), SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color, struct page *p);
+struct button *create_button(char *string, int movable, int show, int x, int y, int w, int h, int font_size, TTF_Font *f, void (*on_click)(struct button *s, Event *e), void (*on_move)(struct button *b, Event *e), color  outer_color, color  bg_color, color  text_color, struct page *p);
 void destroy_button(struct button *button);
 void render_button(struct button *button);
 
 /* slider functions */
-struct slider *create_slider(int show, int x, int y, int w, int h, int button_size, void (*on_relase)(struct button *s, SDL_Event *e), void (*on_move)(struct slider *s, SDL_Event *e), SDL_Color button_fg_color, SDL_Color button_bg_color, SDL_Color bar_color, struct page *p);
+struct slider *create_slider(int show, int x, int y, int w, int h, int button_size, void (*on_relase)(struct button *s, Event *e), void (*on_move)(struct slider *s, Event *e), color  button_fg_color, color  button_bg_color, color  bar_color, struct page *p);
 void render_slider(struct slider *slider);
 void update_slider(struct slider *slider, int x);
 void destroy_slider(struct slider *slider);
 
 /* input functions */
-struct input *create_input(char *text, char *def_text, int resize_box, int max_len, int x, int y, int w, int h, void (*function)(struct input *self, SDL_Event *event), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color, struct page *p);
+struct input *create_input(char *text, char *def_text, int resize_box, int max_len, int x, int y, int w, int h, void (*function)(struct input *self, Event *event), TTF_Font *f, color  outer_color, color  bg_color, color  text_color, struct page *p);
 void destroy_input_box(struct input *input_box);
 void change_input_box_text(struct input *input_box, char *str);
 void render_input_box(struct input *input_box);
 
 /* drop down menu functions */
-struct drop_down_menu *create_drop_down_menu(int items, char item_str[][MAX_TEXT_SIZE], int x, int y, int w, int h, int dw, int dh, void (*function)(struct drop_down_menu *s, SDL_Event *e), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color tc, struct page *p);
+struct drop_down_menu *create_drop_down_menu(int items, char item_str[][MAX_TEXT_SIZE], int x, int y, int w, int h, int dw, int dh, void (*function)(struct drop_down_menu *s, Event *e), TTF_Font *f, color  outer_color, color  bg_color, color  tc, struct page *p);
 void destroy_ddm(struct drop_down_menu *ddm);
 void remove_item_ddm(struct drop_down_menu *ddm, int item);
 void add_item_ddm(struct drop_down_menu *ddm, char *newstr, TTF_Font *f);
@@ -253,7 +264,7 @@ void change_ddm_text_arr(struct drop_down_menu *ddm, int items, char newstr[][MA
 void update_ddm_highlight(int x, int y, struct drop_down_menu *ddm);
 
 /* graph functions */
-struct graph *create_graph(int x, int y, int w, int h, int scalew, int scaleh, int pw, int ph, int spw, int sph, int pamount, void (*on_move)(struct graph *self, SDL_Event *e), SDL_Color oc, SDL_Color bgc, SDL_Color fgc, SDL_Color pointc, SDL_Color spc, struct page *p);
+struct graph *create_graph(int x, int y, int w, int h, int scalew, int scaleh, int pw, int ph, int spw, int sph, int pamount, void (*on_move)(struct graph *self, Event *e), color  oc, color  bgc, color  fgc, color  pointc, color  spc, struct page *p);
 void destroy_graph(struct graph *graph);
 void render_graph(struct graph *graph);
 void change_graph_point(struct graph *graph);
@@ -261,7 +272,7 @@ int change_graph_points(struct graph *g, struct point *new_points, int new_size)
 int copy_points(struct point *points, int *total_size, int *size, struct point *new_points, int new_size);
 
 /* line functions */
-struct line *create_line(int x1, int y1, int x2, int y2, SDL_Color color, struct page *p);
+struct line *create_line(int x1, int y1, int x2, int y2, color  color, struct page *p);
 void destroy_line(struct line *line);
 void render_line(struct line *line);
 

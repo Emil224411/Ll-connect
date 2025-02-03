@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <SDL2/SDL.h>
 
 #include "ui.h"
 #include "controller.h"
@@ -13,7 +12,6 @@
  | 														|
  | 		1.  implement switching the order of ports 							|
  | 		2.  implement on hover, on click and on release for buttons 					|
- | 		3.  improve ui renderering and mem usage 							|
  | 														|
  |--------------------------------------------------------------------------------------------------------------|
  |														|
@@ -35,9 +33,9 @@
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 
 /* global varibles */
-SDL_Color grey = { 209, 209, 209, SDL_ALPHA_OPAQUE };
-SDL_Color darkgrey = { 84, 84, 84, SDL_ALPHA_OPAQUE };
-SDL_Color edarkgrey = { 23, 23, 23, 255 };
+color grey = { 209, 209, 209, 255 };
+color darkgrey = { 84, 84, 84, 255 };
+color edarkgrey = { 23, 23, 23, 255 };
 
 int change;
 int selected_port;
@@ -89,26 +87,27 @@ struct slider *rgb_brightnes_slider;
 struct slider *rgb_speed_slider;
 
 /* rgb functions */
+void test_hover(struct button *self, Event *e);
 int init_rgb_page(void);
-void port_select_fan_func(struct button *self, SDL_Event *event);
+void port_select_fan_func(struct button *self, Event *event);
 inline void create_rgb_color_picker_surface(void);
-inline SDL_Surface *create_white_black_picker(Uint8 red, Uint8 green, Uint8 blue);
-void rgb_speed_slider_move(struct slider *self, SDL_Event *event);
-void rgb_brightnes_slider_move(struct slider *self, SDL_Event *event);
-void toggle_merge_button(struct button *self, SDL_Event *event);
-void slider_on_release(struct button *self, SDL_Event *e);
-void direction_select(struct button *self, SDL_Event *e);
-void change_white_black_picker(SDL_Surface *surface, Uint8 red, Uint8 green, Uint8 blue);
-void rgb_color_picker_button(struct button *self, SDL_Event *event);
-void rgb_saturation_picker_button(struct button *self, SDL_Event *event);
-void rgb_mode_ddm_select(struct drop_down_menu *d, SDL_Event *event);
-void fan_ring_select(struct drop_down_menu *d, SDL_Event *event);
-void color_buttons_click(struct button *self, SDL_Event *e);
+inline surface_s *create_white_black_picker(Uint8 red, Uint8 green, Uint8 blue);
+void rgb_speed_slider_move(struct slider *self, Event *event);
+void rgb_brightnes_slider_move(struct slider *self, Event *event);
+void toggle_merge_button(struct button *self, Event *event);
+void slider_on_release(struct button *self, Event *e);
+void direction_select(struct button *self, Event *e);
+void change_white_black_picker(surface_s *surface, Uint8 red, Uint8 green, Uint8 blue);
+void rgb_color_picker_button(struct button *self, Event *event);
+void rgb_saturation_picker_button(struct button *self, Event *event);
+void rgb_mode_ddm_select(struct drop_down_menu *d, Event *event);
+void fan_ring_select(struct drop_down_menu *d, Event *event);
+void color_buttons_click(struct button *self, Event *e);
 void create_color_buttons(void);
-void change_colors_to_color_buttons(const struct rgb_mode *new_mode, int led_amount, struct color *colors_to_change);
-void change_color_buttons_to_colors(const struct rgb_mode *new_mode, int led_amount, struct color *colors_to_change);
-void apply(struct button *self, SDL_Event *e);
-void port_select_rgb_func(struct button *self, SDL_Event *event);
+void change_colors_to_color_buttons(const struct rgb_mode *new_mode, int led_amount, struct color_c *colors_to_change);
+void change_color_buttons_to_colors(const struct rgb_mode *new_mode, int led_amount, struct color_c *colors_to_change);
+void apply(struct button *self, Event *e);
+void port_select_rgb_func(struct button *self, Event *event);
 
 /* end rgb page def */
 
@@ -156,23 +155,23 @@ struct callback *speed_temp_update_cb;
 /* fan functions */
 int init_fan_page(void);
 int destroy_fan_page(void);
-void change_to_rgb_page(struct button *self, SDL_Event *e);
-void moving_graph(struct graph *self, SDL_Event *e);
+void change_to_rgb_page(struct button *self, Event *e);
+void moving_graph(struct graph *self, Event *e);
 int update_speed_str(void);
-void change_to_fan_page(struct button *self, SDL_Event *e);
+void change_to_fan_page(struct button *self, Event *e);
 void update_temp(void);
 float get_fan_speed_from_graph(struct graph *g, float temp);
-void apply_fans_func(struct button *self, SDL_Event *e);
-void apply_all_fans_func(struct button *self, SDL_Event *e);
-void save_curve_bf(struct button *self, SDL_Event *e);
+void apply_fans_func(struct button *self, Event *e);
+void apply_all_fans_func(struct button *self, Event *e);
+void save_curve_bf(struct button *self, Event *e);
 int filter_cpu_input(struct input *self, char new_text[32]);
-void select_curve_ddm(struct drop_down_menu *self, SDL_Event *e);
-void remove_curve_bf(struct button *self, SDL_Event *e);
-void add_curve_bf(struct button *self, SDL_Event *e);
-void done_prompt(struct button *self, SDL_Event *e);
-void canncel_addc_prompt(struct button *self, SDL_Event *e);
-void yes_remove_prompt(struct button *self, SDL_Event *e);
-void canncel_remove_prompt(struct button *self, SDL_Event *e);
+void select_curve_ddm(struct drop_down_menu *self, Event *e);
+void remove_curve_bf(struct button *self, Event *e);
+void add_curve_bf(struct button *self, Event *e);
+void done_prompt(struct button *self, Event *e);
+void canncel_addc_prompt(struct button *self, Event *e);
+void yes_remove_prompt(struct button *self, Event *e);
+void canncel_remove_prompt(struct button *self, Event *e);
 void update_stuff(void);
 
 /* end fan page def */
@@ -187,8 +186,8 @@ struct button *fan_count_buttons[4][6];
 
 /* settings functions */
 int init_settings_page(void);
-void fan_count_button_click(struct button *self, SDL_Event *e);
-void change_to_settings_page(struct button *self, SDL_Event *e);
+void fan_count_button_click(struct button *self, Event *e);
+void change_to_settings_page(struct button *self, Event *e);
 
 /* end settings page def */
 
@@ -199,14 +198,14 @@ int main(void)
 		return 1;
 	}
 
-	SDL_Event event;
-	unsigned int a = SDL_GetTicks();
-	unsigned int b = SDL_GetTicks();
+	Event event;
+	unsigned int a = get_ticks();
+	unsigned int b = get_ticks();
 	double delta = 0;
 	
 	running = 1;
 	while (running) {
-		a = SDL_GetTicks();
+		a = get_ticks();
 		delta = a - b;
 
 		check_events_and_callbacks(&event);
@@ -216,7 +215,7 @@ int main(void)
 
 			if (change == 1) {
 				change_white_black_picker(saturation_img->surface, color_selector->bg_color.r, color_selector->bg_color.g, color_selector->bg_color.b);
-				SDL_DestroyTexture(saturation_img->texture);
+				destroy_texture_s(saturation_img->texture);
 				saturation_img->texture = create_texture_from_surface(saturation_img->surface);
 				change = 0;
 			}
@@ -225,7 +224,7 @@ int main(void)
 			
 			show_screen();
 		}
-		SDL_Delay(1);
+		delay(1);
 	}
 	ui_shutdown();
 	shutdown_controller();
@@ -501,6 +500,8 @@ int init_rgb_page(void)
 	direction_buttons[1] = create_button(">>>", 0, 1, 325 + direction_buttons[0]->pos.w, direction_buttons[0]->pos.y, 0, 0, 40, font, direction_select, NULL, edarkgrey, edarkgrey, WHITE, rgb_page);
 
 	apply_rgb = create_button("Apply", 0, 1, color_img->pos.x, color_buttons[0]->pos.y + color_buttons[0]->pos.h + 10, 0, 0, 0, font, apply, NULL, WHITE, edarkgrey, WHITE, rgb_page);
+	apply_rgb->hoverable = 1;
+	apply_rgb->on_hover = test_hover;
 	apply_to_all_rgb = create_button("Apply all", 0, 1, apply_rgb->pos.x + apply_rgb->pos.w + 5, apply_rgb->pos.y, 0, 0, 0, font, apply, NULL, WHITE, edarkgrey, WHITE, rgb_page);
 
 	rgb_speed_slider = create_slider(1, 330, 200, 200, 10, 20, slider_on_release, rgb_speed_slider_move, WHITE, WHITE, darkgrey, rgb_page);
@@ -551,6 +552,18 @@ int init_rgb_page(void)
 	return 0;
 }
 
+void test_hover(struct button *self, Event *e)
+{
+	if (self->hovering) {
+		self->bg_color = WHITE;
+		render_text_texture(self->text, edarkgrey, font);
+	}
+	else {
+		self->bg_color = edarkgrey;
+		render_text_texture(self->text, WHITE, font);
+	}
+}
+
 struct text *set_fan_count_setting;
 struct text *ports_t[4];
 int init_settings_page(void)
@@ -582,7 +595,7 @@ int init_settings_page(void)
 	return 0;
 }
 
-void apply_all_fans_func(struct button *self, SDL_Event *e)
+void apply_all_fans_func(struct button *self, Event *e)
 {
 	for (int i = 0; i < 4; i++) {
 		ports[i].curve_i = fan_curve_ddm->selected_text_index;
@@ -604,7 +617,7 @@ void update_stuff(void)
 
 void blink_input(void)
 {
-	SDL_Color tmp = { 128, 128, 128, 128 };
+	color tmp = { 128, 128, 128, 128 };
 	if (blink_cb->times_called_back == 0 || blink_cb->times_called_back == 2) {
 		tmp.g = 0; 
 		tmp.b = 0;
@@ -617,7 +630,7 @@ void blink_input(void)
 	}
 }
 
-void done_prompt(struct button *self, SDL_Event *e)
+void done_prompt(struct button *self, Event *e)
 {
 	struct input *i = add_fan_curve_prompt->input_arr[0];
 	if (i->text->str[0] == '\0') {
@@ -638,7 +651,7 @@ void done_prompt(struct button *self, SDL_Event *e)
 	show_prompt(NULL);
 }
 
-void canncel_addc_prompt(struct button *self, SDL_Event *e)
+void canncel_addc_prompt(struct button *self, Event *e)
 {
 	struct input *i = add_fan_curve_prompt->input_arr[0];
 	strcpy(i->text->str, "");
@@ -648,13 +661,13 @@ void canncel_addc_prompt(struct button *self, SDL_Event *e)
 	show_prompt(NULL);
 }
 
-void add_curve_bf(struct button *self, SDL_Event *e)
+void add_curve_bf(struct button *self, Event *e)
 {
 	add_fan_curve_prompt->text_arr[0]->show = 1;
 	show_prompt(add_fan_curve_prompt);
 }
 
-void yes_remove_prompt(struct button *self, SDL_Event *e)
+void yes_remove_prompt(struct button *self, Event *e)
 {
 	int si = ports[selected_port].curve_i;
 	char path[MAX_TEXT_SIZE];
@@ -666,17 +679,17 @@ void yes_remove_prompt(struct button *self, SDL_Event *e)
 	show_prompt(NULL);
 }
 
-void remove_curve_bf(struct button *self, SDL_Event *e)
+void remove_curve_bf(struct button *self, Event *e)
 {
 	show_prompt(remove_curve_prompt);
 }
 
-void canncel_remove_prompt(struct button *self, SDL_Event *e)
+void canncel_remove_prompt(struct button *self, Event *e)
 {
 	show_prompt(NULL);
 }
 
-void select_curve_ddm(struct drop_down_menu *self, SDL_Event *e)
+void select_curve_ddm(struct drop_down_menu *self, Event *e)
 {
 	int selected_curve_i = ports[selected_port].curve_i = self->selected_text_index;
 	printf("selected_text_index = %d\n", selected_curve_i);
@@ -688,7 +701,7 @@ void select_curve_ddm(struct drop_down_menu *self, SDL_Event *e)
 	change_input_box_text(cpu_temp_input, tmp_str);
 }
 
-void fan_count_button_click(struct button *self, SDL_Event *e)
+void fan_count_button_click(struct button *self, Event *e)
 {
 	int selected_p = 0, selected_f = 0;
 	for (int p = 0; p < 4; p++) {
@@ -738,12 +751,12 @@ int filter_cpu_input(struct input *self, char new_text[32])
 	return 0;
 }
 
-void apply_fans_func(struct button *self, SDL_Event *e)
+void apply_fans_func(struct button *self, Event *e)
 {
 	set_fan_curve(&ports[selected_port]);
 }
 
-void save_curve_bf(struct button *self, SDL_Event *e) 
+void save_curve_bf(struct button *self, Event *e) 
 {
 	int sci = ports[selected_port].curve_i;
 	char path[128];
@@ -752,16 +765,16 @@ void save_curve_bf(struct button *self, SDL_Event *e)
 	save_curve(fan_curve_arr[sci].curve, fan_curve_arr[sci].name, fan_curve_arr[sci].used_points, path);
 }
 
-void change_to_settings_page(struct button *self, SDL_Event *e)
+void change_to_settings_page(struct button *self, Event *e)
 {
 	show_page(settings_page);
 }
-void change_to_rgb_page(struct button *self, SDL_Event *e)
+void change_to_rgb_page(struct button *self, Event *e)
 {
 	show_page(rgb_page);
 }
 
-void change_to_fan_page(struct button *self, SDL_Event *e)
+void change_to_fan_page(struct button *self, Event *e)
 {
 	show_page(fan_speed_page);
 }
@@ -778,7 +791,7 @@ void update_temp(void) {
 	fclose(fcpu);
 }
 
-void moving_graph(struct graph *self, SDL_Event *e)
+void moving_graph(struct graph *self, Event *e)
 {
 	if (self->selected_point != NULL) {
 		char tmp_str[25];
@@ -789,7 +802,7 @@ void moving_graph(struct graph *self, SDL_Event *e)
 	}
 }
 
-void toggle_merge_button(struct button *self, SDL_Event *event)
+void toggle_merge_button(struct button *self, Event *event)
 {
 	rgb_merge = (rgb_merge + 1) % 2;
 	if (rgb_merge) {
@@ -802,7 +815,7 @@ void toggle_merge_button(struct button *self, SDL_Event *event)
 
 }
 
-void port_select_fan_func(struct button *self, SDL_Event *event) 
+void port_select_fan_func(struct button *self, Event *event) 
 {
 	for (int i = 0; i < 4; i++) {
 		if (self == select_port_fan_buttons[i]) {
@@ -824,7 +837,7 @@ void port_select_fan_func(struct button *self, SDL_Event *event)
 		}
 	}
 }
-void port_select_rgb_func(struct button *self, SDL_Event *event) 
+void port_select_rgb_func(struct button *self, Event *event) 
 {
 	for (int i = 0; i < 4; i++) {
 		if (self == select_port_rgb_buttons[i]) {
@@ -837,7 +850,7 @@ void port_select_rgb_func(struct button *self, SDL_Event *event)
 		}
 	}
 }
-void direction_select(struct button *self, SDL_Event *e)
+void direction_select(struct button *self, Event *e)
 {
 	if (self == direction_buttons[0]) {
 		direction = 1;
@@ -849,7 +862,7 @@ void direction_select(struct button *self, SDL_Event *e)
 	render_text_texture(self->text, BLUE, font);
 }
 
-void slider_on_release(struct button *self, SDL_Event *e) 
+void slider_on_release(struct button *self, Event *e) 
 {
 	self->bg_color = WHITE;
 }
@@ -862,7 +875,7 @@ void slider_on_release(struct button *self, SDL_Event *e)
  *	75%  = 01
  *	100% = 00
  */
-void rgb_brightnes_slider_move(struct slider *self, SDL_Event *event)
+void rgb_brightnes_slider_move(struct slider *self, Event *event)
 {
 	static float last_p;
 	float rounded;
@@ -889,7 +902,7 @@ void rgb_brightnes_slider_move(struct slider *self, SDL_Event *event)
  *	75%  = ff   
  *	100% = fe
  */
-void rgb_speed_slider_move(struct slider *self, SDL_Event *event)
+void rgb_speed_slider_move(struct slider *self, Event *event)
 {
 	static float last_p;
 	float rounded;
@@ -910,7 +923,7 @@ void rgb_speed_slider_move(struct slider *self, SDL_Event *event)
 	self->button->bg_color = darkgrey;
 }
 
-void change_colors_to_color_buttons(const struct rgb_mode *new_mode, int led_amount, struct color *colors_to_change)
+void change_colors_to_color_buttons(const struct rgb_mode *new_mode, int led_amount, struct color_c *colors_to_change)
 {
 	int rj = 0;
 	if (new_mode->flags & NOT_MOVING) {
@@ -930,11 +943,11 @@ void change_colors_to_color_buttons(const struct rgb_mode *new_mode, int led_amo
 				colors_to_change[j * ports[selected_port].fan_count + i].b = color_buttons[i]->bg_color.b;
 			}
 		}
-	} else memset(colors_to_change, 0, sizeof(struct color) * led_amount * 6);
+	} else memset(colors_to_change, 0, sizeof(color) * led_amount * 6);
 
 }
 
-void change_color_buttons_to_colors(const struct rgb_mode *new_mode, int led_amount, struct color *colors_to_change)
+void change_color_buttons_to_colors(const struct rgb_mode *new_mode, int led_amount, struct color_c *colors_to_change)
 {
 	int rj = 0;
 	if (new_mode->flags & NOT_MOVING) {
@@ -965,7 +978,7 @@ void change_color_buttons_to_colors(const struct rgb_mode *new_mode, int led_amo
 
 }
 
-void apply(struct button *self, SDL_Event *e)
+void apply(struct button *self, Event *e)
 {
 	int set_alls = self == apply_to_all_rgb ? 1 : 0;
 	int led_amount = 0, port = set_alls ? 0 : selected_port;
@@ -1005,7 +1018,7 @@ void apply(struct button *self, SDL_Event *e)
 	printf("port = %d, mode = %s, 0x%02x, set all = %d, speed = 0x%02x, brightnes = 0x%02x\n", selected_port, rgb_modes[rgb_mode_i].name, rgb_modes[rgb_mode_i].mode, set_alls, rgb_speed, rgb_brightnes);
 }
 
-void color_buttons_click(struct button *self, SDL_Event *e)
+void color_buttons_click(struct button *self, Event *e)
 {
 	for (int i = 0; i < 6; i++){
 		if (color_buttons[i] == self) {
@@ -1026,7 +1039,7 @@ void create_color_buttons(void)
 	change_color_buttons_to_colors(ports[0].rgb.outer_mode, 12, ports[0].rgb.outer_color);
 }
 
-void rgb_mode_ddm_select(struct drop_down_menu *d, SDL_Event *event)
+void rgb_mode_ddm_select(struct drop_down_menu *d, Event *event)
 {
 	if (d->selected) {
 		for (int i = 0; i < rgb_modes_amount; i++) {
@@ -1053,7 +1066,7 @@ void rgb_mode_ddm_select(struct drop_down_menu *d, SDL_Event *event)
 	}
 }
 
-void fan_ring_select(struct drop_down_menu *d, SDL_Event *event)
+void fan_ring_select(struct drop_down_menu *d, Event *event)
 {
 	int strings_added = 0;
 	char newstr[50][MAX_TEXT_SIZE];
@@ -1150,7 +1163,7 @@ void create_rgb_color_picker_surface(void)
 	}
 }
 
-void change_white_black_picker(SDL_Surface *surface, Uint8 red, Uint8 green, Uint8 blue)
+void change_white_black_picker(surface_s *surface, Uint8 red, Uint8 green, Uint8 blue)
 {
 	Uint32 *pixels = (Uint32 *)surface->pixels;
 	float black;
@@ -1190,9 +1203,9 @@ void change_white_black_picker(SDL_Surface *surface, Uint8 red, Uint8 green, Uin
 	//change_input_box_text(color_input_b, new_text);
 }
 
-SDL_Surface *create_white_black_picker(Uint8 red, Uint8 green, Uint8 blue)
+surface_s *create_white_black_picker(Uint8 red, Uint8 green, Uint8 blue)
 {
-	SDL_Surface *return_surface = SDL_CreateRGBSurface(0, 510, 510, 32, 0, 0, 0, 0);
+	surface_s *return_surface = create_RGB_surface(0, 510, 510, 32, 0, 0, 0, 0);
 	Uint32 *pixels = (Uint32 *)return_surface->pixels;
 	float black;
 	float redf = (float)red;
@@ -1220,11 +1233,9 @@ SDL_Surface *create_white_black_picker(Uint8 red, Uint8 green, Uint8 blue)
 	return return_surface;
 }
 
-void rgb_saturation_picker_button(struct button *self, SDL_Event *event)
+void rgb_saturation_picker_button(struct button *self, Event *event)
 {
-	SDL_MouseMotionEvent mouse_data = event->motion;
-
-	self->pos.x = mouse_data.x; 
+	self->pos.x = event->motion.x; 
 
 	if (self->pos.x > color_img->pos.x + color_img->pos.w-1) {
 		self->pos.x = color_img->pos.x + color_img->pos.w - 1;
@@ -1245,12 +1256,10 @@ void rgb_saturation_picker_button(struct button *self, SDL_Event *event)
 	change = 1;
 }
 
-void rgb_color_picker_button(struct button *self, SDL_Event *event)
+void rgb_color_picker_button(struct button *self, Event *event)
 {
-	SDL_MouseMotionEvent mouse_data = event->motion;
-
-	self->pos.x = mouse_data.x; 
-	self->pos.y = mouse_data.y; 
+	self->pos.x = event->motion.x; 
+	self->pos.y = event->motion.y; 
 
 	if (self->pos.x > saturation_img->pos.x + saturation_img->pos.w) {
 		self->pos.x = saturation_img->pos.x + saturation_img->pos.w;

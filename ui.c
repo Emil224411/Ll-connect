@@ -9,11 +9,11 @@ char font_path[128];
 int default_font_size = 20;
 struct line *cursor;
 
-SDL_Color BLACK   = {   0,   0,   0, SDL_ALPHA_OPAQUE };
-SDL_Color WHITE   = { 255, 255, 255, SDL_ALPHA_OPAQUE };
-SDL_Color RED     = { 255,   0,   0, SDL_ALPHA_OPAQUE };
-SDL_Color GREEN   = {   0, 255,   0, SDL_ALPHA_OPAQUE };
-SDL_Color BLUE    = {   0,   0, 255, SDL_ALPHA_OPAQUE };
+color BLACK   = {   0,   0,   0, SDL_ALPHA_OPAQUE };
+color RED     = { 255,   0,   0, SDL_ALPHA_OPAQUE };
+color GREEN   = {   0, 255,   0, SDL_ALPHA_OPAQUE };
+color BLUE    = {   0,   0, 255, SDL_ALPHA_OPAQUE };
+color WHITE   = { 255, 255, 255, SDL_ALPHA_OPAQUE };
 
 static int mouse_x, mouse_y;
 
@@ -29,16 +29,36 @@ struct page *showen_page;
 static int page_arr_total_len;
 static int page_arr_used_len;
 
-static void lmouse_button_down(SDL_Event *event);
-static void lmouse_button_up(SDL_Event *event);
+static void lmouse_button_down(Event *event);
+static void lmouse_button_up(Event *event);
 static void on_backspace_input(struct input *selected);
 static void on_text_input(struct input *selected, SDL_TextInputEvent *e);
-static void rmouse_button_down(SDL_Event *event);
-static void rmouse_button_up(SDL_Event *event);
+static void rmouse_button_down(Event *event);
+static void rmouse_button_up(Event *event);
 static void mouse_wheel(SDL_MouseWheelEvent *event);
-static void mouse_move(SDL_Event *event);
+static void mouse_move(Event *event);
 
 static struct callback *next_cb;
+
+void delay(Uint32 ms)
+{
+	SDL_Delay(ms);
+}
+
+surface_s *create_RGB_surface(Uint32 flags, int width, int height, int depth, Uint32 Rmask, Uint32 Gmask, Uint32 Bmask, Uint32 Amask)
+{
+	return SDL_CreateRGBSurface(flags, width, height, depth, Rmask, Gmask, Bmask, Amask);
+}
+
+void destroy_texture_s(texture_s *t)
+{
+	SDL_DestroyTexture(t);
+}
+
+Uint32 get_ticks(void) 
+{
+	return SDL_GetTicks();
+}
 
 struct callback *create_callback(void (*function)(void), double time)
 {
@@ -257,13 +277,13 @@ void show_screen(void)
 	SDL_RenderPresent(renderer);
 }
 
-void clear_screen(SDL_Color color)
+void clear_screen(color c)
 {
-	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(color));
+	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(c));
 	SDL_RenderClear(renderer);
 }
 
-void check_events_and_callbacks(SDL_Event *event)
+void check_events_and_callbacks(Event *event)
 {
 	check_next_callback();
 	while (SDL_PollEvent(event)) {
@@ -271,7 +291,7 @@ void check_events_and_callbacks(SDL_Event *event)
 	}
 }
 
-void handle_event(SDL_Event *event)
+void handle_event(Event *event)
 {
 	switch (event->type) {
 		case SDL_QUIT:
@@ -372,18 +392,29 @@ static void scroll_ddm(struct drop_down_menu *ddm, int wheely)
 static void mouse_wheel(SDL_MouseWheelEvent *event)
 {
 	int wheely = event->y;
-	SDL_Rect mouse_pos = { event->mouseX, event->mouseY, 0 };
+	rect_s mouse_pos = { event->mouseX, event->mouseY, 0 };
 	if (showen_page->selected_d != NULL && CHECK_RECT(mouse_pos, showen_page->selected_d->drop_pos) ) {
 		scroll_ddm(showen_page->selected_d, wheely);
 	}
 }
 
-static void mouse_move(SDL_Event *event)
+static void mouse_move(Event *event)
 {
 	mouse_x = event->motion.x;
 	mouse_y = event->motion.y;
 	if (showen_page->selected_b != NULL && showen_page->selected_b->movable == 1) {
 		showen_page->selected_b->on_move(showen_page->selected_b, event);
+	}
+	else if (showen_page->selected_b == NULL) {
+		for (int i = 0; i < showen_page->b_arr_used_len; i++) {
+			if (showen_page->b_arr[i]->hoverable != 0 && CHECK_RECT(event->motion, showen_page->b_arr[i]->pos)) {
+				showen_page->b_arr[i]->hovering = 1;
+				showen_page->b_arr[i]->on_hover(showen_page->b_arr[i], event);
+			} else if (showen_page->b_arr[i]->hoverable != 0) {
+				showen_page->b_arr[i]->hovering = 0;
+				showen_page->b_arr[i]->on_hover(showen_page->b_arr[i], event);
+			}
+		}
 	}
 	if (showen_page->selected_d != NULL && CHECK_RECT(event->motion, showen_page->selected_d->drop_pos)){ 
 		showen_page->selected_d->update_highlight = 1;
@@ -409,12 +440,12 @@ static void mouse_move(SDL_Event *event)
 	}
 }
 
-static void rmouse_button_down(SDL_Event *event)
+static void rmouse_button_down(Event *event)
 {
 	
 }
 
-static void rmouse_button_up(SDL_Event *event)
+static void rmouse_button_up(Event *event)
 {
 	SDL_MouseButtonEvent mouse_data = event->button;
 	for (int i = 0; i < showen_page->g_arr_used_len; i++) {
@@ -439,7 +470,7 @@ static void rmouse_button_up(SDL_Event *event)
 	}
 }
 
-static void lmbu_prompt(SDL_Event *e)
+static void lmbu_prompt(Event *e)
 {
 	SDL_MouseButtonEvent mouse_data = e->button;
 	if (showen_prompt->selected_button != NULL) {
@@ -477,7 +508,7 @@ static void lmbu_prompt(SDL_Event *e)
 }
 
 /* LATER: only check if button or input_box is visible mabey create array with all showen things idk */
-static void lmouse_button_up(SDL_Event *event)
+static void lmouse_button_up(Event *event)
 {
 	SDL_MouseButtonEvent mouse_data = event->button;
 	if (showen_prompt != NULL) {
@@ -562,7 +593,7 @@ static void lmouse_button_up(SDL_Event *event)
 	hit = 0;
 	if (showen_page->selected_d != NULL && CHECK_RECT(mouse_data, showen_page->selected_d->drop_pos)) {
 		for (int i = 0; i < showen_page->selected_d->items; i++) {
-			SDL_Rect pos = showen_page->selected_d->text[i]->dst;
+			rect_s pos = showen_page->selected_d->text[i]->dst;
 			if (showen_page->selected_d->text[i]->show && mouse_data.x < pos.x + showen_page->selected_d->default_pos.w && mouse_data.x > pos.x 
 					&& mouse_data.y < pos.y + pos.h + showen_page->selected_d->scroll_offset && mouse_data.y > pos.y + showen_page->selected_d->scroll_offset) {
 				showen_page->selected_d->selected_text_index = i;
@@ -593,7 +624,7 @@ static void lmouse_button_up(SDL_Event *event)
 }
 
 
-static void lmbd_prompt(SDL_Event *e)
+static void lmbd_prompt(Event *e)
 {
 	for (int i = 0; i < showen_prompt->button_arr_used; i++) {
 		if (showen_prompt->button_arr[i]->clickable == 1 && CHECK_RECT(e->button, showen_prompt->button_arr[i]->pos)) {
@@ -602,7 +633,7 @@ static void lmbd_prompt(SDL_Event *e)
 	}
 }
 
-static void lmouse_button_down(SDL_Event *event)
+static void lmouse_button_down(Event *event)
 {
 	SDL_MouseButtonEvent mouse_data = event->button;
 	if (showen_prompt != NULL) {
@@ -656,9 +687,9 @@ static void lmouse_button_down(SDL_Event *event)
 	}
 }
 
-SDL_Texture *create_texture_from_surface(SDL_Surface *sur)
+texture_s *create_texture_from_surface(surface_s *sur)
 {
-	SDL_Texture *textest = SDL_CreateTextureFromSurface(renderer, sur);
+	texture_s *textest = SDL_CreateTextureFromSurface(renderer, sur);
 	if (textest == NULL) {
 		printf("create texture did a epic fail\n");
 		printf("%s\n", SDL_GetError());
@@ -813,7 +844,7 @@ void render_showen_page(void)
 	if (cursor->show != 0) render_line(cursor);
 }
 
-struct text *create_text(char *string, int x, int y, int w, int h, int font_size, int wrap_length, SDL_Color fg_color, TTF_Font *f, struct page *p)
+struct text *create_text(char *string, int x, int y, int w, int h, int font_size, int wrap_length, color  fg_color, TTF_Font *f, struct page *p)
 {
 	struct text *return_text = malloc(sizeof(struct text));
 	struct text new_text = { "", 1, 0, 0, 0, wrap_length, fg_color, { 0 }, { x, y, 0, 0 }, NULL, 0, p };
@@ -882,13 +913,14 @@ void destroy_text_texture(struct text *text)
 }
 
 int prev_font_size = 20;
-int render_text_texture(struct text *t, SDL_Color fg_color, TTF_Font *f)
+int render_text_texture(struct text *t, color fg_color, TTF_Font *f)
 {
+	SDL_Color cast_color = *((SDL_Color*) &fg_color);
 	if (prev_font_size != t->font_size) {
 		TTF_SetFontSize(f, t->font_size);
 		prev_font_size = t->font_size;
 	}
-	SDL_Surface *surface = TTF_RenderText_Blended_Wrapped(f, t->str, fg_color, t->wrap_length);
+	surface_s *surface = TTF_RenderText_Blended_Wrapped(f, t->str, cast_color, t->wrap_length);
 	if (surface == NULL) {
 		printf("ui.c render_text_texture failed surface error: %s\n", SDL_GetError());
 		return -1;
@@ -906,7 +938,7 @@ int render_text_texture(struct text *t, SDL_Color fg_color, TTF_Font *f)
 	return 0;
 }
 
-void change_text_and_render_texture(struct text *text, char *new_text, SDL_Color fg_color, TTF_Font *f)
+void change_text_and_render_texture(struct text *text, char *new_text, color  fg_color, TTF_Font *f)
 {
 	if (strlen(new_text) < MAX_TEXT_SIZE) {
 		strcpy(text->str, new_text);
@@ -914,16 +946,16 @@ void change_text_and_render_texture(struct text *text, char *new_text, SDL_Color
 	}
 }
 
-void render_text(struct text *t, SDL_Rect *src)
+void render_text(struct text *t, rect_s *src)
 {
 	if (t->show != 0) 
 		SDL_RenderCopy(renderer, t->texture, src, &t->dst);
 }
 
-struct button *create_button(char *string, int movable, int show, int x, int y, int w, int h, int font_size, TTF_Font *f, void (*on_click)(), void (*on_move)(), SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color, struct page *p)
+struct button *create_button(char *string, int movable, int show, int x, int y, int w, int h, int font_size, TTF_Font *f, void (*on_click)(), void (*on_move)(), color  outer_color, color  bg_color, color  text_color, struct page *p)
 {
 	struct button *return_button = malloc(sizeof(struct button));
-	struct button new_button = { NULL, NULL, on_click, on_move, 0, movable, show, 0, { x, y, }, outer_color, bg_color, p };
+	struct button new_button = { NULL, NULL, on_click, on_move, NULL, 0, movable, 0, 0, show, 0, { x, y, }, outer_color, bg_color, p };
 
 	if (on_click != NULL) new_button.clickable = 1;
 	if (string != NULL) {
@@ -983,7 +1015,7 @@ void render_button(struct button *button)
 // 	   |---------|
 // 	-> |some text|
 // 	   |---------|
-struct input *create_input(char *string, char *def_text, int resize_box, int max_len, int x, int y, int w, int h, void (*function)(), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color text_color, struct page *p)
+struct input *create_input(char *string, char *def_text, int resize_box, int max_len, int x, int y, int w, int h, void (*function)(), TTF_Font *f, color  outer_color, color  bg_color, color  text_color, struct page *p)
 {
 	struct input *return_input = malloc(sizeof(struct input));
 	struct input new_input = { 0, 0, max_len, 1, NULL, NULL, resize_box, function, NULL, { x, y, w, h }, {x, y, w, h }, outer_color, bg_color, { 0 }, p };
@@ -1054,7 +1086,7 @@ struct input *create_input(char *string, char *def_text, int resize_box, int max
 
 void change_input_box_text(struct input *input_box, char *str)
 {
-	SDL_Rect prev_input_margin = input_box->pos;
+	rect_s prev_input_margin = input_box->pos;
 	prev_input_margin.w = input_box->pos.w - input_box->text->dst.w;
 	prev_input_margin.h = input_box->pos.h - input_box->text->dst.h;
 
@@ -1128,10 +1160,10 @@ void destroy_input_box(struct input *input_box)
 	free(input_box);
 }
 
-struct drop_down_menu *create_drop_down_menu(int items, char item_str[][MAX_TEXT_SIZE], int x, int y, int w, int h, int dw, int dh, void (*function)(), TTF_Font *f, SDL_Color outer_color, SDL_Color bg_color, SDL_Color tc, struct page *p)
+struct drop_down_menu *create_drop_down_menu(int items, char item_str[][MAX_TEXT_SIZE], int x, int y, int w, int h, int dw, int dh, void (*function)(), TTF_Font *f, color  outer_color, color  bg_color, color  tc, struct page *p)
 {
-	SDL_Rect pos = { x, y, w, h };
-	SDL_Rect dpos = { x, y, dw, dh };
+	rect_s pos = { x, y, w, h };
+	rect_s dpos = { x, y, dw, dh };
 
 	struct text **text_arr = malloc(sizeof(struct text *) * items);
 	struct drop_down_menu *ddm_heap = malloc(sizeof(struct drop_down_menu));
@@ -1184,7 +1216,7 @@ void change_ddm_text_arr(struct drop_down_menu *ddm, int items, char newstr[][MA
 	}
 	ddm->text = realloc(ddm->text, sizeof(struct text *) * items);
 
-	SDL_Color tc = ddm->text[0]->fg_color;
+	color  tc = ddm->text[0]->fg_color;
 	int prev_height = 0;
 	int bigest_w = ddm->default_pos.w, bigest_h = ddm->default_pos.h;
 	for (int i = 0; i < items; i++) {
@@ -1234,7 +1266,7 @@ void add_item_ddm(struct drop_down_menu *ddm, char *newstr, TTF_Font *f)
 {
 	ddm->text = realloc(ddm->text, sizeof(struct text *) * (++ddm->items));
 
-	SDL_Color tc = ddm->text[0]->fg_color;
+	color  tc = ddm->text[0]->fg_color;
 	int prev_height = 0;
 	int bigest_w = ddm->default_pos.w, bigest_h = ddm->default_pos.h;
 	ddm->text[ddm->items-1] = create_text(newstr, 0, 0, 0, 0, 0, ddm->default_pos.w, tc, f, NULL);
@@ -1358,7 +1390,7 @@ void update_ddm_highlight(int x, int y, struct drop_down_menu *ddm)
 }
 
 
-struct slider *create_slider(int show, int x, int y, int w, int h, int button_size, void (*on_relase)(struct button *s, SDL_Event *e), void (*on_move)(struct slider *s, SDL_Event *e), SDL_Color button_fg_color, SDL_Color button_bg_color, SDL_Color bar_color, struct page *p)
+struct slider *create_slider(int show, int x, int y, int w, int h, int button_size, void (*on_relase)(struct button *s, Event *e), void (*on_move)(struct slider *s, Event *e), color  button_fg_color, color  button_bg_color, color  bar_color, struct page *p)
 {
 	struct slider *return_slider = malloc(sizeof(struct slider));
 	struct button *b = create_button(NULL, 1, show, x - button_size/2, y + h/2- button_size/2, button_size, button_size, 0, font, on_relase, NULL, button_fg_color, button_bg_color, button_fg_color, NULL);
@@ -1414,7 +1446,7 @@ void update_slider(struct slider *slider, int x)
 }
 
 
-struct graph *create_graph(int x, int y, int w, int h, int scale_w, int scale_h, int point_w, int point_h, int sp_w, int sp_h, int p_amount, void (*on_move)(), SDL_Color oc, SDL_Color bgc, SDL_Color fgc, SDL_Color point_c, SDL_Color sp_c, struct page *p)
+struct graph *create_graph(int x, int y, int w, int h, int scale_w, int scale_h, int point_w, int point_h, int sp_w, int sp_h, int p_amount, void (*on_move)(), color  oc, color  bgc, color  fgc, color  point_c, color  sp_c, struct page *p)
 {
 	struct graph *return_graph = malloc(sizeof(struct graph));
 	struct graph tmp_graph = { { x, y, w, h }, {x, y, w * scale_w, h * scale_h}, { 0, 0, point_w, point_h }, { 0, 0, sp_w, sp_h }, 
@@ -1504,7 +1536,7 @@ void render_graph(struct graph *graph)
 			SDL_RenderDrawLine(renderer, x1, y1, x2, y2);
 		}
 		SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(graph->point_colors));
-		SDL_Rect tmp_rect = { graph->points[i].x * graph->scale_w + graph->real_pos.x, graph->points[i].y * graph->scale_h + graph->real_pos.y, graph->points_size.w, graph->points_size.h };
+		rect_s tmp_rect = { graph->points[i].x * graph->scale_w + graph->real_pos.x, graph->points[i].y * graph->scale_h + graph->real_pos.y, graph->points_size.w, graph->points_size.h };
 
 		if (tmp_rect.x + tmp_rect.w > graph->scaled_pos.x + graph->scaled_pos.w) tmp_rect.x = graph->scaled_pos.x + graph->scaled_pos.w - graph->points_size.w - 1;
 		if (tmp_rect.y + tmp_rect.h > graph->scaled_pos.y + graph->scaled_pos.h) tmp_rect.y = graph->scaled_pos.y + graph->scaled_pos.h - graph->points_size.h - 1;
@@ -1514,7 +1546,7 @@ void render_graph(struct graph *graph)
 
 	if (graph->selected_point != NULL) {
 		SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(graph->selected_point_color));
-		SDL_Rect tmp_rect = { graph->selected_point->x * graph->scale_w + graph->scaled_pos.x, graph->selected_point->y * graph->scale_h + graph->scaled_pos.y, 
+		rect_s tmp_rect = { graph->selected_point->x * graph->scale_w + graph->scaled_pos.x, graph->selected_point->y * graph->scale_h + graph->scaled_pos.y, 
 					graph->points_selected_size.w, graph->points_selected_size.h };
 
 		if (tmp_rect.x + tmp_rect.w >= graph->scaled_pos.x + graph->scaled_pos.w) tmp_rect.x = graph->scaled_pos.x + graph->scaled_pos.w - graph->points_size.w - 1;
@@ -1613,7 +1645,7 @@ void show_image(struct image *img)
 	if (img->show != 0) SDL_RenderCopy(renderer, img->texture, NULL, &img->pos);
 }
 
-struct line *create_line(int x1, int y1, int x2, int y2, SDL_Color color, struct page *p)
+struct line *create_line(int x1, int y1, int x2, int y2, color  color, struct page *p)
 {
 	struct line *ret_line = malloc(sizeof(struct line));
 	if (p != NULL) {
@@ -1655,7 +1687,7 @@ void render_line(struct line *line)
 void render_prompt(struct prompt *p)
 {
 	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 128);
-	SDL_Rect bg = { 0, 0, WINDOW_W, WINDOW_H };
+	rect_s bg = { 0, 0, WINDOW_W, WINDOW_H };
 	SDL_RenderFillRect(renderer, &bg);
 	SDL_SetRenderDrawColor(renderer, SDL_COLOR_ARG(p->bg_color));
 	SDL_RenderFillRect(renderer, &p->pos);
@@ -1770,7 +1802,7 @@ void destroy_prompt(struct prompt *p)
 	prompt_arr[prompt_arr_len] = NULL;
 }
 
-struct prompt *create_prompt(int x, int y, int w, int h, SDL_Color bg_color, SDL_Color outer_color, TTF_Font *font)
+struct prompt *create_prompt(int x, int y, int w, int h, color  bg_color, color  outer_color, TTF_Font *font)
 {
 	struct prompt *ret_prompt = malloc(sizeof(struct prompt));
 	struct prompt tmp_prompt = { { x, y, w, h }, 0, prompt_arr_len, NULL, NULL, 0, 0, NULL, NULL, 0, 0, NULL, NULL, 0, 0, bg_color, outer_color, font };

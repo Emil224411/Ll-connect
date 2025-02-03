@@ -34,8 +34,8 @@
 #define SPEED 		0x40
 #define DIRECTION 	0x80
 
-struct color {
-	u_int8_t r, g, b;
+struct color_c {
+	Uint8 r, g, b;
 };
 
 struct rgb_mode {
@@ -47,10 +47,10 @@ struct rgb_mode {
 struct rgb_data {
 	const struct rgb_mode *inner_mode;
 	int inner_speed, inner_brightnes, inner_direction;
-	struct color inner_color[48];
+	struct color_c inner_color[48];
 	const struct rgb_mode *outer_mode;
 	int outer_speed, outer_brightnes, outer_direction;
-	struct color outer_color[72];
+	struct color_c outer_color[72];
 };
 
 struct port {
@@ -104,15 +104,15 @@ int add_curve(void);
 struct point *alloc_point_arr(int size);
 
 /* set rgb functions */
-int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_colors, int do_check);
-int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_colors, int do_check);
-int set_inner_and_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color *new_outer_colors, struct color *new_inner_colors);
-int set_merge(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, struct color *new_colors);
+int set_inner_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color_c *new_colors, int do_check);
+int set_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color_c *new_colors, int do_check);
+int set_inner_and_outer_rgb(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, int set_all, struct color_c *new_outer_colors, struct color_c *new_inner_colors);
+int set_merge(struct port *p, const struct rgb_mode *new_mode, int speed, int direction, int brightnes, struct color_c *new_colors);
 
 /* color functions */
-int write_outer_colors(char *path, struct color *new_colors, int fan_count, float bright, int flags);
-int write_inner_colors(char *path, struct color *new_colors, int fan_count, float bright, int flags);
-int read_colors(char *path, struct color *colors, int fan_count, int in_or_out);
+int write_outer_colors(char *path, struct color_c *new_colors, int fan_count, float bright, int flags);
+int write_inner_colors(char *path, struct color_c *new_colors, int fan_count, float bright, int flags);
+int read_colors(char *path, struct color_c *colors, int fan_count, int in_or_out);
 
 /* set fan speed functions */
 int set_fan_curve(struct port *p);
