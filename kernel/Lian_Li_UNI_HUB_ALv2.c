@@ -845,7 +845,7 @@ static int dev_probe(struct usb_interface *intf, const struct usb_device_id *id)
 
 static void dev_disconnect(struct usb_interface *intf)
 {
-  	del_timer(&speed_timer);
+  	timer_delete(&speed_timer);
 	flush_work(&speed_wq);
 	proc_remove(proc_dir);
 	probed = 0;
