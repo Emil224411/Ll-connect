@@ -1,7 +1,7 @@
 Ll-connect(Linux l-connect) has almost all the features of L-connect 3
-it's not done yet but i'm working on it
+it's not perfect but it works, if you have any issues or suggestions let me know.
 
-it currently only supports the UNI HUB AL v2 but i would be happy to add support for other hubs i just need some usb packets
+it currently only supports the UNI HUB AL v2
 
 dependencies: SDL2, SDL2_ttf(for the ui)
 
