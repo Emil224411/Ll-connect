@@ -1,41 +1,9 @@
+## Im going to rewrite this, there are certain parts of it that needs to be refactored.
+I still use it, but that doesn't mean everybody should.
+
 Ll-connect(Linux l-connect) has almost all the features of L-connect 3
 it's not perfect but it works, if you have any issues or suggestions let me know.
 
 it currently only supports the UNI HUB AL v2
 
 dependencies: SDL2, SDL2_ttf(for the ui)
-
-install:
-	1.  clone the github repository
-
-	2.  Open a terminal and cd "path/to/repo"
-
-	3.  run "sudo make install" to compile and install the ui
-
-	4.  cd in to the kernel directory in the repository
-
-	6.  run "sudo make install" to install the driver
-
-	7.  run "sudo modprobe Lian_Li_UNI_HUB_ALv2"
-
-	8.  start "Ll-connect" from the terminal or how ever you start programs
-
-you can skip step 6. and 7. if you dont want the driver to start on boot since it could cause some issues 
-i have it installed and it hasnt caused any issues but i cant promise it will work perfectly for you
-if you want to skip step 6. and 7. you will have to open a terminal, 
-cd in to "path/to/Ll-connect/kernel" and run "sudo make module" and then you will have to run "sudo insmod Lian_Li_UNI_HUB_ALv2.ko" every time you start your pc
-
-if you want to use it without the ui skip step 3 you can use the proc files at "/proc/Lian_li_hub/" but i would not recommend it
-
-uninstall ui:
-	1. cd "path/to/Ll_connect"
-
-	2. "make uninstall"
-
-	3. "make clean"(optional)
-
-uninstall driver:
-	1. cd "path/to/Ll_connect/kernel"
-
-	2. "sudo make clean"
-
