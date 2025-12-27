@@ -13,14 +13,14 @@
 
 #define PACKET_SIZE 353
 
-#define INNER 		0b00000001
-#define OUTER           0b00000010
+#define INNER 			0b00000001
+#define OUTER 			0b00000010
 #define INNER_AND_OUTER 0b00000100
-#define MERGE           0b00001000
-#define NOT_MOVING      0b00010000
-#define BRIGHTNESS      0b00100000
-#define SPEED           0b01000000
-#define DIRECTION       0b10000000
+#define MERGE 			0b00001000
+#define NOT_MOVING 		0b00010000
+#define BRIGHTNESS 		0b00100000
+#define SPEED 			0b01000000
+#define DIRECTION 		0b10000000
 
 struct rgb_data {
 	int mode, brightness, speed, direction;
@@ -141,7 +141,7 @@ static struct proc_ops pops_mb_sync = {
 void timer_callback_handler(struct timer_list *tl) 
 {
 	if (!work_pending(&speed_wq)) schedule_work(&speed_wq);
-	mod_timer(&speed_timer, jiffies + msecs_to_jiffies(2000));
+	mod_timer(&speed_timer, jiffies + msecs_to_jiffies(200));
 }
 
 void speed_wq_function(struct work_struct *work)
@@ -151,18 +151,19 @@ void speed_wq_function(struct work_struct *work)
 		printk(KERN_ERR"Lian li ALv2 hub: speed_wq_function failed get_cpu_temp\n");
 		return;
 	}
-	if (prev_temp != new_temp) {
-		int new_speed_one   = get_fan_speed_from_temp(&ports[0], new_temp);
-		int new_speed_two   = get_fan_speed_from_temp(&ports[1], new_temp);
-		int new_speed_three = get_fan_speed_from_temp(&ports[2], new_temp);
-		int new_speed_four  = get_fan_speed_from_temp(&ports[3], new_temp);
-		set_speeds(new_speed_one, new_speed_two, new_speed_three, new_speed_four);
-		prev_temp = new_temp;
-	}
+	int new_speed_one   = get_fan_speed_from_temp(&ports[0], new_temp);
+	int new_speed_two   = get_fan_speed_from_temp(&ports[1], new_temp);
+	int new_speed_three = get_fan_speed_from_temp(&ports[2], new_temp);
+	int new_speed_four  = get_fan_speed_from_temp(&ports[3], new_temp);
+	set_speeds(new_speed_one, new_speed_two, new_speed_three, new_speed_four);
+	prev_temp = new_temp;
 }
 
 static int get_fan_speed_from_temp(struct port_data *p, int temp) 
 {
+	if (p->points[p->points_used_len-1].temp < temp) {
+		return 100 - p->points[p->points_used_len-1].speed;
+	}
 	struct fan_curve prev_point = { 1, p->points[0].speed };
 	for (int i = 0; i < p->points_used_len; i++) {
 		int xone = prev_point.temp, xtwo = p->points[i].temp;
@@ -174,9 +175,6 @@ static int get_fan_speed_from_temp(struct port_data *p, int temp)
 			return tmp;
 		}
 		prev_point = p->points[i];
-	}
-	if (p->points[p->points_used_len-1].temp < temp) {
-		return p->points[p->points_used_len-1].speed;
 	}
 	return 0;
 }
@@ -825,8 +823,8 @@ static int dev_probe(struct usb_interface *intf, const struct usb_device_id *id)
 		ports[i].points[2].speed = 73, ports[i].points[2].temp = 35;
 		ports[i].points[3].speed = 68, ports[i].points[3].temp = 42;
 		ports[i].points[4].speed = 60, ports[i].points[4].temp = 55;
-		ports[i].points[5].speed = 35, ports[i].points[5].temp = 70;
-		ports[i].points[6].speed = 10, ports[i].points[6].temp = 80;
+		ports[i].points[5].speed = 20, ports[i].points[5].temp = 70;
+		ports[i].points[6].speed =  1, ports[i].points[6].temp = 80;
 
 		ports[i].points_total_len = 8;
 		ports[i].points_used_len = 7;
