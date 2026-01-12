@@ -7,7 +7,7 @@ PWD := $(CURDIR)
 
 all:
 	echo "type \"make modules\" to compile modules\ntype \"make install\" to install the driver"
-module:
+modules:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 
 install:
