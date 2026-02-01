@@ -6,7 +6,7 @@ SOURCE = /usr/src/Lian_Li_UNI_HUB_ALv2-$(VERSION)
 PWD := $(CURDIR)
 
 all:
-	echo "type \"make modules\" to compile modules\ntype \"make install\" to install the driver"
+	echo "type \"make modules\" to compile modules"
 modules:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 

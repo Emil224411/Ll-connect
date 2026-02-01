@@ -1,5 +1,6 @@
+#include <linux/mutex.h>
 #include <linux/init.h>
-#include <linux/hid.h>
+#include <linux/usb.h>
 #include <linux/hwmon.h>
 #include <linux/module.h>
 #include <linux/string.h>
@@ -7,7 +8,8 @@
 #define VENDOR_ID  0x0cf2
 #define PRODUCT_ID 0xa104
 
-#define PACKET_SIZE 353
+#define BUFFER_SIZE 353
+#define RCV_BUF_SIZE 65
 
 #define MSG_START 0xe0
 
@@ -19,280 +21,282 @@
 #define PORT_THREE 0x22
 #define PORT_FOUR  0x23
 
+#define DPRINTF(fmt, ...) printk(KERN_DEBUG "ALv2: "fmt"\n", ##__VA_ARGS__)
 struct header {
 	u8 magic;
 	u16 type;
 };
 
-struct drv_data {
-	struct hid_device *dev;
+struct intf_data {
+	struct usb_device *udev;
 	struct device *hwmon;
+	struct usb_interface *intf;
 
 	u16 rpm[PORT_AMOUNT];
 	u8 speed[PORT_AMOUNT];
+	// u8 mb_sync;
 
-	u8 buffer[PACKET_SIZE];
+	struct mutex lock;
+
+	u8 buffer[BUFFER_SIZE];
 };
 
-static int mb_sync_state;
 
-static void get_speed(void);
-static int set_speed(struct drv_data *drv, int channel, long val);
+static int set_speed(struct intf_data *drv, int channel, long val);
 
-static int mb_sync(struct drv_data *drv, int val);
+// static int mb_sync(struct intf_data *drv, int val);
 
 
-static void get_speed(void) {
-	int size = 65;
-	// usb_control_msg(dev, usb_rcvctrlpipe(dev, 0x80), 0x01, 0xa1, 0x01e0, 1, response, size, 1000);
-	// ports[0].fan_speed_rpm = (response[2] << 8) + response[3];
-	// ports[1].fan_speed_rpm = (response[4] << 8) + response[5];
-	// ports[2].fan_speed_rpm = (response[6] << 8) + response[7];
-	// ports[3].fan_speed_rpm = (response[8] << 8) + response[9];
-}
+// static void set_speeds(int port_one, int port_two, int port_three, int port_four) {
+// 	int new_speeds[] = { port_one, port_two, port_three, port_four };
+// 	u8 data[5][BUFFER_SIZE] =  { { 0xe0, 0x50, }, 
+// 				{ 0xe0, 0x20, 0x00, new_speeds[0], }, 
+// 				{ 0xe0, 0x21, 0x00, new_speeds[1], }, 
+// 				{ 0xe0, 0x22, 0x00, new_speeds[2], }, 
+// 				{ 0xe0, 0x23, 0x00, new_speeds[3], } };
+// 	for (int i = 0; i < 5; i++) {
+// 		memcpy(mbuff, data[i], PACKET_SIZE);
+// 		usb_control_msg(dev, usb_sndctrlpipe(dev, 0), 0x09, 0x21, 0x02e0, 1, mbuff, PACKET_SIZE, 100);
+// 		ports[i-1].fan_speed = new_speeds[i-1];
+// 	}
+// }
 
-static void set_speeds(int port_one, int port_two, int port_three, int port_four) {
-	int new_speeds[] = { port_one, port_two, port_three, port_four };
-	u8 data[5][PACKET_SIZE] =  { { 0xe0, 0x50, }, 
-				{ 0xe0, 0x20, 0x00, new_speeds[0], }, 
-				{ 0xe0, 0x21, 0x00, new_speeds[1], }, 
-				{ 0xe0, 0x22, 0x00, new_speeds[2], }, 
-				{ 0xe0, 0x23, 0x00, new_speeds[3], } };
-	// for (int i = 0; i < 5; i++) {
-	// 	memcpy(mbuff, data[i], PACKET_SIZE);
-	// 	usb_control_msg(dev, usb_sndctrlpipe(dev, 0), 0x09, 0x21, 0x02e0, 1, mbuff, PACKET_SIZE, 100);
-	// 	ports[i-1].fan_speed = new_speeds[i-1];
-	// }
-
-}
-
-static int send_report(struct drv_data *drv, const void *data, size_t data_size) 
+static int send_usb_msg(struct intf_data *drv, 
+			u8 req, 
+			u8 req_t, 
+			u16 val, 
+			u16 idx, 
+			u8 rcv,
+			const void *data, 
+			size_t data_size) 
 {
-	size_t buff_size = sizeof(drv->buffer);
-
-	if (data_size > buff_size) 
+	int ret;
+	if (data_size > BUFFER_SIZE) 
 		return -EINVAL;
 
+	memset(drv->buffer, 0, BUFFER_SIZE);
 	memcpy(drv->buffer, data, data_size);
-
-	if (data_size < buff_size)
-		memset(drv->buffer + data_size, 0, buff_size - data_size);
-
-	return hid_hw_output_report(drv->dev, drv->buffer, buff_size) < 0 ?: 0;
+	
+	ret = usb_control_msg(drv->udev,
+			      rcv ? usb_rcvctrlpipe(drv->udev, 0x80) 
+			          : usb_sndctrlpipe(drv->udev, 0), 
+			      req, req_t, 
+			      val, idx, 
+			      drv->buffer, 
+			      data_size, 
+			      100);
+	return ret;
 }
 
-// old:
-//	   usb_control_msg(dev, usb_sndctrlpipe(dev, 0), 0x09, 0x21, 0x02e0, 1, buffer, PACKET_SIZE, 100);
-//	   usb_control_msg(dev, usb_sndctrlpipe(dev, 0), 0x09, 0x21, 0x02e0, 1, buffer, PACKET_SIZE, 100);
-static int set_speed(struct drv_data *drv, int chanel, long val)
+static int update_speeds(struct intf_data *data)
 {
-	/* 
-	 * TODO:
-	 *    is val 0-255 or is that unknown?
-	 *    assuming chanel goes from 1-4, the port number the hub expects is 0x20-0x23
-	 */
-	u8 port = --chanel + 0x20;
-	u8 speed = val > 255 ? 255 : val < 0 ? 0 : val;
+	int res = send_usb_msg(data, 0x01, 0xa1, 0x01e0, 1, /* TODO figure out the magic numbers */
+			       1, data->buffer, RCV_BUF_SIZE);
+	if (res < 0) return res;
+	data->rpm[0] = (data->buffer[2] << 8) + data->buffer[3];
+	data->rpm[1] = (data->buffer[4] << 8) + data->buffer[5];
+	data->rpm[2] = (data->buffer[6] << 8) + data->buffer[7];
+	data->rpm[3] = (data->buffer[8] << 8) + data->buffer[9];
+	return 0;
+}
+
+static int set_speed(struct intf_data *drv, int channel, long val)
+{
+	if (val < 0 || val > 255)
+		return -EINVAL;
+	
+	u8 speed = max(1L, DIV_ROUND_CLOSEST(val * 100, 255)); // 1 <= speed <= 100
+
+	/* hub uses port numbers 0x20-0x23 */
+	u8 port = channel + 0x20;
 
 	struct header header = { MSG_START, SET_SPEED };
 	/* the third item of the body is just filler(not used when setting speed) */
 	u8 body[] = { MSG_START, port, 0x00, speed }; 
 
 	int ret;
-	ret = send_report(drv, &header, sizeof(header));
-	/* should maybe do something here but idk if there is much to be done, 
-	 * since its the hw/hid_hw_output_report that has a issue 
-	 */
-	if (ret) goto out; 
-	ret = send_report(drv, &body, sizeof(body));
-	if (ret) goto out;
+	ret = send_usb_msg(drv, 0x09, 0x21, 0x02e0, 1, /* TODO figure out the magic numbers */
+			   0, &header, sizeof(header));
+	if (ret < 0) return ret;
+	ret = send_usb_msg(drv, 0x09, 0x21, 0x02e0, 1,
+			   0, &body, sizeof(body));
+	if (ret < 0) return ret;
 
-	drv->speed[chanel] = speed;
-out:
-	return ret;
-}
-
-// old:
-//    usb_control_msg(dev, usb_sndctrlpipe(dev, 0), 0x09, 0x21, 0x02e0, 1, buffer, PACKET_SIZE, 100);
-static int mb_sync(struct drv_data *drv, int val)
-{
-	u8 buffer[] = { MSG_START, 0x10, 0x61, val };
-
-	int ret = send_report(drv, buffer, sizeof(buffer));
-	if (ret) return ret;
-
-	mb_sync_state = val;
-	return ret;
-}
-
-static int uni_probe(struct hid_device *hid_dev, const struct hid_device_id *hid_dev_id)
-{
-	struct drv_data *drv = NULL;
-	drv = devm_kzalloc(&hid_dev->dev, sizeof(struct drv_data), GFP_KERNEL);
-	if (!drv)
-		return -ENOMEM;
-
-	drv->dev = hid_dev;
-	hid_set_drvdata(hid_dev, drv);
-
-	int ret = hid_parse(hid_dev);
-	if (ret) return ret;
-
-	ret = hid_hw_start(hid_dev, HID_CONNECT_HIDRAW);
-	if (ret) return ret;
-
-	ret = hid_hw_open(hid_dev);
-	if (ret) goto out_stop_hw;
-
-	hid_device_io_start(hid_dev);
-	hwmon_device_register_with_info(&hid_dev->dev, "uni hub ALv2", drv, const struct hwmon_chip_info *info, const struct attribute_group **extra_groups);
-
+	drv->speed[channel] = speed;
 	return 0;
-
-out_stop_hw:
-	hid_hw_stop(hid_dev);
-	return ret;
 }
 
-const struct hwmon_channel_info *uni_hub_alv2_channel[] = {
-	HWMON_CHANNEL_INFO(fan, HWMON_F_INPUT | HWMON_F_LABEL,
-			   HWMON_F_INPUT | HWMON_F_LABEL,
-			   HWMON_F_INPUT | HWMON_F_LABEL),
-	HWMON_CHANNEL_INFO(pwm, HWMON_PWM_INPUT | HWMON_PWM_MODE | HWMON_PWM_ENABLE,
-			   HWMON_PWM_INPUT | HWMON_PWM_MODE | HWMON_PWM_ENABLE,
-			   HWMON_PWM_INPUT | HWMON_PWM_MODE | HWMON_PWM_ENABLE),
-	HWMON_CHANNEL_INFO(in, HWMON_I_INPUT | HWMON_I_LABEL,
-			   HWMON_I_INPUT | HWMON_I_LABEL,
-			   HWMON_I_INPUT | HWMON_I_LABEL),
-	HWMON_CHANNEL_INFO(curr, HWMON_C_INPUT | HWMON_C_LABEL,
-			   HWMON_C_INPUT | HWMON_C_LABEL,
-			   HWMON_C_INPUT | HWMON_C_LABEL),
-	HWMON_CHANNEL_INFO(chip, HWMON_C_UPDATE_INTERVAL),
+// This is most likly not correct, but i dont use it and i dont really want to figure it out again so.... TODO
+// static int mb_sync(struct intf_data *drv, int val)
+// {
+// 	u8 buffer[] = { MSG_START, 0x10, 0x61, val ? 1 : 0 };
+
+// 	int ret = send_usb_msg(drv, 0x09, 0x21, 0x02e0, 1, 0, buffer, sizeof(buffer));
+// 	if (ret < 0) return ret;
+
+// 	drv->mb_sync = val;
+// 	return 0;
+// }
+
+const struct hwmon_channel_info *uni_hub_alv2_channel_info[] = {
+	HWMON_CHANNEL_INFO(fan, 
+			   HWMON_F_INPUT, HWMON_F_INPUT,
+			   HWMON_F_INPUT, HWMON_F_INPUT),
+	HWMON_CHANNEL_INFO(pwm, 
+			   HWMON_PWM_INPUT, HWMON_PWM_INPUT,
+			   HWMON_PWM_INPUT, HWMON_PWM_INPUT),
 	NULL
 };
 static umode_t uni_alv2_hwmon_is_visible(const void *data,
 					 enum hwmon_sensor_types type,
-					 u32 attr, int channel);
+					 u32 attr, int channel)
+{
+	switch (type) {
+	case hwmon_fan:
+		switch (attr) {
+		case hwmon_fan_input:
+			return 0444;
+		case hwmon_fan_label:
+			return 0444;
+		default:
+			break;
+		}
+		break;
+	case hwmon_pwm:
+		switch (attr) {
+		case hwmon_pwm_input:
+			return 0644;
+		default:
+			break;
+		}
+		break;
+	default:
+		break;
+	}
+	return 0;
+}
 
 static int uni_alv2_hwmon_read(struct device *dev, enum hwmon_sensor_types type,
 			       u32 attr, int channel, long *val)
 {
-	struct drvdata *drvdata = dev_get_drvdata(dev);
-	int res = -EINVAL;
+	struct intf_data *data = dev_get_drvdata(dev);
+	int ret;
 
 	switch (type) {
-	case hwmon_pwm:
-		switch (attr) {
-		case hwmon_pwm_enable:
-			*val = drvdata->fan_type[channel] != FAN_TYPE_NONE;
-			break;
-
-		case hwmon_pwm_mode:
-			res = wait_event_interruptible_locked_irq(drvdata->wq,
-								  drvdata->fan_config_received);
-			if (res)
-				goto unlock;
-
-			*val = drvdata->fan_type[channel] == FAN_TYPE_PWM;
-			break;
-
-		case hwmon_pwm_input:
-			res = wait_event_interruptible_locked_irq(drvdata->wq,
-								  drvdata->pwm_status_received);
-			if (res)
-				goto unlock;
-
-			*val = scale_pwm_value(drvdata->fan_duty_percent[channel],
-					       100, 255);
-			break;
-		}
-		break;
-
 	case hwmon_fan:
-		/*
-		 * It's not strictly necessary to wait for *_received in the
-		 * remaining cases (fancontrol doesn't care about them). But I'm
-		 * doing it to have consistent behavior.
-		 */
 		if (attr == hwmon_fan_input) {
-			res = wait_event_interruptible_locked_irq(drvdata->wq,
-								  drvdata->pwm_status_received);
-			if (res)
-				goto unlock;
-
-			*val = drvdata->fan_rpm[channel];
+			ret = update_speeds(data);
+			if (ret) return ret;
+			*val = data->rpm[channel];
+			return 0;
 		}
 		break;
-
-	case hwmon_in:
-		if (attr == hwmon_in_input) {
-			res = wait_event_interruptible_locked_irq(drvdata->wq,
-								  drvdata->voltage_status_received);
-			if (res)
-				goto unlock;
-
-			*val = drvdata->fan_in[channel];
-		}
-		break;
-
-	case hwmon_curr:
-		if (attr == hwmon_curr_input) {
-			res = wait_event_interruptible_locked_irq(drvdata->wq,
-								  drvdata->voltage_status_received);
-			if (res)
-				goto unlock;
-
-			*val = drvdata->fan_curr[channel];
-		}
-		break;
-
 	default:
 		break;
 	}
 
+	return -EOPNOTSUPP;
 }
 
-static struct hwmon_ops ops = {
+static int uni_alv2_hwmon_write(struct device *dev, enum hwmon_sensor_types type, u32 attr, int channel, long val)
+{
+	struct intf_data *data = dev_get_drvdata(dev);
+	DPRINTF("writeing: attr: %d, channel: %d, val: %ld", attr, channel, val);
+	switch (type) {
+	case hwmon_pwm:
+		if (attr == hwmon_pwm_input) {
+			 return set_speed(data, channel, val);
+		}
+		break;
+	default:
+		break;
+	}
+	return -EOPNOTSUPP;
+}
+
+static const struct hwmon_ops alv2_hwmon_ops = {
 	.is_visible = uni_alv2_hwmon_is_visible,
 	.read = uni_alv2_hwmon_read,
-};
-static struct hwmon_chip_info uni_hub_alv2_info = {
+	.write = uni_alv2_hwmon_write,
 	
 };
 
-static void uni_remove(struct hid_device *hid_dev)
+static void alv2_disconnect(struct usb_interface *intf)
 {
-	return;
+	struct intf_data *data = usb_get_intfdata(intf);
+
+	usb_set_intfdata(intf, NULL);
+
+	usb_put_dev(data->udev);
 }
-static int uni_raw_event(struct hid_device *hid_dev, struct hid_report *rid, u8 *u, int i)
+
+static struct hwmon_chip_info alv2_hwmon_chip_info = {
+	.ops = &alv2_hwmon_ops,
+	.info = uni_hub_alv2_channel_info
+};
+
+static int alv2_probe(struct usb_interface *intf, const struct usb_device_id *id)
 {
+	DPRINTF("probe: id intf num: %d", id->bInterfaceNumber);
+	struct intf_data *drv = NULL;
+
+	drv = devm_kzalloc(&intf->dev, sizeof(*drv), GFP_KERNEL);
+	if (!drv)
+		return -ENOMEM;
+
+	drv->udev = usb_get_dev(interface_to_usbdev(intf));
+	drv->intf = intf;
+
+	mutex_init(&drv->lock);
+
+	usb_set_intfdata(intf, drv);
+
+	drv->hwmon = devm_hwmon_device_register_with_info(&intf->dev, "hub",
+						          drv, &alv2_hwmon_chip_info, NULL);
+
+	if (IS_ERR(drv->hwmon)) {
+		return PTR_ERR(drv->hwmon);
+	}
+	DPRINTF("probe done");
 	return 0;
 }
 
-static const struct hid_device_id uni_hub_alv2_hid_id_table[] = {
-	{ HID_USB_DEVICE(VENDOR_ID, PRODUCT_ID) },
+static struct usb_device_id alv2_table[] = {
+	{ USB_DEVICE(VENDOR_ID, PRODUCT_ID) },
 	{},
 };
+MODULE_DEVICE_TABLE(usb, alv2_table);
 
-static struct hid_driver uni_hub_alv2_hid_driver = {
+static struct usb_driver alv2_drv = {
 	.name = "uni-hub-ALv2",
-	.id_table = uni_hub_alv2_hid_id_table,
-	.probe = uni_probe,
-	.remove = uni_remove,
-	.raw_event = uni_raw_event,
+	.id_table = alv2_table,
+	.disconnect = alv2_disconnect,
+	.probe = alv2_probe,
 };
 
-static int __init init(void)
+static int __init mod_init(void)
 {
-	return hid_register_driver(&uni_hub_alv2_hid_driver);
+	DPRINTF("mod_init");
+	int res;
+	res = usb_register(&alv2_drv);
+	DPRINTF("usb_register: %d", res);
+	if (res) {
+		printk(KERN_ERR "Lian li ALv2 hub: Error during register\n");
+		return -res;
+	}
+	DPRINTF("init over");
+	return res;
 }
 
-static void __exit exit(void)
+static void __exit mod_exit(void)
 {
-	hid_unregister_driver(&uni_hub_alv2_hid_driver);
+	DPRINTF("we out");
+	usb_deregister(&alv2_drv);
 }
-module_init(init);
-module_exit(exit);
+
+
+module_init(mod_init);
+module_exit(mod_exit);
 
 MODULE_AUTHOR("Emil <emil@svansoe.io>");
 MODULE_DESCRIPTION("driver for UNI HUB ALv2");
