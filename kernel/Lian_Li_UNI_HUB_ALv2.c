@@ -1,6 +1,6 @@
 #include <linux/mutex.h>
 #include <linux/init.h>
-#include <linux/usb.h>
+#include <linux/hid.h>
 #include <linux/hwmon.h>
 #include <linux/module.h>
 #include <linux/string.h>
@@ -13,7 +13,7 @@
 
 #define MSG_START 0xe0
 
-#define SET_SPEED 0x5000
+#define SET_SPEED 0x50
 
 #define PORT_AMOUNT 4
 #define PORT_ONE   0x20
@@ -33,7 +33,7 @@ struct intf_data {
 	struct usb_interface *intf;
 
 	u16 rpm[PORT_AMOUNT];
-	u8 speed[PORT_AMOUNT];
+	u8 pwm[PORT_AMOUNT];
 	// u8 mb_sync;
 
 	struct mutex lock;
@@ -60,7 +60,6 @@ static int set_speed(struct intf_data *drv, int channel, long val);
 // 		ports[i-1].fan_speed = new_speeds[i-1];
 // 	}
 // }
-
 static int send_usb_msg(struct intf_data *drv, 
 			u8 req, 
 			u8 req_t, 
@@ -78,20 +77,26 @@ static int send_usb_msg(struct intf_data *drv,
 	memcpy(drv->buffer, data, data_size);
 	
 	ret = usb_control_msg(drv->udev,
-			      rcv ? usb_rcvctrlpipe(drv->udev, 0x80) 
-			          : usb_sndctrlpipe(drv->udev, 0), 
+			      rcv ? usb_rcvctrlpipe(drv->udev, USB_DIR_IN) 
+			          : usb_sndctrlpipe(drv->udev, USB_DIR_OUT), 
 			      req, req_t, 
 			      val, idx, 
 			      drv->buffer, 
-			      data_size, 
+			      BUFFER_SIZE, 
 			      100);
 	return ret;
 }
 
-static int update_speeds(struct intf_data *data)
+/*
+ * Hub only sends all the fan rpm's at the same time,
+ * Meaning there is no way to get a specific fan's speed.
+ */
+static int update_rpm(struct intf_data *data)
 {
+	/* gets rpm from hub */
+
 	int res = send_usb_msg(data, 0x01, 0xa1, 0x01e0, 1, /* TODO figure out the magic numbers */
-			       1, data->buffer, RCV_BUF_SIZE);
+			       USB_DIR_IN, data->buffer, RCV_BUF_SIZE);
 	if (res < 0) return res;
 	data->rpm[0] = (data->buffer[2] << 8) + data->buffer[3];
 	data->rpm[1] = (data->buffer[4] << 8) + data->buffer[5];
@@ -100,29 +105,38 @@ static int update_speeds(struct intf_data *data)
 	return 0;
 }
 
+#define SET_CMD 0x02e0
 static int set_speed(struct intf_data *drv, int channel, long val)
 {
 	if (val < 0 || val > 255)
 		return -EINVAL;
 	
 	u8 speed = max(1L, DIV_ROUND_CLOSEST(val * 100, 255)); // 1 <= speed <= 100
+	DPRINTF("speed: %u, %ld", speed, val);
 
 	/* hub uses port numbers 0x20-0x23 */
 	u8 port = channel + 0x20;
 
-	struct header header = { MSG_START, SET_SPEED };
-	/* the third item of the body is just filler(not used when setting speed) */
+	u8 header[] = { MSG_START, SET_SPEED };
 	u8 body[] = { MSG_START, port, 0x00, speed }; 
 
 	int ret;
-	ret = send_usb_msg(drv, 0x09, 0x21, 0x02e0, 1, /* TODO figure out the magic numbers */
-			   0, &header, sizeof(header));
+	ret = send_usb_msg(drv, 
+			   USB_REQ_SET_CONFIGURATION, 
+			   USB_TYPE_CLASS | USB_RECIP_INTERFACE, 
+			   SET_CMD, 
+			   1, 
+			   USB_DIR_OUT, &header, sizeof(header));
 	if (ret < 0) return ret;
-	ret = send_usb_msg(drv, 0x09, 0x21, 0x02e0, 1,
-			   0, &body, sizeof(body));
+	ret = send_usb_msg(drv, 
+			   USB_REQ_SET_CONFIGURATION, 
+			   USB_TYPE_CLASS | USB_RECIP_INTERFACE, 
+			   SET_CMD, 
+			   1,
+			   USB_DIR_OUT, &body, sizeof(body));
 	if (ret < 0) return ret;
 
-	drv->speed[channel] = speed;
+	drv->pwm[channel] = val;
 	return 0;
 }
 
@@ -185,9 +199,15 @@ static int uni_alv2_hwmon_read(struct device *dev, enum hwmon_sensor_types type,
 	switch (type) {
 	case hwmon_fan:
 		if (attr == hwmon_fan_input) {
-			ret = update_speeds(data);
+			ret = update_rpm(data);
 			if (ret) return ret;
 			*val = data->rpm[channel];
+			return 0;
+		}
+		break;
+	case hwmon_pwm:
+		if (attr == hwmon_pwm_input) {
+			*val = data->pwm[channel];
 			return 0;
 		}
 		break;
