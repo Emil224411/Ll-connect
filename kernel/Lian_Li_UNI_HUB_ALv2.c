@@ -5,6 +5,8 @@
 #include <linux/module.h>
 #include <linux/string.h>
 
+#define DPRINTF(fmt, ...) printk(KERN_DEBUG "ALv2: "fmt"\n", ##__VA_ARGS__)
+
 #define VENDOR_ID  0x0cf2
 #define PRODUCT_ID 0xa104
 
@@ -18,12 +20,7 @@
 #define SET_SPEED 0x50
 
 #define PORT_AMOUNT 4
-#define PORT_ONE   0x20
-#define PORT_TWO   0x21
-#define PORT_THREE 0x22
-#define PORT_FOUR  0x23
 
-#define DPRINTF(fmt, ...) printk(KERN_DEBUG "ALv2: "fmt"\n", ##__VA_ARGS__)
 struct drv_data {
 	struct hid_device *hid_dev;
 	struct device *hwmon;
@@ -36,11 +33,6 @@ struct drv_data {
 
 	u8 buffer[BUFFER_SIZE];
 };
-
-
-static int set_speed(struct drv_data *drv, int channel, long val);
-
-// static int mb_sync(struct intf_data *drv, int val);
 
 
 // static void set_speeds(int port_one, int port_two, int port_three, int port_four) {
@@ -313,7 +305,6 @@ static void __exit mod_exit(void)
 {
 	hid_unregister_driver(&alv2_drv);
 }
-
 
 module_init(mod_init);
 module_exit(mod_exit);
