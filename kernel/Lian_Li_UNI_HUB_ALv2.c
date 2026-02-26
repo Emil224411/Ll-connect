@@ -48,15 +48,13 @@ struct drv_data {
 // 		ports[i-1].fan_speed = new_speeds[i-1];
 // 	}
 // }
-static int send_report(struct drv_data *drv, 
-		       enum hid_report_type rtype, 
-		       enum hid_class_request reqtype, 
-		       const void *data, size_t data_size)
+static int send_output_report(struct drv_data *drv, 
+		       const void *data, 
+		       size_t data_size)
 {
-	int ret;
-	DPRINTF("Send output_report");
 	if (data_size > BUFFER_SIZE) 
 		return -EINVAL;
+	int ret;
 
 	memcpy(drv->buffer, data, data_size);
 	if (data_size < BUFFER_SIZE) 
@@ -66,9 +64,8 @@ static int send_report(struct drv_data *drv,
 				 REPORT_ID,
 				 drv->buffer,
 				 BUFFER_SIZE,
-				 rtype,
-				 reqtype);
-	DPRINTF("ret: %d", ret);
+				 HID_OUTPUT_REPORT,
+				 HID_REQ_SET_REPORT);
 	return ret < 0 ? ret : 0;
 }
 
@@ -107,15 +104,10 @@ static int set_speed(struct drv_data *drv, int channel, long val)
 	u8 header[] = { MSG_START, SET_SPEED };
 	u8 body[] = { MSG_START, port, 0x00, speed }; 
 
-	ret = send_report(drv, 
-			  HID_INPUT_REPORT, 
-			  HID_REQ_GET_REPORT, 
-			  &header, sizeof(header));
+	DPRINTF("speed = %d", speed);
+	ret = send_output_report(drv, &header, sizeof(header));
 	if (ret < 0) return ret;
-	ret = send_report(drv, 
-			  HID_INPUT_REPORT, 
-			  HID_REQ_GET_REPORT, 
-			  &body, sizeof(body));
+	ret = send_output_report(drv, &body, sizeof(body));
 	if (ret < 0) return ret;
 
 	drv->pwm[channel] = val;
