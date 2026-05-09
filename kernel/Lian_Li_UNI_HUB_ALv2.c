@@ -4,6 +4,7 @@
 #include <linux/hwmon.h>
 #include <linux/module.h>
 #include <linux/string.h>
+#include <linux/jiffies.h>
 
 #define DPRINTF(fmt, ...) printk(KERN_DEBUG "ALv2: "fmt"\n", ##__VA_ARGS__)
 
@@ -19,14 +20,24 @@
 
 #define SET_SPEED 0x50
 
-#define PORT_AMOUNT 4
+#define ALV2_NUM_PORTS 4
+
+
+static const char * const port_label[] = { 
+	"Port 1", 
+	"Port 2",
+	"Port 3",
+	"Port 4",
+};
 
 struct drv_data {
 	struct hid_device *hid_dev;
 	struct device *hwmon;
 
-	u16 rpm[PORT_AMOUNT];
-	u8 pwm[PORT_AMOUNT];
+	u16 rpm[ALV2_NUM_PORTS];
+	bool valid;
+	unsigned long last_update;
+	u8 pwm[ALV2_NUM_PORTS];
 	// u8 mb_sync;
 
 	struct mutex lock;
@@ -35,6 +46,20 @@ struct drv_data {
 };
 
 
+
+// This is most likly not correct, but i dont use it and i dont really want to figure it out again so.... TODO
+// static int mb_sync(struct intf_data *drv, int val)
+// {
+// 	u8 buffer[] = { MSG_START, 0x10, 0x61, val ? 1 : 0 };
+//
+// 	int ret = send_usb_msg(drv, 0x09, 0x21, 0x02e0, 1, 0, buffer, sizeof(buffer));
+// 	if (ret < 0) return ret;
+//
+// 	drv->mb_sync = val;
+// 	return 0;
+// }
+
+// NOTE maybe useful later for batching set_speed
 // static void set_speeds(int port_one, int port_two, int port_three, int port_four) {
 // 	int new_speeds[] = { port_one, port_two, port_three, port_four };
 // 	u8 data[5][BUFFER_SIZE] =  { { 0xe0, 0x50, }, 
@@ -48,13 +73,15 @@ struct drv_data {
 // 		ports[i-1].fan_speed = new_speeds[i-1];
 // 	}
 // }
+
 static int send_output_report(struct drv_data *drv, 
 		       const void *data, 
 		       size_t data_size)
 {
+	int ret;
+
 	if (data_size > BUFFER_SIZE) 
 		return -EINVAL;
-	int ret;
 
 	memcpy(drv->buffer, data, data_size);
 	if (data_size < BUFFER_SIZE) 
@@ -75,36 +102,48 @@ static int send_output_report(struct drv_data *drv,
  */
 static int update_rpm(struct drv_data *drv_data)
 {
-	int res = hid_hw_raw_request(drv_data->hid_dev,
-				     REPORT_ID,
-				     drv_data->buffer,
-				     FAN_SPEED_REPORT_SIZE,
-				     HID_INPUT_REPORT,
-				     HID_REQ_GET_REPORT);
-	if (res < 0) return res;
-	drv_data->rpm[0] = (drv_data->buffer[2] << 8) + drv_data->buffer[3];
-	drv_data->rpm[1] = (drv_data->buffer[4] << 8) + drv_data->buffer[5];
-	drv_data->rpm[2] = (drv_data->buffer[6] << 8) + drv_data->buffer[7];
-	drv_data->rpm[3] = (drv_data->buffer[8] << 8) + drv_data->buffer[9];
+	int res;
+
+	if (drv_data->valid && time_before(jiffies, drv_data->last_update + HZ/4))
+		return 0;
+
+	res = hid_hw_raw_request(drv_data->hid_dev,
+				 REPORT_ID,
+				 drv_data->buffer,
+				 FAN_SPEED_REPORT_SIZE,
+				 HID_INPUT_REPORT,
+				 HID_REQ_GET_REPORT);
+	if (res < 10) 
+		return res < 0 ? res : -EIO;
+
+	drv_data->rpm[0] = (drv_data->buffer[2] << 8) | drv_data->buffer[3];
+	drv_data->rpm[1] = (drv_data->buffer[4] << 8) | drv_data->buffer[5];
+	drv_data->rpm[2] = (drv_data->buffer[6] << 8) | drv_data->buffer[7];
+	drv_data->rpm[3] = (drv_data->buffer[8] << 8) | drv_data->buffer[9];
+	drv_data->last_update = jiffies;
+	drv_data->valid = true;
+
 	return 0;
 }
 
 static int set_speed(struct drv_data *drv, int channel, long val)
 {
+	int ret;
+	u8 speed;
+	u8 body[4];
+	u8 header[] = { MSG_START, SET_SPEED, };
+
 	if (val < 0 || val > 255)
 		return -EINVAL;
-	
-	int ret;
 
-	u8 speed = max(0L, DIV_ROUND_CLOSEST(val * 100, 255)); // 0 <= speed <= 100
+	speed = max(1L, DIV_ROUND_CLOSEST(val * 100, 255));
 
+	body[0] = MSG_START; 
 	/* hub uses port numbers 0x20-0x23 */
-	u8 port = channel + 0x20;
+	body[1] = channel + 0x20;
+	body[2] = 0x00; 
+	body[3] = speed; 
 
-	u8 header[] = { MSG_START, SET_SPEED };
-	u8 body[] = { MSG_START, port, 0x00, speed }; 
-
-	DPRINTF("speed = %d", speed);
 	ret = send_output_report(drv, &header, sizeof(header));
 	if (ret < 0) return ret;
 	ret = send_output_report(drv, &body, sizeof(body));
@@ -114,25 +153,17 @@ static int set_speed(struct drv_data *drv, int channel, long val)
 	return 0;
 }
 
-// This is most likly not correct, but i dont use it and i dont really want to figure it out again so.... TODO
-// static int mb_sync(struct intf_data *drv, int val)
-// {
-// 	u8 buffer[] = { MSG_START, 0x10, 0x61, val ? 1 : 0 };
-
-// 	int ret = send_usb_msg(drv, 0x09, 0x21, 0x02e0, 1, 0, buffer, sizeof(buffer));
-// 	if (ret < 0) return ret;
-
-// 	drv->mb_sync = val;
-// 	return 0;
-// }
-
-const struct hwmon_channel_info *uni_hub_alv2_channel_info[] = {
+static const struct hwmon_channel_info * const uni_hub_alv2_channel_info[] = {
 	HWMON_CHANNEL_INFO(fan, 
-			   HWMON_F_INPUT, HWMON_F_INPUT,
-			   HWMON_F_INPUT, HWMON_F_INPUT),
+			   HWMON_F_INPUT | HWMON_F_LABEL,
+			   HWMON_F_INPUT | HWMON_F_LABEL,
+			   HWMON_F_INPUT | HWMON_F_LABEL,
+			   HWMON_F_INPUT | HWMON_F_LABEL),
 	HWMON_CHANNEL_INFO(pwm, 
-			   HWMON_PWM_INPUT, HWMON_PWM_INPUT,
-			   HWMON_PWM_INPUT, HWMON_PWM_INPUT),
+			   HWMON_PWM_INPUT | HWMON_PWM_ENABLE,
+			   HWMON_PWM_INPUT | HWMON_PWM_ENABLE,
+			   HWMON_PWM_INPUT | HWMON_PWM_ENABLE,
+			   HWMON_PWM_INPUT | HWMON_PWM_ENABLE),
 	NULL
 };
 static umode_t uni_alv2_hwmon_is_visible(const void *data,
@@ -154,6 +185,8 @@ static umode_t uni_alv2_hwmon_is_visible(const void *data,
 		switch (attr) {
 		case hwmon_pwm_input:
 			return 0644;
+		case hwmon_pwm_enable:
+			return 0644;
 		default:
 			break;
 		}
@@ -170,21 +203,34 @@ static int uni_alv2_hwmon_read(struct device *dev, enum hwmon_sensor_types type,
 	struct drv_data *data = dev_get_drvdata(dev);
 	int ret;
 
+	if (channel < 0 || channel >= ALV2_NUM_PORTS)
+		return -EINVAL;
+
 	switch (type) {
 	case hwmon_fan:
 		if (attr == hwmon_fan_input) {
+			mutex_lock(&data->lock);
+
 			ret = update_rpm(data);
-			if (ret) return ret;
-			*val = data->rpm[channel];
-			return 0;
+			if (ret == 0) 
+				*val = data->rpm[channel];
+
+			mutex_unlock(&data->lock);
+
+			return ret;
 		}
 		break;
 	case hwmon_pwm:
-		if (attr == hwmon_pwm_input) {
+		switch (attr) {
+		case hwmon_pwm_input:
 			*val = data->pwm[channel];
 			return 0;
+		case hwmon_pwm_enable:
+			*val = 1;
+			return 0;
+		default:
+			break;
 		}
-		break;
 	default:
 		break;
 	}
@@ -192,14 +238,29 @@ static int uni_alv2_hwmon_read(struct device *dev, enum hwmon_sensor_types type,
 	return -EOPNOTSUPP;
 }
 
-static int uni_alv2_hwmon_write(struct device *dev, enum hwmon_sensor_types type, u32 attr, int channel, long val)
+static int uni_alv2_hwmon_write(struct device *dev, 
+				enum hwmon_sensor_types type, 
+				u32 attr, int channel, long val)
 {
 	struct drv_data *data = dev_get_drvdata(dev);
-	DPRINTF("writeing: type: %d, attr: %d, channel: %d, val: %ld", type, attr, channel, val);
+	int ret;
+
+	if (channel < 0 || channel >= ALV2_NUM_PORTS)
+		return -EINVAL;
+
 	switch (type) {
 	case hwmon_pwm:
-		if (attr == hwmon_pwm_input) {
-			 return set_speed(data, channel, val);
+		switch (attr) {
+		case hwmon_pwm_input:
+			mutex_lock(&data->lock);
+			ret = set_speed(data, channel, val);
+			mutex_unlock(&data->lock);
+			return ret;
+		case hwmon_pwm_enable: // TODO
+			if (val != 1) return -EINVAL;
+			return 0;
+		default:
+			break;
 		}
 		break;
 	default:
@@ -208,30 +269,50 @@ static int uni_alv2_hwmon_write(struct device *dev, enum hwmon_sensor_types type
 	return -EOPNOTSUPP;
 }
 
+static int uni_alv2_hwmon_read_string(struct device *dev,
+				      enum hwmon_sensor_types type, 
+				      u32 attr, int channel, const char **str)
+{
+	if (channel < 0 || channel >= ALV2_NUM_PORTS)
+		return -EINVAL;
+
+	switch (type) {
+	case hwmon_fan:
+		if (attr == hwmon_fan_label) {
+			*str = port_label[channel];
+			return 0;
+		} else {
+			return -EOPNOTSUPP;
+		}
+	default:
+		return -EOPNOTSUPP;
+	}
+}
+
+
 static const struct hwmon_ops alv2_hwmon_ops = {
-	.is_visible = uni_alv2_hwmon_is_visible,
-	.read = uni_alv2_hwmon_read,
-	.write = uni_alv2_hwmon_write,
+	.is_visible  = uni_alv2_hwmon_is_visible,
+	.read        = uni_alv2_hwmon_read,
+	.read_string = uni_alv2_hwmon_read_string,
+	.write       = uni_alv2_hwmon_write,
+};
+
+static const struct hwmon_chip_info alv2_hwmon_chip_info = {
+	.ops = &alv2_hwmon_ops,
+	.info = uni_hub_alv2_channel_info
 };
 
 static void alv2_hid_remove(struct hid_device *hid_dev)
 {
-	struct drv_data *drv_data = hid_get_drvdata(hid_dev);
-	hwmon_device_unregister(drv_data->hwmon);
-
-	hid_hw_close(hid_dev);
+	// hid_hw_close(hid_dev);
 	hid_hw_stop(hid_dev);
 }
-
-static struct hwmon_chip_info alv2_hwmon_chip_info = {
-	.ops = &alv2_hwmon_ops,
-	.info = uni_hub_alv2_channel_info
-};
 
 static void mutex_des(void *mutex)
 {
 	mutex_destroy(mutex);
 }
+
 static int alv2_hid_probe(struct hid_device *hid_dev, const struct hid_device_id *id)
 {
 	struct drv_data *drv = NULL;
@@ -254,18 +335,18 @@ static int alv2_hid_probe(struct hid_device *hid_dev, const struct hid_device_id
 	ret = hid_hw_start(hid_dev, HID_CONNECT_HIDRAW);
 	if (ret) return ret;
 
-	ret = hid_hw_open(hid_dev);
-	if (ret){
-		hid_hw_stop(hid_dev);
-		return ret;
-	}
+	// ret = hid_hw_open(hid_dev);
+	// if (ret){
+		// hid_hw_stop(hid_dev);
+		// return ret;
+	// }
 
-	hid_device_io_start(hid_dev);
-	drv->hwmon = devm_hwmon_device_register_with_info(&hid_dev->dev, "hub",
+	// hid_device_io_start(hid_dev);
+	drv->hwmon = devm_hwmon_device_register_with_info(&hid_dev->dev, "uni_hub_alv2",
 						          drv, &alv2_hwmon_chip_info, NULL);
 
 	if (IS_ERR(drv->hwmon)) {
-		hid_hw_close(hid_dev);
+		// hid_hw_close(hid_dev);
 		hid_hw_stop(hid_dev);
 		return PTR_ERR(drv->hwmon);
 	}
